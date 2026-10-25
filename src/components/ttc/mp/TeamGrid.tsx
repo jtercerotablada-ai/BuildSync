@@ -13,10 +13,10 @@ import { Reveal, SectionHeading } from './primitives';
  * credentials and nothing else: no university, no study lines (the owner,
  * 2026-10-24: "no menciones la universidad").
  *
- * The company line is content, not decoration: it is printed only for
- * someone who works for ANOTHER company (Rudy, at Precision Source — a
- * separate company), so the page never reads as if the engineering firm
- * were a contractor; the lede says once that the other two are the firm's. Credentials are named, never
+ * No company line on any tile (the owner, 2026-10-24): where Rudy is, the
+ * page says neither "separate company" nor "partner"; "partner" is only
+ * for the home page's cards, where Precision Source's logo is shown.
+ * Credentials are named, never
  * numbered, and nobody but Juan is called an engineer — the rules are with
  * the copy, `aboutPage.team` in site.ts.
  *
@@ -57,11 +57,6 @@ export function TeamGrid({ n = '01', lang }: { n?: string; lang: Lang }) {
                     <span className="mp-team__letters">{m.letters}</span>
                   </figcaption>
                 </figure>
-                {m.company ? (
-                  <div className="mp-team__details">
-                    <p className="mp-team__company">{m.company}</p>
-                  </div>
-                ) : null}
               </Reveal>
             </li>
           ))}

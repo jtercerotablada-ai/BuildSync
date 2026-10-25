@@ -1785,7 +1785,8 @@ export const es: SiteContent = {
   },
 
   /* La empresa con la que se hacen las recertificaciones. Mismas reglas que
-     en site.ts: empresa APARTE, un solo equipo, sin reparto de tareas impreso
+     en site.ts: un solo equipo (sin la frase "empresa aparte"; "aliada" solo
+     junto al logo, en la tarjeta de la portada), sin reparto de tareas impreso
      y sin decir quién firma qué informe (decisión del dueño, 2026-10-06).
      "Más de 30 años de experiencia combinada" son las dos empresas juntas,
      nunca el ingeniero solo. */
@@ -1804,7 +1805,7 @@ export const es: SiteContent = {
       registered: 'Registrada',
     },
     construction: {
-      role: 'Contratista general y eléctrico',
+      role: 'Empresa aliada · Contratista general y eléctrico',
       name: 'Precision Source Inc.',
       place: 'Miami, Florida',
       logo: { src: '/ttc/img/partners/precision-source.png', w: 640, h: 935 },
@@ -1818,7 +1819,7 @@ export const es: SiteContent = {
        palabras y las mismas reglas — ver el comentario en site.ts. */
     about: {
       title: 'Dos empresas, cada una con su propia licencia.',
-      body: 'En las recertificaciones de Miami-Dade y en las inspecciones BSIP de Broward trabajamos como un solo equipo con Precision Source Inc., una empresa aparte: un contratista general y eléctrico certificado en Florida, con sede en Miami. Juntas, las dos empresas reúnen más de 30 años de experiencia combinada. Los dos números de licencia del contratista, abajo, abren la búsqueda de licencias del estado, donde usted mismo puede comprobarlos.',
+      body: 'En las recertificaciones de Miami-Dade y en las inspecciones BSIP de Broward trabajamos como un solo equipo con Precision Source Inc., un contratista general y eléctrico certificado en Florida, con sede en Miami. Juntas, las dos empresas reúnen más de 30 años de experiencia combinada. Los dos números de licencia del contratista, abajo, abren la búsqueda de licencias del estado, donde usted mismo puede comprobarlos.',
     },
     brief: {
       title: 'Dos empresas con licencia, un solo equipo.',
@@ -1874,14 +1875,13 @@ export const es: SiteContent = {
     team: {
       eyebrow: 'Nuestro equipo',
       title: 'Las personas detrás de su edificio.',
-      lede: 'Dos empresas, un solo equipo: Juan Tercero y Melvin Tercero en Tercero Tablada Civil and Structural Engineering Inc., y Rudy Diaz en Precision Source Inc., el contratista general y eléctrico — una empresa aparte — que trabaja con nosotros en las recertificaciones y en las inspecciones BSIP.',
+      lede: 'Un solo equipo en el Sur de Florida, desde la notificación hasta el informe final: Juan Tercero y Melvin Tercero en ingeniería estructural, Rudy Diaz en contratación general y eléctrica.',
       members: [
         {
           id: 'engineer',
           name: 'Juan Tercero',
           letters: 'PE, M.Sc.',
           role: 'Ingeniero Estructural',
-          company: null,
           photo: { src: '/ttc/img/leadership/juan-tercero.jpg', alt: 'Juan Tercero, PE, M.Sc., con traje oscuro y corbata azul marino', w: 800, h: 814 },
         },
         {
@@ -1889,7 +1889,6 @@ export const es: SiteContent = {
           name: 'Melvin Tercero',
           letters: 'M.Sc., EIT',
           role: 'Diseño Estructural',
-          company: null,
           photo: { src: '/ttc/img/leadership/melvin-tercero.jpg', alt: 'Melvin Tercero, M.Sc., EIT, con traje oscuro y corbata azul marino', w: 800, h: 800 },
         },
         {
@@ -1897,7 +1896,6 @@ export const es: SiteContent = {
           name: 'Rudy Diaz',
           letters: 'GC, EC, MBA',
           role: 'Contratista General y Eléctrico',
-          company: 'Precision Source Inc., una empresa aparte',
           photo: { src: '/ttc/img/leadership/rudy-diaz.jpg', alt: 'Rudy Diaz, GC, EC, MBA, con traje oscuro y corbata azul marino', w: 800, h: 800 },
         },
       ],

@@ -219,6 +219,20 @@ describe('who we work with: whole on the home page, short on the other two', () 
       expect(count(home, p.lede)).toBe(1);
     });
 
+    // The owner, 2026-10-24: "partner" is welcome only WHERE PRECISION
+    // SOURCE'S LOGO IS SHOWN — the contractor's card on the home page — and
+    // nowhere else; "separate company" is said nowhere on these pages.
+    it(`${lang}: "partner" is on the home page's logo card once, and on no other page of the three`, () => {
+      const word = lang === 'en' ? /\bpartner\b/gi : /\baliad[oa]s?\b/gi;
+      const card = home.match(/<div class="mp-partner__card[^"]*"[^>]*>(?:(?!<div class="mp-partner__card)[\s\S])*?precision-source[\s\S]*?<\/div>\s*<\/div>/)?.[0] ?? '';
+      expect(card, 'the contractor card with the logo').not.toBe('');
+      expect((text(card).match(word) ?? []).length).toBe(1);
+      expect((text(home).match(word) ?? []).length).toBe(1);
+      expect(text(about)).not.toMatch(word);
+      expect(text(hub)).not.toMatch(word);
+      for (const html of [home, about, hub]) expect(text(html)).not.toMatch(/separate (company|firm)|empresa aparte/i);
+    });
+
     // One team, two separate firms: no short form may say who does what on
     // a job, that Precision Source repairs, or who signs. Verb forms only —
     // "la firma" is simply "the firm" in Spanish.
@@ -280,18 +294,20 @@ describe('the team: on /about alone, as equals, and none of it on the home page'
       expect(aboutText).not.toMatch(/universit|universidad|barcelona/i);
     });
 
-    it(`${lang}: Melvin is M.Sc., EIT — never an engineer or a PE — and Rudy's company line is printed once`, () => {
+    it(`${lang}: Melvin is M.Sc., EIT — never an engineer or a PE`, () => {
       const tile = (id: string) => about.match(new RegExp(`<li id="${id}"[\\s\\S]*?</li>`))?.[0] ?? '';
       const melvin = text(tile('melvin'));
       expect(melvin).toContain('EIT');
       expect(melvin).not.toMatch(/engineer(?!ing)|ingenier|\bPE\b|licen|passed|aprob/i);
-      const rudy = t.members.find((m) => m.id === 'rudy')!;
-      expect(rudy.company).toBeTruthy();
-      // One company line on the page — the register further down names
-      // Precision Source in a sentence of its own, which is another text.
-      expect((about.match(/class="mp-team__company"/g) ?? []).length).toBe(1);
-      expect(about).toContain(`<p class="mp-team__company">${esc(rudy.company!)}</p>`);
-      expect(t.members.filter((m) => m.company).length).toBe(1);
+    });
+
+    it(`${lang}: no tile and no team sentence says "separate company" or "partner"`, () => {
+      // The owner, 2026-10-24: "no es necesario poner separate company ...
+      // donde está Rudy no es necesario que menciones".
+      const team = about.match(/<section id="team"[\s\S]*?<\/section>/)?.[0] ?? '';
+      expect(team).not.toContain('mp-team__company');
+      expect(text(team)).not.toMatch(/separate|aparte|independiente|partner|aliad|socio/i);
+      expect(text(team)).not.toContain('Precision Source');
     });
 
     it(`${lang}: every link to /about#… from the footer and the closing band lands on an id that exists`, () => {

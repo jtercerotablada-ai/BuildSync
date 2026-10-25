@@ -7002,15 +7002,6 @@ a.mp-menu__mail {
   letter-spacing: 0.06em;
   color: var(--mp-gold);
 }
-.mp-team__details {
-  padding: var(--mp-4) var(--mp-6) 0 0;
-}
-.mp-team__company {
-  margin: 0;
-  font-size: var(--mp-t-small);
-  font-weight: 500;
-  color: var(--mp-ink);
-}
 .mp-team__forwrap {
   margin-block-start: var(--mp-16);
 }

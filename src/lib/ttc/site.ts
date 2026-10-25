@@ -2968,11 +2968,14 @@ export const aboutPage = {
      "no menciones la universidad, solo pon nombre con licencia, por ejemplo
      PE, EIT, GC y EC, y másters"). Nothing here may present one person as
      the others' leader.
-     The company line (`company`) is only for someone who works for ANOTHER
-     company — the lede already says, once, that the other two are the firm's
-     (a repeated paragraph is what the owner's on-page check flags). It keeps
-     the page from making the engineering firm look like a contractor (F.S.
-     489.127(1)(f), 489.103(11)):
+     NO COMPANY LINE ON ANY TILE (the owner, 2026-10-24: "no es necesario
+     poner separate company... donde está Rudy no es necesario que menciones"):
+     where Rudy is, nothing says "separate company" or "partner". The word
+     "partner" is used only where Precision Source's logo is shown — the
+     contractor's card on the home page (`partner.construction.role`). Florida
+     keeps the contractor's licensing on the contractor (F.S. 489.127(1)(f),
+     489.103(11)); the register at the foot of /about names Precision Source
+     Inc. and its numbers.
        · Juan Tercero — PE (Florida Professional Engineer), M.Sc.
        · Melvin Tercero — M.Sc., EIT, the owner's words for his brother.
          Never "engineer", "PE" or "passed the PE exam": an Engineer Intern
@@ -2980,22 +2983,20 @@ export const aboutPage = {
          engineer" (FBPE; F.S. 471.031(1)(b)). EIT says the opposite of
          licensed; Florida's own term for it is "E.I.".
        · Rudy Diaz — GC and EC (Certified General and Electrical Contractor)
-         of Precision Source Inc., a separate company, and an MBA. His
-         numbers are in the register at the foot of /about (`partner`), as
-         F.S. 489.119(5)(b) asks.
+         and an MBA. His numbers are in the register at the foot of /about
+         (`partner`), as F.S. 489.119(5)(b) asks.
      `id` is each tile's anchor; Juan's stays `engineer`, the @id of the
      Person schema. Portraits supplied by the owner, square. */
   team: {
     eyebrow: 'Our team',
     title: 'The people behind your building.',
-    lede: 'Two companies, one team in South Florida: Juan Tercero and Melvin Tercero at Tercero Tablada Civil and Structural Engineering Inc., and Rudy Diaz at Precision Source Inc., the general and electrical contractor — a separate company — that works with us on recertifications and BSIP inspections.',
+    lede: 'One team in South Florida, from the notice to the final report: Juan Tercero and Melvin Tercero in structural engineering, Rudy Diaz in general and electrical contracting.',
     members: [
       {
         id: 'engineer',
         name: 'Juan Tercero',
         letters: 'PE, M.Sc.',
         role: 'Structural Engineer',
-        company: null,
         photo: { src: '/ttc/img/leadership/juan-tercero.jpg', alt: 'Juan Tercero, PE, M.Sc., in a dark suit and navy tie', w: 800, h: 814 },
       },
       {
@@ -3003,7 +3004,6 @@ export const aboutPage = {
         name: 'Melvin Tercero',
         letters: 'M.Sc., EIT',
         role: 'Structural Design',
-        company: null,
         photo: { src: '/ttc/img/leadership/melvin-tercero.jpg', alt: 'Melvin Tercero, M.Sc., EIT, in a dark suit and navy tie', w: 800, h: 800 },
       },
       {
@@ -3011,7 +3011,6 @@ export const aboutPage = {
         name: 'Rudy Diaz',
         letters: 'GC, EC, MBA',
         role: 'General & Electrical Contractor',
-        company: 'Precision Source Inc., a separate company',
         photo: { src: '/ttc/img/leadership/rudy-diaz.jpg', alt: 'Rudy Diaz, GC, EC, MBA, in a dark suit and navy tie', w: 800, h: 800 },
       },
     ] as readonly {
@@ -3019,7 +3018,6 @@ export const aboutPage = {
       name: string;
       letters: string;
       role: string;
-      company: string | null;
       photo: { src: string; alt: string; w: number; h: number };
     }[],
   },
@@ -3561,9 +3559,13 @@ export const reach = {
  * a Florida-certified general and electrical contractor in Miami.
  *
  * What this block must keep true, whatever the wording becomes:
- *   - It is a SEPARATE company working as one team with the practice — never
- *     "our construction arm", and never a co-owner: on a licensed engineer's
- *     site "partner" can read as either.
+ *   - It is another company working as one team with the practice — never
+ *     "our construction arm", and never a co-owner. The owner, 2026-10-24:
+ *     no "separate company" line anywhere on the pages, and the word
+ *     "partner" is welcome only WHERE ITS LOGO IS SHOWN — the contractor's
+ *     card on the home page (`construction.role`); the short forms on /about
+ *     and /existing-buildings, which show no logo, never say it (a test
+ *     holds both). The legal page still says the two firms are independent.
  *   - No split of tasks is printed. The owner's call (2026-10-06): "somos un
  *     equipo" — and an earlier draft that had Precision Source doing the
  *     repair work was simply wrong. Each card says what the firm IS (its
@@ -3601,7 +3603,7 @@ export const partner = {
     registered: 'Registered',
   },
   construction: {
-    role: 'General and electrical contractor',
+    role: 'Partner · General and electrical contractor',
     name: 'Precision Source Inc.',
     place: 'Miami, Florida',
     logo: { src: '/ttc/img/partners/precision-source.png', w: 640, h: 935 },
@@ -3629,7 +3631,7 @@ export const partner = {
      sentence the owner approved stays on the home page, in `lede`. */
   about: {
     title: 'Two firms, each under its own license.',
-    body: 'On Miami-Dade recertifications and Broward BSIP inspections we work as one team with Precision Source Inc., a separate company: a Florida-certified general and electrical contractor based in Miami. Together the two firms have more than 30 years of combined experience. The contractor’s two license numbers below open the state’s license search, where you can check them yourself.',
+    body: 'On Miami-Dade recertifications and Broward BSIP inspections we work as one team with Precision Source Inc., a Florida-certified general and electrical contractor based in Miami. Together the two firms have more than 30 years of combined experience. The contractor’s two license numbers below open the state’s license search, where you can check them yourself.',
   },
   brief: {
     title: 'Two licensed firms, one team.',
