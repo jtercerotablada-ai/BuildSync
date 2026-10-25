@@ -49,10 +49,16 @@ import { Words } from './Words';
  * Nothing here names a person, says who signs a report, or says the firm
  * builds: the firm designs and inspects.
  *
- * Plain flow for now; the motion slice pins this plate over the pause
- * photograph (E15) and draws the cards' gold rules (E11), marked MOTION HOOK.
- * A SERVER COMPONENT.
+ * At 901 x 720 and up the plate is pinned over the pause photograph and the
+ * snow plate slides over it (E15, home-motion.css §05); the cards' gold rules
+ * draw across (E11). `StackFocus` keeps the two license links uncovered for a
+ * keyboard visitor. A SERVER COMPONENT.
  */
+/** The long mark (the Special Inspector credential) is not a badge at the end
+ *  of its line: it takes a line of its own (`h-cred__tag--wide`). The short
+ *  ones are the two-letter "PE". */
+const isWideMark = (mark: string) => mark.length > 6;
+
 export function HomeCredentials({ lang }: { lang: Lang }) {
   const c = getContent(lang);
   const h = c.home.credentials;
@@ -66,8 +72,8 @@ export function HomeCredentials({ lang }: { lang: Lang }) {
   );
 
   return (
-    /* MOTION HOOK: E15 pins this plate (sticky, top 0, min-height 100svh,
-       z-index 2) over the pause photograph at ≥ 900 × 720. */
+    /* E15 pins this plate (sticky, top 0, min-height 100svh, z-index 2) over
+       the pause photograph at ≥ 901 × 720. */
     <section
       id="credentials"
       className="h-plate h-cred mp-surface--graphite"
@@ -96,9 +102,15 @@ export function HomeCredentials({ lang }: { lang: Lang }) {
                   {h.marks[i] ? (
                     <>
                       {' '}
-                      <span className={h.marks[i].length > 6 ? 'h-cred__tag h-cred__tag--wide' : 'h-cred__tag'}>
+                      <span className={isWideMark(h.marks[i]) ? 'h-cred__tag h-cred__tag--wide' : 'h-cred__tag'}>
                         {h.marks[i]}
                       </span>
+                      {/* Said, not shown: the heading's name is read as
+                          "Structural Engineers. Special Inspector · Threshold
+                          Buildings. Electrical Engineers.", each credential
+                          closing the sentence it belongs to, instead of
+                          running into the next discipline. */}
+                      <span className="mp-sr-only">. </span>
                     </>
                   ) : null}
                 </span>

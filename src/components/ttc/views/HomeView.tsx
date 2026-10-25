@@ -7,6 +7,7 @@ import { HomeHero } from '@/components/ttc/mp/home/HomeHero';
 import { HomeRibbon } from '@/components/ttc/mp/home/HomeRibbon';
 import { HomeServices } from '@/components/ttc/mp/home/HomeServices';
 import { HomeStack } from '@/components/ttc/mp/home/HomeStack';
+import { StackFocus } from '@/components/ttc/mp/home/StackFocus';
 import { HomeStatement } from '@/components/ttc/mp/home/HomeStatement';
 import { HomeTools } from '@/components/ttc/mp/home/HomeTools';
 import { HomeTypes } from '@/components/ttc/mp/home/HomeTypes';
@@ -42,8 +43,8 @@ import { HomeAddress } from './meta';
  * with `getContent(lang)`: the copy of the page is in the HTML and none of it
  * is shipped to the browser as data (the old `useContent()` pattern put both
  * languages' whole copy in the script). The client pieces are the islands
- * inside them: the film, the pause switches, the reveals, the form, and — in
- * the motion slice — the ribbon, the rail and the parallax.
+ * inside them: the film, the pause switches, the reveals, the form, the
+ * ribbon, the rail, the parallax and the stack's keyboard helper.
  *
  * ONE ROOT, TWO LANGUAGES. `.mp-home[data-lang]` carries the language so
  * home.css can size a headline per locale (the Spanish hero is three lines of
@@ -62,13 +63,15 @@ import { HomeAddress } from './meta';
  *
  * MOTION. The reveals are `Reveal fx=…` (primitives.tsx) on the sections'
  * elements; the islands are `RibbonRows` (in HomeRibbon), `TypesRail` (in
- * HomeTypes) and `Parallax` (here, once). Everything else that moves is CSS.
+ * HomeTypes), and `Parallax` and `StackFocus` (here, once each). Everything
+ * else that moves is CSS.
  */
 export function HomeView({ lang }: { lang: Lang }) {
   return (
     <div className="mp-home" data-lang={lang}>
       <HomeAddress lang={lang} />
       <Parallax />
+      <StackFocus />
       <HomeHero lang={lang} />
       <HomeRibbon lang={lang} />
       <HomeServices lang={lang} />

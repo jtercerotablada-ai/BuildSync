@@ -88,6 +88,21 @@ export function prevTarget(m: RailMetrics): number {
   return 0;
 }
 
+/** Where to scroll so that card `i` — which has just taken the keyboard focus —
+ *  is whole in the window, or `null` when it already is. A card that is only
+ *  partly in view is NOT revealed by the browser on its own once the rail snaps
+ *  (`scroll-snap-type: x proximity`), so a keyboard visitor would meet a
+ *  focused card cut off at the edge. The target is the card's snap position,
+ *  the one "next" and the counter use, so the bar and the counter agree. */
+export function revealTarget(m: RailMetrics, i: number, cardWidth: number): number | null {
+  const left = m.lefts[i];
+  if (left === undefined) return null;
+  const inside = left >= m.scrollLeft - END_SLACK && left + cardWidth <= m.scrollLeft + m.clientWidth + END_SLACK;
+  if (inside) return null;
+  const target = snapPositions(m.lefts, maxScroll(m))[i];
+  return Math.abs(target - m.scrollLeft) <= END_SLACK ? null : target;
+}
+
 /** The progress hairline: where it starts and how long it is, as fractions of
  *  the bar. Its length is the part of the rail you can see; its start is how
  *  far along you are. With nothing to scroll it fills the bar. */

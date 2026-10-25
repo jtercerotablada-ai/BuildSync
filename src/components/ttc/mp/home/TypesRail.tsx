@@ -13,6 +13,7 @@ import {
   nextTarget,
   prevTarget,
   railProgress,
+  revealTarget,
   type RailMetrics,
 } from './rail-math';
 
@@ -123,6 +124,18 @@ export function TypesRail({ prev, next }: { prev: string; next: string }) {
     };
     rail.addEventListener('keydown', onKey);
 
+    // The keyboard: when Tab lands on a card that is only partly in the window,
+    // bring it whole into view. The browser does not, once the rail snaps
+    // (`proximity`), so the focused card would stay cut off at the edge, its
+    // title unreadable, and the counter would still name the first card.
+    const onFocusIn = (e: FocusEvent) => {
+      const card = (e.target as HTMLElement | null)?.closest<HTMLElement>('[data-motion="rail-card"]');
+      if (!card) return;
+      const target = revealTarget(metrics(), cards.indexOf(card), card.getBoundingClientRect().width);
+      if (target !== null) rail.scrollTo({ left: target, behavior: reduce.matches ? 'auto' : 'smooth' });
+    };
+    rail.addEventListener('focusin', onFocusIn);
+
     // Mouse drag. Only a mouse: a finger already scrolls the rail natively. A
     // press is still a click until it has moved more than 5 px; after that the
     // rail follows the pointer and the click that ends the drag is swallowed,
@@ -173,6 +186,7 @@ export function TypesRail({ prev, next }: { prev: string; next: string }) {
       ro.disconnect();
       rail.removeEventListener('scroll', onScroll);
       rail.removeEventListener('keydown', onKey);
+      rail.removeEventListener('focusin', onFocusIn);
       rail.removeEventListener('pointerdown', onDown);
       rail.removeEventListener('pointermove', onMove);
       rail.removeEventListener('pointerup', onUp);

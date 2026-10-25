@@ -11,6 +11,7 @@ import {
   nextTarget,
   prevTarget,
   railProgress,
+  revealTarget,
   snapPositions,
   type RailMetrics,
 } from './rail-math';
@@ -153,5 +154,37 @@ describe('rail: dragging with a mouse', () => {
     expect(dragTarget(300, 500, 5000, 1044)).toBe(0);
     expect(dragTarget(300, 500, -5000, 1044)).toBe(1044);
     expect(dragTarget(0, 0, 100, 0)).toBe(0);
+  });
+});
+
+describe('rail: a focused card is brought whole into view', () => {
+  const CARD = 300;
+
+  it('leaves a card that is already whole where it is', () => {
+    // At the start the window is 0 … 1000: cards 1 and 2 are whole.
+    expect(revealTarget(at(0), 0, CARD)).toBeNull();
+    expect(revealTarget(at(0), 1, CARD)).toBeNull();
+  });
+
+  it('scrolls to the card’s snap position when it is cut off on the right', () => {
+    // Card 3 spans 712 … 1012: 12 px of it are past the window's edge.
+    expect(revealTarget(at(0), 2, CARD)).toBe(640);
+    // Card 4 spans 1032 … 1332 and none of it is in the window.
+    expect(revealTarget(at(0), 3, CARD)).toBe(960);
+    // Card 2 is whole at 0, but with the window at 300 card 1 is cut on the left.
+    expect(revealTarget(at(300), 0, CARD)).toBe(0);
+  });
+
+  it('clamps the last cards to what can be scrolled', () => {
+    expect(revealTarget(at(0), 5, CARD)).toBe(1044);
+    expect(revealTarget(at(0), 4, CARD)).toBe(1044);
+  });
+
+  it('does nothing for a card that is not there, or when the rail is already at its place', () => {
+    expect(revealTarget(at(0), 9, CARD)).toBeNull();
+    expect(revealTarget(at(1044), 5, CARD)).toBeNull();
+    expect(
+      revealTarget({ scrollLeft: 0, clientWidth: 1000, scrollWidth: 400, lefts: [72] }, 0, 300),
+    ).toBeNull();
   });
 });

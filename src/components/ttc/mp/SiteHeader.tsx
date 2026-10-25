@@ -126,7 +126,17 @@ export function SiteHeader() {
     (e: React.MouseEvent) => {
       const a = (e.target as Element).closest('a');
       if (!a) return;
-      if (open && a.origin === window.location.origin && a.pathname === window.location.pathname) {
+      /* A link to a place on this page ("#contact") is the exception: the
+         smooth-scroll handler lands on the place AND focuses it, so the next
+         Tab enters the form the visitor asked for. Sending focus back to the
+         burger as well would run after it and undo it. */
+      let place: HTMLElement | null = null;
+      try {
+        place = a.hash.length > 1 ? document.getElementById(decodeURIComponent(a.hash.slice(1))) : null;
+      } catch {
+        place = null;
+      }
+      if (open && !place && a.origin === window.location.origin && a.pathname === window.location.pathname) {
         requestAnimationFrame(() => burgerRef.current?.focus());
       }
       setOpen(false);

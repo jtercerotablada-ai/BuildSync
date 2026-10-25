@@ -3,6 +3,7 @@ import { getContent } from '@/lib/ttc/content';
 import type { Lang } from '@/lib/ttc/i18n';
 import { ContactForm } from '../ContactForm';
 import { Reveal } from '../primitives';
+import { whatsappHomeHref } from '../ReachRow';
 import { Arrow } from './glyphs';
 import { Words } from './Words';
 
@@ -12,8 +13,10 @@ import { Words } from './Words';
  * Desktop: label, the headline (the largest type of the page), one line,
  * then two columns — the REAL form on the left, and the four direct lines on
  * the right, each a full row with an arrow ring: Call · WhatsApp · Email ·
- * Where. Phone: the direct lines first (a property manager rings without
- * reading a form), then the form.
+ * Where. Phone: one column in the order of the markup, the form and then the
+ * lines (they were moved above the form with `order`, which took the keyboard
+ * from the Send button back up to Call; the phone bar carries Call and
+ * WhatsApp from the first scroll).
  *
  * THE FORM IS THE REAL ONE: `ContactForm variant="home"` — the same fields,
  * validation, upload to blob storage, honeypot, ads conversion, route and
@@ -25,11 +28,10 @@ import { Words } from './Words';
  * not configured: no phone line without `contact.phone`, no WhatsApp line
  * without `contact.whatsapp`. The WhatsApp chat opens with the home page's
  * own first line (`reach.whatsappTextHome`: "Hello, I would like to talk
- * about a building."), which names no notice and no proposal. `whatsappHref`
- * (ReachRow) does not know that line yet — the chrome slice teaches it — so
- * the address is built here the same way: `contact.whatsapp.href` already
- * carries a query, hence `&text=`. "Where" is the service area, and it links
- * to the plate that lists the offices (#where).
+ * about a building."), which names no notice and no proposal: the address is
+ * `whatsappHomeHref` (ReachRow), the one the phone bar and the menu use.
+ * "Where" is the service area, and it links to the plate that lists the
+ * offices (#where).
  *
  * No reply-time promise and no free-proposal line anywhere in this section
  * (the owner's rule for the home page).
@@ -40,7 +42,7 @@ export function HomeContact({ lang }: { lang: Lang }) {
   const c = getContent(lang);
   const h = c.home.contact;
   const phone = c.contact.phone;
-  const wa = c.contact.whatsapp;
+  const wa = whatsappHomeHref(c);
 
   const lines: { key: string; label: string; value: string; href: string; external?: boolean }[] = [];
   if (phone) lines.push({ key: 'call', label: h.call, value: phone.display, href: phone.href });
@@ -49,7 +51,7 @@ export function HomeContact({ lang }: { lang: Lang }) {
       key: 'whatsapp',
       label: h.whatsapp,
       value: c.reach.whatsappPlain,
-      href: `${wa.href}&text=${encodeURIComponent(c.reach.whatsappTextHome)}`,
+      href: wa,
       external: true,
     });
   }
