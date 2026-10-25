@@ -79,7 +79,7 @@ export function MobileActionBar() {
   return (
     <nav
       className={`mp-bar${shown ? ' is-shown' : ''}`}
-      aria-label={r.label}
+      aria-label={home ? c.home.chrome.barLabel : r.label}
       inert={!shown}
     >
       <a className="mp-bar__item" href={phone.href}>

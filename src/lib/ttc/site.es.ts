@@ -1323,6 +1323,14 @@ const homeForm = {
     'Tipo de edificio, lo que necesita diseñar o inspeccionar y cualquier otro dato que debamos saber.',
   attachmentsHint:
     'Fotografías, planos o informes. PDF, imágenes, DWG, DXF o ZIP, hasta 25 MB cada uno, cinco archivos.',
+  /* What the visitor reads after sending, said by the firm (the Spanish twin
+     of `ui.form.home` in site.ts: read the comment there). */
+  successBody: 'Gracias. Le escribiremos por correo electrónico.',
+  successNote: 'Enviar esto no nos contrata. Nada comienza hasta que usted acepte un alcance por escrito.',
+  nextSteps: [
+    'Leemos su descripción y los archivos que haya adjuntado.',
+    'Le escribimos por correo electrónico, con preguntas o con un alcance por escrito.',
+  ],
 };
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -1658,6 +1666,7 @@ export const es: SiteContent = {
       headerCta: 'Contáctenos',
       callLabel: 'Llamar {phone}',
       footerTag: 'Ingeniería estructural para el Sur de Florida: Miami-Dade y Broward.',
+      barLabel: 'Contactar a la firma',
     },
     form: homeForm,
     hero: {
@@ -1684,8 +1693,8 @@ export const es: SiteContent = {
     },
     services: {
       label: 'Servicios',
-      title: 'Ocho servicios. Una disciplina.',
-      accentWord: 'disciplina.',
+      title: 'Ocho servicios. Un solo estándar.',
+      accentWord: 'estándar.',
       lede: 'Leemos los edificios que ya están en pie y diseñamos los que aún no existen.',
       legend: {
         existing: { k: 'Edificios existentes', v: 'Inspección, evaluación y diseño de reparaciones.' },

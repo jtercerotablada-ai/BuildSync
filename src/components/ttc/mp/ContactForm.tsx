@@ -18,6 +18,7 @@ import {
 } from '@/lib/contact-request';
 import { reportConversion } from '@/lib/ttc/ads';
 import { getContent, type SiteContent } from '@/lib/ttc/content';
+import { programMode, serviceOptions } from './contact-form-logic';
 import { useContent, useLang } from './lang';
 
 type Fields = {
@@ -221,12 +222,14 @@ function reveal(block: HTMLElement | null, focusTarget: HTMLElement | null = blo
  * county page's. `home` is the home page's contact block, on a black plate:
  * the same fields, the same validation, the same upload, honeypot, route and
  * success block, and three differences —
- *   • the two strings that name a notice are the home's own (`home.form`:
- *     the message placeholder and the attachments hint), because the home is
- *     a presentation of the firm and says nothing of a notice. (If the
- *     visitor chooses a county program in the dropdown, the form still
- *     follows the dropdown as it does everywhere, and speaks of the notice:
- *     they asked for it.);
+ *   • every string that names a notice, a reply time, a deadline, a proposal
+ *     or a fee is the home's own (`home.form`: the message placeholder, the
+ *     attachments hint and the success block's three texts), because the home
+ *     is a presentation of the firm and says none of those. The form NEVER
+ *     enters program mode on the home: choosing a county program in the
+ *     dropdown does not turn the labels into "photo of the notice" (see
+ *     `programMode`), and the dropdown lists the services in `home.order`,
+ *     where the two programs are the fourth and the sixth of eight;
  *   • no `?service=` preset: the home is not a service page, and the form
  *     starts with the dropdown on its placeholder;
  *   • the file control is the browser's own <input type="file"> with its
@@ -311,7 +314,7 @@ export function ContactForm({
     // settle outside the render that started them.
     const attached = pendingRef.current.filter((p) => p.state === 'done' && p.result).length;
     if (descriptionRequired(v.service, attached) && v.message.trim().length < 12) {
-      e.message = isProgramOption(v.service) ? t.errors.messageOrNotice : t.errors.message;
+      e.message = programMode(home, v.service) ? t.errors.messageOrNotice : t.errors.message;
     }
     return e;
   }
@@ -503,6 +506,11 @@ export function ContactForm({
 
   /* ── submit ────────────────────────────────────────────────────────────── */
 
+  // What is said after a send: the home says it as the firm (`home.form`).
+  const successBody = home ? c.home.form.successBody : t.successBody;
+  const successNote = home ? c.home.form.successNote : t.successNote;
+  const nextSteps: readonly string[] = home ? c.home.form.nextSteps : t.nextSteps;
+
   /**
    * `sent` is false for the one success that is not a request: the honeypot
    * (a bot is shown the success screen and nothing was sent anywhere).
@@ -512,7 +520,7 @@ export function ContactForm({
     setConfirmed(didConfirm);
     // The focused heading reads the title; the region adds the rest.
     setAnnouncement(
-      [t.successBody, didConfirm ? t.successConfirmed : '', reference ? `${t.successRef}: ${reference}` : '', t.successNote]
+      [successBody, didConfirm ? t.successConfirmed : '', reference ? `${t.successRef}: ${reference}` : '', successNote]
         .filter(Boolean)
         .join(' '),
     );
@@ -566,6 +574,7 @@ export function ContactForm({
           message: f.message.trim(),
           lang,
           files: files.length ? files : null,
+          ...(home ? { variant: 'home' } : {}),
           ...arrival(),
         }),
       });
@@ -629,7 +638,7 @@ export function ContactForm({
             {t.successTitle}
           </h3>
           <p className="mp-body" style={{ maxWidth: '52ch' }}>
-            {t.successBody}
+            {successBody}
             {confirmed ? <> {t.successConfirmed}</> : null}
             {ref ? (
               <>
@@ -642,12 +651,12 @@ export function ContactForm({
           </p>
           {/* Body size, not small print: what sending does NOT do. */}
           <p className="mp-body mp-form__successnote" style={{ maxWidth: '52ch' }}>
-            {t.successNote}
+            {successNote}
           </p>
           <div className="mp-form__next">
             <h4>{t.whatNext}</h4>
             <ol>
-              {t.nextSteps.map((s, i) => (
+              {nextSteps.map((s, i) => (
                 <li key={i}>{s}</li>
               ))}
             </ol>
@@ -668,7 +677,7 @@ export function ContactForm({
   const busy = status === 'busy';
   const uploading = pending.some((p) => p.state === 'uploading');
   const failed = status === 'error' && serverError ? serverError : null;
-  const program = isProgramOption(f.service);
+  const program = programMode(home, f.service);
   const needsDescription = descriptionRequired(
     f.service,
     pending.filter((p) => p.state === 'done' && p.result).length,
@@ -808,7 +817,7 @@ export function ContactForm({
               required
             >
               <option value="">{t.selectService}</option>
-              {c.contactServiceOptions.map((s) => (
+              {serviceOptions(c, home).map((s) => (
                 <option key={s} value={s}>
                   {s}
                 </option>

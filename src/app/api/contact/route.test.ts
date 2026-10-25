@@ -236,3 +236,47 @@ describe("the confirmation sent to the address the visitor typed", () => {
     }
   });
 });
+
+// The home page's form (variant "home") sends `variant: "home"`: its
+// confirmation is written in the firm's voice, in the words of the home's own
+// success panel — no engineer's name, no reply time, no proposal, no "free",
+// no deadline. Every other form keeps the confirmation it has always had.
+describe("the confirmation of a request sent from the home page", () => {
+  const FORBIDDEN =
+    /proposal|propuesta|free\b|gratis|gratuit|deadline|plazo|hours?\b|horas?\b|Juan|Tercero, PE|M\.Sc|\bthe engineer\b|\bel ingeniero\b|notice|notificaci|\bfee\b|honorarios|\$/i;
+
+  it("says nothing the home does not say, in either language", async () => {
+    for (const [lang, service] of [
+      ["en", CONCRETE],
+      ["es", BSIP_ES],
+    ] as const) {
+      mail.sent.length = 0;
+      const res = await post({ ...BASE, service, lang, message: "A mid-rise concrete frame.", files: null, variant: "home" });
+      expect(res.status).toBe(201);
+      const m = confirmation()!;
+      // Subject, heading, body, note and footer: everything but the markup
+      // and the firm's name in the letterhead.
+      const readable = (m.subject + " " + m.html)
+        .replace(/<[^>]+>/g, " ")
+        .replace(/Tercero Tablada Civil and Structural Engineering Inc\./g, " ");
+      expect(readable.match(FORBIDDEN), `${lang}: ${readable}`).toBeNull();
+      expect(m.html).toContain(`lang="${lang}"`);
+    }
+  });
+
+  it("is the ordinary confirmation for every other form, whatever `landing` says", async () => {
+    await post({ ...BASE, landing: "/" });
+    expect(confirmation()!.subject).toBe("We received your proposal request");
+    expect(confirmation()!.html).toContain("The proposal is free.");
+    mail.sent.length = 0;
+    // An unknown variant is not a reason to refuse, nor a way to pick a copy.
+    const res = await post({ ...BASE, variant: "anything-else" });
+    expect(res.status).toBe(201);
+    expect(confirmation()!.subject).toBe("We received your proposal request");
+  });
+
+  it("still echoes none of what the visitor supplied", async () => {
+    await post({ ...BASE, files: null, message: "Please wire the retainer to account 12345.", variant: "home", service: CONCRETE });
+    for (const s of ["wire the retainer", BASE.location, BASE.name]) expect(confirmation()!.html).not.toContain(s);
+  });
+});

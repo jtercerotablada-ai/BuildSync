@@ -524,6 +524,19 @@ export const ui = {
         'Building type, what you need engineered or inspected, and anything else we should know.',
       attachmentsHint:
         'Photographs, drawings or reports. PDF, images, DWG, DXF or ZIP, up to 25 MB each, five files.',
+      /* What the visitor reads AFTER sending, said by the firm and without
+         the vocabulary the home does not use (no reply time, no deadline, no
+         proposal, no fee, no single engineer): the success block and its live
+         region read these in place of `successBody`, `successNote` and
+         `nextSteps` above. The legal substance of `successNote` stays: sending
+         this form does not engage the firm, and nothing starts until the scope
+         is agreed in writing (the owner, 2026-10-21, from the legal audit). */
+      successBody: 'Thank you. We will write back by email.',
+      successNote: 'Sending this does not engage us. Nothing starts until you accept a written scope.',
+      nextSteps: [
+        'We read your description and any files you attached.',
+        'We write back by email, with questions or with a written scope.',
+      ],
     },
     errors: {
       name: 'Please enter your name',
@@ -2713,6 +2726,9 @@ export const home = {
     headerCta: 'Get in touch',
     callLabel: 'Call {phone}',
     footerTag: 'Structural engineering for South Florida: Miami-Dade and Broward.',
+    /* The name of the phone bar, said by the firm: the page's other bars say
+       "Contact the engineer" (`reach.label`), a single person. */
+    barLabel: 'Contact the firm',
   },
   form: ui.form.home,
   hero: {
@@ -2745,8 +2761,8 @@ export const home = {
   },
   services: {
     label: 'Services',
-    title: 'Eight services. One discipline.',
-    accentWord: 'discipline.',
+    title: 'Eight services. One standard.',
+    accentWord: 'standard.',
     lede: 'We read the buildings that stand and engineer the ones that do not yet.',
     legend: {
       existing: { k: 'Existing buildings', v: 'Inspection, assessment and repair design.' },

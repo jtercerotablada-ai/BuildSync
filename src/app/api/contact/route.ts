@@ -88,6 +88,13 @@ const contactFields = z.object({
   files: z.array(attachmentSchema).max(CONTACT_MAX_FILES).nullable().optional(),
   landing: sourceLine,
   referrer: sourceLine,
+  // Which form sent it. `home` is the home page's contact block, whose
+  // confirmation is written in the firm's voice (COPY.home below). Anything
+  // else, or nothing, is the ordinary form: the field is never a reason to
+  // refuse a request. (Not read from `landing`: that is where the visit
+  // STARTED, and a visitor who arrives on /services and sends from the home
+  // would get the wrong email.)
+  variant: z.enum(["home"]).optional().catch(undefined),
 });
 
 // On the object, not on the field: it depends on the service and on the
@@ -139,6 +146,35 @@ const COPY = {
 } as const;
 
 /**
+ * The confirmation for a request sent from the HOME page's form. The home is
+ * a presentation of the firm and its success panel already speaks as the firm
+ * (ui.form.home): the email must not say what the page does not — no
+ * engineer's name, no reply time, no proposal, nothing about a price. The
+ * legal substance is the same (sending does not engage the firm; nothing
+ * starts until the scope is accepted in writing). Fixed copy, as above.
+ */
+const COPY_HOME = {
+  en: {
+    subject: "We received your message",
+    title: "Your message has been received.",
+    body: (service: string, ref: string) =>
+      `Thank you. Your message (${escapeHtml(service)}) has been received and will be read by our engineers. We will write back by email, with questions or with a written scope. Reference: ${ref}.`,
+    files: COPY.en.files,
+    note: "Sending this does not engage us. Nothing starts until you accept a written scope.",
+    footer: COPY.en.footer,
+  },
+  es: {
+    subject: "Recibimos su mensaje",
+    title: "Su mensaje ha sido recibido.",
+    body: (service: string, ref: string) =>
+      `Gracias. Su mensaje (${escapeHtml(service)}) fue recibido y será leído por nuestros ingenieros. Le escribiremos por correo electrónico, con preguntas o con un alcance por escrito. Referencia: ${ref}.`,
+    files: COPY.es.files,
+    note: "Enviar esto no nos contrata. Nada comienza hasta que usted acepte un alcance por escrito.",
+    footer: COPY.es.footer,
+  },
+} as const;
+
+/**
  * The email document. `lang` is the language the copy inside is written in:
  * mail clients read it for read-aloud, hyphenation and "translate this"
  * offers, and without it a Spanish confirmation is treated as unknown (or
@@ -176,7 +212,7 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-    const { name, email, phone, company, location, service, lang, landing, referrer } =
+    const { name, email, phone, company, location, service, lang, landing, referrer, variant } =
       parsed.data;
     const message = parsed.data.message || NO_DESCRIPTION;
 
@@ -272,7 +308,7 @@ export async function POST(request: Request) {
     // Visitor confirmation — fixed copy, never the message.
     let confirmed = false;
     try {
-      const t = COPY[lang];
+      const t = (variant === "home" ? COPY_HOME : COPY)[lang];
       await getResend().emails.send({
         from: FROM,
         to: email,
