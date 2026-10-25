@@ -1042,12 +1042,18 @@ for (const lang of LANGS) {
       expect(contact).not.toContain('?service=');
     });
 
-    it('prints the disclaimer of the county logos once, and the logo of the two counties only', () => {
-      expect(body.split(c.pricing.jurisdictions.disclaimer).length - 1).toBe(1);
-      expect(markup.match(/\/ttc\/img\/jurisdictions\/[a-z-]+\.webp/g)?.sort()).toEqual([
-        '/ttc/img/jurisdictions/broward.webp',
-        '/ttc/img/jurisdictions/miami-dade.webp',
-      ]);
+    // The owner, 2026-10-25: "es ilegal ... quiero evitar problemas de usar
+    // esos logos". The offices are named in plain text; no government logo,
+    // and so no disclaimer about one.
+    it('names the two counties and their municipalities in plain text, with no government logo', () => {
+      const where = section(markup, 'where');
+      expect(where).not.toMatch(/<img\b/);
+      expect(markup).not.toContain('/ttc/img/jurisdictions/');
+      expect(body).not.toMatch(/county logos|logotipos de los condados/i);
+      for (const list of c.pricing.jurisdictions.lists) {
+        expect(text(where)).toContain(list.title);
+        for (const name of list.names) expect(text(where), name).toContain(name);
+      }
     });
 
     // QA finding F1: the form lists the services in the order of the ribbon

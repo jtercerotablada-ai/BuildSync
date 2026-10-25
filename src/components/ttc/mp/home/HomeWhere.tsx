@@ -1,18 +1,8 @@
 import React from 'react';
 import { getContent } from '@/lib/ttc/content';
 import type { Lang } from '@/lib/ttc/i18n';
-import { marks } from '@/lib/ttc/municipalities';
 import { Reveal } from '../primitives';
 import { Words } from './Words';
-
-/* The two logo files' own sizes (public/ttc/img/jurisdictions/), so the
-   browser reserves the box before the file arrives; the stylesheet sets the
-   drawn height (56 px) and the width follows. */
-const LOGO: Record<string, { w: number; h: number }> = {
-  'miami-dade': { w: 340, h: 160 },
-  broward: { w: 300, h: 74 },
-};
-const FALLBACK_LOGO = { w: 160, h: 64 };
 
 /**
  * S9 · WHERE WE WORK — the offices the firm files with, readable as a list.
@@ -24,19 +14,17 @@ const FALLBACK_LOGO = { w: 160, h: 64 };
  * "34 / 31 municipalities" and no "two counties, every city" (the legal
  * audit and the owner's rule on overclaiming).
  *
- * THE LISTS ARE PLAIN. Each county is its logo, directly on the snow (no
- * tile), its name as an <h3>, and its municipalities as a list with `/`
- * between names, `white-space: nowrap` on each name so a line never breaks
- * "Fort Lauderdale" in two, colours alternating ink / faint ink (4.8:1) so
- * the eye can follow a long run of names. Names are <li>, not links: no city
- * has a page or a mark here (programs.test.ts pins the two county files, and
- * municipalities.ts says why no city seal or logo is ever shown).
+ * THE LISTS ARE PLAIN TEXT. Each county is its name as an <h3>, and its
+ * municipalities as a list with `/` between names, `white-space: nowrap` on
+ * each name so a line never breaks "Fort Lauderdale" in two, colours
+ * alternating ink / faint ink (4.8:1) so the eye can follow a long run of
+ * names. Names are <li>, not links.
  *
- * THE COUNTY LOGOS belong to their governments and are shown only to
- * identify the office: the approved disclaimer
- * (`pricing.jurisdictions.disclaimer`) is printed ONCE, as one line under the
- * lists. The county logos are `aria-hidden` with the county's name as alt,
- * beside the same name as the <h3>.
+ * NO LOGO, SEAL OR MARK OF ANY GOVERNMENT, ever (the owner, 2026-10-25:
+ * "es ilegal ... quiero evitar problemas de usar esos logos"). The two county
+ * logos that this plate used to show are gone with their files, and with
+ * them the disclaimer that existed only because of them; municipalities.ts
+ * says why, and programs.test.ts and home.test.ts guard it.
  *
  * GOLD ON SNOW reads olive, so the accent word is ink italic, and the only
  * gold-family colour is the 1 px `--mp-gold-ink` rule over each block.
@@ -74,41 +62,21 @@ export function HomeWhere({ lang }: { lang: Lang }) {
         </div>
 
         <div className="h-where__counties">
-          {k.lists.map((list, index) => {
-            const mark = marks[list.mark];
-            return (
-              /* Each county block slides in from the left, 0.2 s apart (E10),
-                 and its top rule draws (E11). */
-              <Reveal key={list.title} fx="left" delay={index * 0.2} className="h-where__county">
-                <div className="h-where__top">
-                  {mark ? (
-                    /* The county's own logo, from its own website, on the
-                       snow with no tile. Named by the <h3> beside it. */
-                    /* eslint-disable-next-line @next/next/no-img-element */
-                    <img
-                      className="h-where__logo"
-                      src={`/ttc/img/jurisdictions/${mark.file}.webp`}
-                      alt={list.title}
-                      aria-hidden="true"
-                      width={(LOGO[mark.file] ?? FALLBACK_LOGO).w}
-                      height={(LOGO[mark.file] ?? FALLBACK_LOGO).h}
-                      loading="lazy"
-                      decoding="async"
-                    />
-                  ) : null}
-                  <h3 className="h-where__name">{list.title}</h3>
-                </div>
-                <ul className="h-where__list" role="list">
-                  {list.names.map((name) => (
-                    <li key={name}>{name}</li>
-                  ))}
-                </ul>
-              </Reveal>
-            );
-          })}
+          {k.lists.map((list, index) => (
+            /* Each county block slides in from the left, 0.2 s apart (E10),
+               and its top rule draws (E11). */
+            <Reveal key={list.title} fx="left" delay={index * 0.2} className="h-where__county">
+              <div className="h-where__top">
+                <h3 className="h-where__name">{list.title}</h3>
+              </div>
+              <ul className="h-where__list" role="list">
+                {list.names.map((name) => (
+                  <li key={name}>{name}</li>
+                ))}
+              </ul>
+            </Reveal>
+          ))}
         </div>
-
-        <p className="h-where__note">{k.disclaimer}</p>
       </div>
     </section>
   );

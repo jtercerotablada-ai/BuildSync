@@ -2687,8 +2687,8 @@ export const typologies: Typology[] = [
      • the firm's name — `company.name`; the registry line — `company.registry`
      • the lede of the credentials plate — `partner.lede`; the role line and
        the licenses of the contractor — `partner.construction`
-     • the disclaimer of the county logos — `pricing.jurisdictions.disclaimer`
-     • the offices — `pricing.jurisdictions.lists`; the county logos — `marks`
+     • the offices — `pricing.jurisdictions.lists` (names only: no county or
+       city logo is shown anywhere, the owner, 2026-10-25)
      • the titles of the first five building types — `typologies[0..4]`
      • the phone, the email and the service area — `contact`; the WhatsApp
        link text — `reach.whatsappPlain` and `reach.whatsappTextHome`
@@ -3654,7 +3654,7 @@ export const legal = {
          that sense). The Privacy Policy says how files are kept. */
       { h: 'Files you send', p: 'If you attach a file, you confirm that you may share it with us. We use it only to answer your request and keep it as the Privacy Policy says. A request sent before an engagement is not a confidential communication in the legal sense, so leave out anything you would not want us to read: the letter and the address are all we need to begin.' },
       { h: 'Pricing ranges', p: 'The fee ranges published on this website are indicative and are given by building size so that you can plan. They are not an offer. A fixed fee binds only when it is stated in a written proposal that you have accepted, for the scope that proposal describes. A building can fall outside a range because of its size, the number of structures, its electrical service or the documents available. Repairs, the permits they need and the fees charged by a county or a city are not part of a range unless the proposal says so.' },
-      { h: 'Government names and marks', p: 'The names of counties, cities and other government offices shown on this website, and the logos of Miami-Dade County and Broward County, belong to those governments. They appear only to identify the office that sends a notice, and each logo is credited on the Image Credits page. Tercero Tablada Civil and Structural Engineering Inc. is an independent firm. It is not affiliated with, endorsed by or acting for any government office, and nothing on this website is an official publication of one. If a government asks for its mark to be changed or removed, we will do it.' },
+      { h: 'Government names', p: 'The names of counties, cities and other government offices shown on this website belong to those governments. They appear only to identify the office that sends a notice, and no government logo, seal or mark is shown. Tercero Tablada Civil and Structural Engineering Inc. is an independent firm. It is not affiliated with, endorsed by or acting for any government office, and nothing on this website is an official publication of one. If a government asks for its name to be changed or removed, we will do it.' },
       /* In capitals on purpose: Florida courts enforce a disclaimer of the
          warranty of merchantability only if it names it and is conspicuous
          (Fla. Stat. 672.316(2)), and a limit of liability that is easy to
@@ -3820,8 +3820,9 @@ export const partner = {
    we work" plate). The ranges are fixed-fee ranges by building size; they are NOT regulatory facts and carry
    no date. No age or day count belongs here (those live in the timing rows).
    The penalty line quotes the firm's own owner letter. `items` of
-   `jurisdictions` names every municipality and shows each COUNTY's logo only
-   to identify the office (public/ttc/img/jurisdictions/; no city mark). */
+   `jurisdictions` names every municipality of the two counties, in plain
+   text: no county or city logo, seal or mark is shown anywhere (the owner,
+   2026-10-25: "es ilegal ... quiero evitar problemas de usar esos logos"). */
 const pricing = {
   eyebrow: 'Fixed-fee pricing',
   titleLines: ['Know the cost', 'before you commit.'],
@@ -3872,14 +3873,12 @@ const pricing = {
      in a hurry. Spelled out in words, not figures. */
   delivery: 'The complete package, signed and sealed, three to four days after the inspection. In a hurry? One to two days.',
   jurisdictions: {
-    /* `mark` is the county's own entry in `marks` (municipalities.ts), the
-       same key in both languages. Every municipality is named in plain text
-       under the county's logo; no city logo is shown. */
+    /* Every municipality is named in plain text under its county's name.
+       No county or city logo is shown (the owner, 2026-10-25). */
     lists: [
-      { title: 'Miami-Dade County', mark: 'Miami-Dade County', names: miamiDadeMunicipalities },
-      { title: 'Broward County', mark: 'Broward County', names: browardMunicipalities },
+      { title: 'Miami-Dade County', names: miamiDadeMunicipalities },
+      { title: 'Broward County', names: browardMunicipalities },
     ],
-    disclaimer: 'The county logos belong to their governments and are shown only to identify the office. Tercero Tablada Civil and Structural Engineering Inc. is an independent firm: not affiliated with, endorsed by or acting for any of them.',
   },
 };
 

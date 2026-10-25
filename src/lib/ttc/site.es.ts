@@ -2204,14 +2204,12 @@ export const es: SiteContent = {
     pageLink: 'Precios según el tamaño del edificio: {name}',
     delivery: 'El paquete completo, firmado y sellado, de tres a cuatro días después de la inspección. ¿Tiene prisa? De uno a dos días.',
     jurisdictions: {
-      /* `mark` is the English key of the county's mark in `marks`: the
-         Spanish title is not a key, and without it the county's own mark
-         was missing from this page. */
+      /* Every municipality is named in plain text under its county's name.
+         No county or city logo is shown (the owner, 2026-10-25). */
       lists: [
-        { title: 'Condado de Miami-Dade', mark: 'Miami-Dade County', names: miamiDadeMunicipalities },
-        { title: 'Condado de Broward', mark: 'Broward County', names: browardMunicipalities },
+        { title: 'Condado de Miami-Dade', names: miamiDadeMunicipalities },
+        { title: 'Condado de Broward', names: browardMunicipalities },
       ],
-      disclaimer: 'Los logotipos de los condados pertenecen a sus gobiernos y se muestran solo para identificar la oficina. Tercero Tablada Civil and Structural Engineering Inc. es una firma independiente: no está afiliada a ninguna de ellas, ni cuenta con su aval, ni actúa en su nombre.',
     },
   },
   legal: {
@@ -2291,7 +2289,7 @@ export const es: SiteContent = {
         { h: 'Propiedad intelectual', p: 'Los textos, las tablas, el diseño y el código de este sitio, incluidas las calculadoras, y el nombre y el logotipo de la firma pertenecen a Tercero Tablada Civil and Structural Engineering Inc. No pueden copiarse, revenderse ni republicarse sin autorización. Las fotografías, los videos y las marcas de terceros pertenecen a sus respectivos titulares (vea Créditos de imágenes).' },
         { h: 'Archivos que usted envía', p: 'Si adjunta un archivo, usted confirma que puede compartirlo con nosotros. Lo usamos solo para responder a su solicitud y lo conservamos como indica la Política de privacidad. Una solicitud enviada antes de un encargo no es una comunicación confidencial en el sentido legal, así que deje fuera lo que no quiera que leamos: la carta y la dirección bastan para empezar.' },
         { h: 'Rangos de precios', p: 'Los rangos de honorarios que se publican en este sitio web son orientativos y se dan según el tamaño del edificio para que usted pueda planificar. No son una oferta. Un precio fijo obliga solo cuando consta en una propuesta escrita que usted haya aceptado, para el alcance que esa propuesta describe. Un edificio puede quedar fuera de un rango por su tamaño, por el número de estructuras, por su servicio eléctrico o por los documentos disponibles. Las reparaciones, los permisos que requieran y las tasas que cobre un condado o una ciudad no forman parte de un rango, salvo que la propuesta lo indique.' },
-        { h: 'Nombres y marcas de gobiernos', p: 'Los nombres de condados, ciudades y otras oficinas de gobierno que aparecen en este sitio web, y los logotipos del Condado de Miami-Dade y del Condado de Broward, pertenecen a esos gobiernos. Se muestran solo para identificar la oficina que envía una notificación, y cada logotipo tiene su crédito en la página de Créditos de imágenes. Tercero Tablada Civil and Structural Engineering Inc. es una firma independiente. No está afiliada a ninguna oficina de gobierno, no cuenta con su aval ni actúa en su nombre, y nada de este sitio web es una publicación oficial de una de ellas. Si un gobierno pide que se cambie o se retire su marca, lo haremos.' },
+        { h: 'Nombres de gobiernos', p: 'Los nombres de condados, ciudades y otras oficinas de gobierno que aparecen en este sitio web pertenecen a esos gobiernos. Se muestran solo para identificar la oficina que envía una notificación, y no se muestra ningún logotipo, sello ni marca de gobierno. Tercero Tablada Civil and Structural Engineering Inc. es una firma independiente. No está afiliada a ninguna oficina de gobierno, no cuenta con su aval ni actúa en su nombre, y nada de este sitio web es una publicación oficial de una de ellas. Si un gobierno pide que se cambie o se retire su nombre, lo haremos.' },
         /* En mayúsculas a propósito, como en inglés: una limitación que pasa
            inadvertida es la que un tribunal deja sin efecto. */
         { h: 'Limitación de responsabilidad', p: [

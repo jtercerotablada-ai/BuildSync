@@ -1,21 +1,11 @@
 import type { Metadata } from 'next';
 import { company, contact, imagery, legal, ui } from '@/lib/ttc/site';
-import { marks } from '@/lib/ttc/municipalities';
 import { PageHero } from '@/components/ttc/mp/PageHero';
 import { LegalDoc } from '@/components/ttc/mp/LegalDoc';
 import { OG_IMAGE } from '@/components/ttc/views/meta';
 
 const TITLE = ui.footer.imageCredits;
 
-/* Where each mark was taken from: the government's own website, fetched
-   2026-10-16. The table is `marks` in municipalities.ts, so a mark added to
-   the home page's "Jurisdictions" section is credited here by the same
-   edit. */
-const JURISDICTION_CREDITS = Object.entries(marks).map(([name, m]) => ({
-  name,
-  host: m.host,
-  page: `https://www.${m.host}/`,
-}));
 const DESCRIPTION = 'How the photography and video on this site are licensed.';
 
 export const metadata: Metadata = {
@@ -81,37 +71,6 @@ export default function CreditsPage() {
                 license requires attribution. They show kinds of buildings and of work, and none of
                 them shows a project of the firm.
               </p>
-            ),
-          },
-          {
-            h: 'County logos',
-            body: (
-              <>
-                <p>
-                  The two logos shown on the home page under “Jurisdictions” belong to the counties
-                  they identify. Each was taken from that county’s own website and is shown only
-                  to say which office a notice comes from, cropped and converted to a web format.
-                  The cities of both counties are named, not pictured: no city seal or logo appears
-                  on this site. Tercero Tablada Civil and Structural Engineering Inc. is an
-                  independent firm: it is not affiliated with, endorsed by or acting for any county
-                  or city, and nothing on this site is an official publication of any of them.
-                </p>
-                <ul className="mp-legal__cols">
-                  {JURISDICTION_CREDITS.map((j) => (
-                    <li key={j.name}>
-                      {j.name}:{' '}
-                      <a href={j.page} rel="noopener noreferrer">
-                        {j.host}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-                <p>
-                  A county may update its logo at any time. To have a logo removed or replaced,
-                  write to{' '}
-                  <a href={`mailto:${contact.email}`}>{contact.email}</a> and it will be changed.
-                </p>
-              </>
             ),
           },
           {

@@ -87,29 +87,17 @@ export const browardMunicipalities = [
 
 
 /**
- * The logo of each COUNTY, taken from that county's own website. Only the
- * two counties are here (October 21, 2026); the 57 city marks that used to
- * be were removed, and their files deleted. The researched rules, read
- * 2026-10-21: Broward's Terms of Use (broward.org/Terms/Pages/
- * IntellectualPropRights.aspx) say its logos may not be used without prior
- * written permission, except for use that qualifies as fair use; Miami-Dade's
- * published logo guidelines say nothing about use by third parties. Neither
- * permission is on file. To keep a county's logo with certainty, ask in
- * writing (Miami-Dade Communications Department, Graphics Manager,
- * 305-375-2340; Broward Public Communications Office, broward.org/PublicInfo)
- * and keep the answer; to drop one, delete its line here and its file.
- *
- * Taken from that government's own website: `file` is public/ttc/img/jurisdictions/
- * <file>.webp, `host` is where it came from (the credits page lists it),
- * and `dark` is a mark its government publishes only in white, drawn in dark
- * ink so it reads on a light surface.
- *
- * No city mark is shown: put one back only with that city's written
- * permission.
+ * NO LOGO, SEAL OR MARK OF ANY GOVERNMENT IS SHOWN ON THIS SITE (the owner,
+ * 2026-10-25: "es ilegal ... quiero evitar problemas de usar esos logos").
+ * The two county logos that were here since October 21, 2026 are gone with
+ * their files. What the research of 2026-10-21 found: Broward's Terms of Use
+ * (broward.org/Terms/Pages/IntellectualPropRights.aspx) say its logos may not
+ * be used without prior written permission, except for use that qualifies as
+ * fair use; Miami-Dade's published logo guidelines say nothing about use by
+ * third parties; neither permission was ever on file; and cities' own brand
+ * pages limit their marks (a city seal also falls under Fla. Stat. 165.043).
+ * The offices are named in plain text. A mark comes back only with that
+ * government's written permission, and programs.test.ts is then changed on
+ * purpose.
  */
-export type Mark = { file: string; host: string; dark?: true };
 
-export const marks: Record<string, Mark> = {
-  'Miami-Dade County': { file: 'miami-dade', host: 'miamidade.gov' },
-  'Broward County': { file: 'broward', host: 'broward.org' },
-};

@@ -622,22 +622,11 @@ html:not(.js) .mp-home .h-types__rail::-webkit-scrollbar {
   background: var(--mp-gold-ink);
   transform-origin: left;
 }
-/* The logo over the name, always. Side by side they fit in English and not in
-   Spanish ("Condado de Broward" beside the wide Broward logo), and one county
-   wrapping while the other does not left the two lists starting at different
-   heights. */
+/* The county's name, over its list of municipalities. */
 .mp-home .h-where__top {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 18px;
-}
-.mp-home .h-where__logo {
-  flex: none;
-  width: auto;
-  height: 56px;
-  max-width: 100%;
-  object-fit: contain;
 }
 .mp-home .h-where__name {
   margin: 0;
@@ -675,15 +664,6 @@ html:not(.js) .mp-home .h-types__rail::-webkit-scrollbar {
 .mp-home .h-where__list li:last-child::after {
   display: none;
 }
-/* The approved line about the county logos: reading size, not small print. */
-.mp-home .h-where__note {
-  max-width: 80ch;
-  margin: clamp(40px, 5vw, 80px) 0 0;
-  font-size: clamp(16px, 1.2vw, 18px);
-  line-height: 1.55;
-  color: var(--mp-ink-3);
-}
-
 /* ═══ 05 · S10 FREE TOOLS ═════════════════════════════════════════════════ */
 
 .mp-home .h-tools__h {
