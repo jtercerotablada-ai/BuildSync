@@ -1,0 +1,1112 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   HOME — the lower half of the page
+   ──────────────────────────────────────────────────────────────────────────
+   Imported by HomeView, after home.css (which holds the upper half, the
+   `.mp-home` root, the `--h-*` tokens and the pieces both halves share:
+   `.h-plate`, `.h-wrap`, `.h-label`, `.h-tag`, `.h-h2`, `.h-lede`, `.h-ring`,
+   `.h-ph`, the `.mp-grid-bg` verticals). Everything here is scoped under
+   `.mp-home` and under one of the class prefixes of this half:
+
+     h-types   S6  building types: a native horizontal rail of six cards
+     h-stack   S7  the wrapper of the three plates below the rail
+     h-pause   S7  the pause photograph
+     h-cred    S8  credentials: three cards, the third is the contractor's
+     h-where   S9  where we work: the ONE snow plate
+     h-tools   S10 free tools: two numbered rows
+     h-contact S11 contact: the huge headline, the real form, four lines
+
+   The words and the markup are in src/components/ttc/mp/home/*.tsx; the
+   specification is home-concepts/SPEC.md (§1 S6–S11, §2, §3).
+
+   PLAIN FLOW. Every plate is an ordinary block, one under the other, and
+   nothing moves by itself: the sticky slide-over of the pause, credentials
+   and snow plates (E15), the parallax, the reveals and the rail's island
+   come in a later slice. The spots they hook into are `data-fx`,
+   `data-parallax` and `data-motion` attributes in the markup, and the
+   MOTION HOOK comments below.
+
+   The palette is the site's: graphite plates carry `mp-surface--graphite`,
+   which remaps the ink, line and gold-ink tokens for a dark surface (and
+   gives the headline's accent word its gold, home.css); the snow plate
+   carries `mp-surface--paper`. Gold is used only where the spec allows it:
+   the one italic-serif word of a heading, the ◆ ornaments, 1 px rules and
+   hairlines, arrow rings on hover and focus, focus rings. Never as a field,
+   as text, or as an overlay.
+
+     01  S6 Building types
+     02  S7 The pause photograph and the stack
+     03  S8 Credentials
+     04  S9 Where we work (the snow plate)
+     05  S10 Free tools
+     06  S11 Contact (the form's dark skin)
+     07  Responsive
+     08  Reduced motion
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* The shared diamond: a rotated square in front of a mono line, drawn in CSS
+   (Geist Mono has no ◆, so a typed one would come from a fallback font). */
+.mp-home :is(.h-cred__status, .h-cred__card--partner .mp-partner__role)::before {
+  content: '';
+  flex: none;
+  width: 6px;
+  height: 6px;
+  background: var(--mp-gold);
+  transform: rotate(45deg);
+}
+
+/* ═══ 01 · S6 BUILDING TYPES ══════════════════════════════════════════════ */
+
+.mp-home .h-types {
+  /* The left edge of the content. Past 2200 px of screen it is the gutter
+     plus half of what is left over, so the capped head and the full-bleed
+     rail share one edge. (A percentage here is a share of the box the
+     padding is on, which is the full width in both places.) */
+  --l-gutter: max(var(--h-pad), calc((100% - var(--h-max)) / 2 + var(--h-pad)));
+  padding: clamp(48px, 6vw, 100px) 0 clamp(60px, 8vw, 130px);
+}
+.mp-home .h-types__head {
+  padding-inline: var(--h-pad);
+}
+/* The label and the tag share a row while they fit, and the tag drops under
+   the label (left-aligned) when they do not. */
+.mp-home .h-types .h-head__top {
+  flex-wrap: wrap;
+}
+.mp-home .h-types .h-label {
+  white-space: nowrap;
+}
+/* The tag, and where the island puts its two buttons. */
+.mp-home .h-types__aside {
+  display: flex;
+  align-items: center;
+  gap: 12px 24px;
+}
+/* MOTION HOOK: the TypesRail island mounts the prev / next ring buttons
+   here. */
+.mp-home .h-types__ctl {
+  display: flex;
+  gap: 12px;
+}
+.mp-home .h-types__ctl:empty {
+  display: none;
+}
+.mp-home .h-types__h {
+  max-width: 15ch;
+}
+
+/* The scroller: native, with a snap that only proposes. No scrollbar; with
+   script off a thin one is shown, because a mouse-only visitor then has
+   nothing else to scroll it with. */
+.mp-home .h-types__rail {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scroll-padding-inline: var(--l-gutter);
+  padding-block: clamp(40px, 6vw, 96px) 12px;
+  scrollbar-width: none;
+}
+.mp-home .h-types__rail::-webkit-scrollbar {
+  display: none;
+}
+html:not(.js) .mp-home .h-types__rail {
+  scrollbar-width: thin;
+  scrollbar-color: var(--mp-snow-3) transparent;
+}
+html:not(.js) .mp-home .h-types__rail::-webkit-scrollbar {
+  display: block;
+  height: 8px;
+}
+/* The focus ring sits inside the scroller: it is full-width, and a ring
+   outside it would be cut by the edge of the screen. */
+.mp-home .h-types__rail:focus-visible {
+  outline: 2px solid var(--mp-gold);
+  outline-offset: -6px;
+}
+.mp-home .h-types__list {
+  display: flex;
+  align-items: flex-start;
+  gap: clamp(14px, 1.8vw, 30px);
+  width: max-content;
+  min-width: 100%;
+  padding-inline: var(--l-gutter);
+}
+
+.mp-home .h-types__card {
+  position: relative;
+  flex: 0 0 clamp(268px, 27vw, 470px);
+  scroll-snap-align: start;
+}
+.mp-home .h-types__card:nth-child(even) {
+  margin-top: clamp(32px, 5.4vw, 96px);
+}
+.mp-home .h-types__ph {
+  --ar: 4 / 5;
+}
+/* The mono caption: the photograph's own written description, sentence
+   case, 12 px, grey. */
+.mp-home .h-types__cap {
+  max-width: 44ch;
+  margin: 18px 0 0;
+  font-family: var(--mp-mono);
+  font-size: 12px;
+  line-height: 1.55;
+  letter-spacing: 0;
+  color: var(--mp-snow-3);
+}
+.mp-home .h-types__t {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0 18px;
+  margin: 12px 0 0;
+  font-size: clamp(21px, 1.9vw, 32px);
+  font-weight: 500;
+  line-height: 1.08;
+  letter-spacing: -0.035em;
+  color: var(--mp-snow);
+}
+/* The link is the title; its ::after covers the whole card, and the focus
+   ring goes round the card (the pattern of Typologies). */
+.mp-home .h-types__link {
+  color: inherit;
+  text-decoration: none;
+  text-wrap: balance;
+}
+.mp-home .h-types__link::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+.mp-home .h-types__link:focus-visible {
+  outline: none;
+}
+.mp-home .h-types__link:focus-visible::after {
+  outline: 2px solid var(--mp-gold);
+  outline-offset: 6px;
+}
+.mp-home .h-types__card:has(.h-types__link:focus-visible) .h-ph__in img {
+  filter: none;
+  transform: scale(1.045);
+}
+.mp-home .h-types__card:has(.h-types__link:focus-visible) .h-ring {
+  border-color: var(--mp-gold);
+  color: var(--mp-gold);
+}
+.mp-home .h-types__card:has(.h-types__link:focus-visible) .h-ring svg {
+  transform: rotate(-45deg);
+}
+@media (hover: hover) and (pointer: fine) {
+  .mp-home .h-types__card:hover .h-ph__in img {
+    filter: none;
+    transform: scale(1.045);
+  }
+  .mp-home .h-types__card:hover .h-ring {
+    border-color: var(--mp-gold);
+    color: var(--mp-gold);
+  }
+  .mp-home .h-types__card:hover .h-ring svg {
+    transform: rotate(-45deg);
+  }
+}
+
+/* MOTION HOOK: the island writes the counter and scales the bar to the
+   visible fraction and the position. Static: the first card, a third of the
+   way. */
+.mp-home .h-types__foot {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: clamp(26px, 3vw, 48px) var(--l-gutter) 0;
+}
+.mp-home .h-types__count {
+  min-width: 7ch;
+  font-family: var(--mp-mono);
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  color: var(--mp-snow-3);
+}
+.mp-home .h-types__bar {
+  position: relative;
+  flex: 1;
+  height: 1px;
+  background: var(--h-hair);
+}
+.mp-home .h-types__bar i {
+  position: absolute;
+  left: 0;
+  top: -0.5px;
+  width: 100%;
+  height: 2px;
+  background: var(--mp-gold);
+  transform: scaleX(0.3);
+  transform-origin: left;
+}
+
+/* ═══ 02 · S7 THE PAUSE PHOTOGRAPH, in the stack ══════════════════════════ */
+
+/* MOTION HOOK: E15 turns `.h-stack` into the slide-over stack, in a media
+   query that holds only at (min-width: 900px) and (min-height: 720px), with
+   no reduced motion: `.h-pause` pinned, the credentials plate over it, the
+   snow plate over both. Nothing is needed here until then. */
+.mp-home .h-stack {
+  position: relative;
+}
+
+.mp-home .h-pause {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  min-height: clamp(460px, 100vh, 980px);
+  min-height: clamp(460px, 100svh, 980px);
+  overflow: hidden;
+  isolation: isolate;
+}
+/* MOTION HOOK: E14 moves this frame ±9 % (transform only). It is 18 % taller
+   than the plate, centred, so the shift never shows an edge. */
+.mp-home .h-pause__px {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -9%;
+  height: 118%;
+  z-index: -2;
+}
+.mp-home .h-pause__img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: grayscale(1) contrast(1.1) brightness(0.8);
+}
+/* Black over the top and the foot: the plate melts into the plates around
+   it, and the line at the bottom always reads. */
+.mp-home .h-pause::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    var(--mp-graphite) 0,
+    rgba(11, 12, 13, 0) 22%,
+    rgba(11, 12, 13, 0) 44%,
+    rgba(11, 12, 13, 0.9) 100%
+  );
+}
+.mp-home .h-pause__copy {
+  width: 100%;
+  padding: 0 var(--h-pad) clamp(36px, 6vw, 96px);
+}
+/* MOTION HOOK: E11 draws this rule across. */
+.mp-home .h-pause__line {
+  width: clamp(70px, 9vw, 140px);
+  height: 1px;
+  margin-bottom: clamp(20px, 2.4vw, 36px);
+  background: var(--mp-gold);
+  transform-origin: left;
+}
+.mp-home .h-pause__h {
+  max-width: 11ch;
+  margin: 0;
+  font-size: clamp(46px, 9.6vw, 184px);
+  font-weight: 500;
+  line-height: 0.9;
+  letter-spacing: -0.055em;
+  color: #fff;
+  text-wrap: balance;
+}
+/* "Donde la estructura se encuentra con la costa." is four times longer
+   than "Where structure meets the coast.": smaller, and a wider measure, so
+   it keeps to four lines. */
+.mp-home[data-lang='es'] .h-pause__h {
+  max-width: 14ch;
+  font-size: clamp(40px, 7.4vw, 144px);
+}
+
+/* ═══ 03 · S8 CREDENTIALS ═════════════════════════════════════════════════ */
+
+/* The plate holds one screen at 1440 × 900 and at 900 × 720: its padding
+   follows the viewport's height too. */
+.mp-home .h-cred {
+  padding-block: clamp(40px, 8.6vw, 150px);
+  padding-block: clamp(40px, min(8.6vw, 8svh), 150px);
+}
+/* The headline takes the width of its longest line (the lines never wrap:
+   each is a discipline), the sentence takes what is left, at the right. The
+   headline's size follows the viewport's width, so what is left is never
+   less than about a third of it. */
+.mp-home .h-cred__head {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: end;
+  gap: 24px clamp(24px, 3vw, 96px);
+  margin-top: clamp(22px, 3vw, 44px);
+}
+.mp-home .h-cred__h {
+  font-size: clamp(34px, 5.6vw, 104px);
+  font-size: clamp(34px, min(5.6vw, 9.4svh), 104px);
+}
+.mp-home .h-cred__line {
+  display: block;
+  white-space: nowrap;
+}
+/* "Ingenieros Profesionales." is 25 letters: a little smaller than English
+   keeps each of the three lines on one line. */
+.mp-home[data-lang='es'] .h-cred__h {
+  font-size: clamp(30px, 4.7vw, 88px);
+  font-size: clamp(30px, min(4.7vw, 9.4svh), 88px);
+}
+/* The credential mark at the end of a line (PE / FRSE / PE): a small mono tag
+   in a thin gold ring, sitting on the heading's baseline, and held to its
+   line (the line never wraps). Not a heading and not a link. */
+.mp-home .h-cred__tag {
+  display: inline-block;
+  margin-left: 0.18em;
+  padding: 4px 10px 3px;
+  border: 1px solid rgb(201 154 56 / 0.6);
+  border-radius: 999px;
+  font-family: var(--mp-mono);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.3;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--mp-gold);
+  vertical-align: 0.9em;
+}
+.mp-home .h-cred__lede {
+  justify-self: end;
+  max-width: 34ch;
+}
+
+/* The three-up row. */
+.mp-home .h-cred__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.25fr);
+  align-items: stretch;
+  gap: clamp(16px, 2vw, 32px);
+  margin-top: clamp(28px, 5vw, 80px);
+  margin-top: clamp(28px, min(5vw, 5svh), 80px);
+}
+.mp-home .h-cred__card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: clamp(20px, 2.2vw, 36px);
+  background: var(--mp-charcoal);
+  border: 0;
+}
+/* The 1 px gold rule over each card. MOTION HOOK: E11 (`data-fx="line"` on
+   the card) draws each from the left, 0.2 s after the one before it. */
+.mp-home .h-cred__card::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: var(--mp-gold);
+  transform-origin: left;
+}
+.mp-home .h-cred__kind {
+  margin: 0 0 clamp(14px, 1.6vw, 24px);
+  font-family: var(--mp-mono);
+  font-size: 12px;
+  line-height: 1.4;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--mp-snow-3);
+}
+.mp-home .h-cred__name {
+  margin: 0;
+  font-size: clamp(22px, 2.1vw, 36px);
+  font-weight: 500;
+  line-height: 1.1;
+  letter-spacing: -0.035em;
+  color: var(--mp-snow);
+  text-wrap: balance;
+}
+/* The scope line: the card's quiet body line. */
+.mp-home .h-cred__scope {
+  margin: 14px 0 0;
+  font-size: clamp(16px, 1.2vw, 19px);
+  line-height: 1.5;
+  color: var(--mp-snow-2);
+}
+.mp-home .h-cred__status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: auto 0 0;
+  padding-top: clamp(20px, 2.4vw, 36px);
+  font-family: var(--mp-mono);
+  font-size: 12px;
+  line-height: 1.4;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--mp-snow);
+}
+/* The firm's white monogram, at the card's top right: the text of the three
+   cards then starts on one line. */
+.mp-home .h-cred__mark {
+  position: absolute;
+  top: clamp(20px, 2.2vw, 36px);
+  right: clamp(20px, 2.2vw, 36px);
+}
+.mp-home .h-cred__mark img {
+  width: auto;
+  height: clamp(32px, 2.6vw, 42px);
+}
+
+/* The contractor's card: the old card's markup (tests grep it) on the dark
+   plate. Its logo sits on a snow tile at the left, the role, the name and the
+   place beside it, the two licenses across the foot. */
+.mp-home .h-cred__card.mp-partner__card {
+  display: grid;
+  grid-template-columns: clamp(64px, 5.6vw, 88px) minmax(0, 1fr);
+  grid-template-rows: auto auto 1fr auto;
+  column-gap: clamp(16px, 1.8vw, 28px);
+  align-content: stretch;
+}
+.mp-home .h-cred__card.mp-partner__card .mp-partner__logo {
+  grid-row: 1 / span 3;
+  align-self: start;
+  width: 100%;
+  height: auto;
+  margin: 0;
+  padding: 8px;
+  background: var(--mp-paper);
+  border-radius: 4px;
+}
+.mp-home .h-cred__card.mp-partner__card .mp-partner__logo img {
+  width: 100%;
+  height: auto;
+}
+.mp-home .h-cred__card.mp-partner__card .mp-partner__role,
+.mp-home .h-cred__card.mp-partner__card .mp-partner__name,
+.mp-home .h-cred__card.mp-partner__card .mp-partner__who {
+  grid-column: 2;
+}
+/* The role line, in mono, as every label of the page. "Partner" is printed
+   here and nowhere else on the page. */
+.mp-home .h-cred__card.mp-partner__card .mp-partner__role {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0 0 clamp(10px, 1.2vw, 16px);
+  font-family: var(--mp-mono);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.5;
+  letter-spacing: 0.16em;
+  color: var(--mp-snow-2);
+}
+.mp-home .h-cred__card.mp-partner__card .mp-partner__role::before {
+  align-self: flex-start;
+  margin-top: 0.55em;
+}
+.mp-home .h-cred__card.mp-partner__card .mp-partner__name {
+  margin: 0;
+  font-size: clamp(22px, 2.1vw, 36px);
+  font-weight: 500;
+  line-height: 1.1;
+  letter-spacing: -0.035em;
+  color: var(--mp-snow);
+}
+.mp-home .h-cred__card.mp-partner__card .mp-partner__who {
+  align-self: start;
+  margin: 8px 0 0;
+  font-size: clamp(16px, 1.2vw, 19px);
+  color: var(--mp-snow-2);
+}
+.mp-home .h-cred__card.mp-partner__card .mp-partner__lic {
+  grid-column: 1 / -1;
+  margin-block-start: clamp(16px, 2vw, 28px);
+  padding-block-start: 12px;
+  border-block-start: 1px solid var(--h-hair);
+}
+.mp-home .h-cred__card.mp-partner__card .mp-partner__lic-label {
+  margin: 0 0 4px;
+  font-family: var(--mp-mono);
+  font-weight: 400;
+  color: var(--mp-snow-3);
+}
+.mp-home .h-cred__card.mp-partner__card .mp-partner__lic dt {
+  color: var(--mp-snow-2);
+}
+.mp-home .h-cred__card.mp-partner__card .mp-partner__lic dd {
+  font-size: clamp(15px, 1.2vw, 18px);
+  letter-spacing: 0.06em;
+  color: var(--mp-snow);
+}
+@media (hover: hover) and (pointer: fine) {
+  .mp-home .h-cred__card.mp-partner__card .mp-partner__lic dd a:hover {
+    color: var(--mp-gold);
+  }
+}
+
+/* ═══ 04 · S9 WHERE WE WORK — the one snow plate ══════════════════════════ */
+
+.mp-home .h-where {
+  /* Gold on snow reads olive: the one gold-family colour here is the 1 px
+     bronze rule, and the focus ring is bronze too. */
+  --mp-gold-ink: #7a5d1c;
+  --h-hair: rgba(11, 12, 13, 0.14);
+}
+.mp-home .h-where .h-label {
+  color: var(--mp-ink-faint);
+}
+.mp-home .h-where .h-label::before {
+  background: var(--mp-gold-ink);
+}
+.mp-home .h-where__head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 34ch);
+  align-items: end;
+  gap: 24px clamp(32px, 5vw, 96px);
+  margin-top: clamp(22px, 3vw, 44px);
+}
+.mp-home .h-where__h {
+  color: var(--mp-ink);
+  text-wrap: balance;
+}
+/* The accent word is ink, not gold (it is not on a graphite surface). */
+.mp-home .h-where__h .mp-serif {
+  color: var(--mp-ink);
+}
+.mp-home .h-where__lede {
+  color: var(--mp-ink-3);
+}
+.mp-home .h-where__counties {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(44px, 6vw, 120px);
+  margin-top: var(--h-head-gap);
+}
+/* MOTION HOOK: E10 (`data-fx="left"`) slides each county in from the left;
+   E11 draws its rule. */
+.mp-home .h-where__county {
+  position: relative;
+  padding-top: 30px;
+}
+.mp-home .h-where__county::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: var(--mp-gold-ink);
+  transform-origin: left;
+}
+/* The logo over the name, always. Side by side they fit in English and not in
+   Spanish ("Condado de Broward" beside the wide Broward logo), and one county
+   wrapping while the other does not left the two lists starting at different
+   heights. */
+.mp-home .h-where__top {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 18px;
+}
+.mp-home .h-where__logo {
+  flex: none;
+  width: auto;
+  height: 56px;
+  max-width: 100%;
+  object-fit: contain;
+}
+.mp-home .h-where__name {
+  margin: 0;
+  font-size: clamp(26px, 3vw, 50px);
+  font-weight: 500;
+  line-height: 1.02;
+  letter-spacing: -0.04em;
+  color: var(--mp-ink);
+}
+/* The municipalities: plain text, each name kept whole, `/` between them,
+   the ink alternating with the faint ink so a long run can be followed. */
+.mp-home .h-where__list {
+  display: flex;
+  flex-wrap: wrap;
+  margin: clamp(24px, 3vw, 40px) 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: clamp(18px, 1.6vw, 24px);
+  line-height: 1.85;
+  letter-spacing: -0.01em;
+}
+.mp-home .h-where__list li {
+  white-space: nowrap;
+  color: var(--mp-ink);
+}
+.mp-home .h-where__list li:nth-child(even) {
+  color: var(--mp-ink-faint);
+}
+.mp-home .h-where__list li::after {
+  content: '/';
+  content: '/' / '';
+  margin-inline: 0.6em;
+  color: var(--mp-ink-faint);
+}
+.mp-home .h-where__list li:last-child::after {
+  display: none;
+}
+/* The approved line about the county logos: reading size, not small print. */
+.mp-home .h-where__note {
+  max-width: 80ch;
+  margin: clamp(40px, 5vw, 80px) 0 0;
+  font-size: clamp(16px, 1.2vw, 18px);
+  line-height: 1.55;
+  color: var(--mp-ink-3);
+}
+
+/* ═══ 05 · S10 FREE TOOLS ═════════════════════════════════════════════════ */
+
+.mp-home .h-tools__h {
+  margin-top: clamp(22px, 3vw, 44px);
+}
+.mp-home .h-tools__list {
+  margin: clamp(48px, 6vw, 96px) 0 0;
+  padding: 0;
+  border-bottom: 1px solid var(--h-hair);
+}
+/* The row is a lifted surface on hover: its `::before` reaches 16 px past the
+   content on each side, so the content and the hairlines stay on the page's
+   grid. MOTION HOOK: E10 (`data-fx="left"`) slides each row in from the
+   left. */
+.mp-home .h-tools__row {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: clamp(80px, 12vw, 200px) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px clamp(16px, 3vw, 56px);
+  padding-block: clamp(28px, 3.6vw, 56px);
+  border-top: 1px solid var(--h-hair);
+}
+.mp-home .h-tools__row::before {
+  content: '';
+  position: absolute;
+  inset: 0 -16px;
+  z-index: -1;
+  background: var(--mp-charcoal);
+  opacity: 0;
+  transition: opacity 0.6s var(--h-ease);
+}
+.mp-home .h-tools__row:has(.h-tools__link:focus-visible)::before {
+  opacity: 1;
+}
+.mp-home .h-tools__row:has(.h-tools__link:focus-visible) .h-ring {
+  border-color: var(--mp-gold);
+  color: var(--mp-gold);
+}
+.mp-home .h-tools__row:has(.h-tools__link:focus-visible) .h-ring svg {
+  transform: rotate(-45deg);
+}
+@media (hover: hover) and (pointer: fine) {
+  .mp-home .h-tools__row:hover::before {
+    opacity: 1;
+  }
+  .mp-home .h-tools__row:hover .h-ring {
+    border-color: var(--mp-gold);
+    color: var(--mp-gold);
+  }
+  .mp-home .h-tools__row:hover .h-ring svg {
+    transform: rotate(-45deg);
+  }
+}
+.mp-home .h-tools__num {
+  font-size: clamp(60px, 9vw, 168px);
+  font-weight: 300;
+  line-height: 0.85;
+  letter-spacing: -0.06em;
+  color: var(--mp-snow);
+  font-variant-numeric: tabular-nums;
+}
+.mp-home .h-tools__title {
+  margin: 0;
+  font-size: clamp(26px, 3.8vw, 68px);
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -0.045em;
+  color: var(--mp-snow);
+  text-wrap: balance;
+}
+.mp-home .h-tools__link {
+  color: inherit;
+  text-decoration: none;
+}
+.mp-home .h-tools__link::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+.mp-home .h-tools__link:focus-visible {
+  outline: none;
+}
+.mp-home .h-tools__link:focus-visible::after {
+  outline: 2px solid var(--mp-gold);
+  outline-offset: -2px;
+}
+/* The names of the open calculators, with a gold dot between them. */
+.mp-home .h-tools__names {
+  display: flex;
+  flex-wrap: wrap;
+  max-width: 70ch;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: clamp(15px, 1.2vw, 18px);
+  line-height: 1.7;
+  color: var(--mp-snow-2);
+}
+.mp-home .h-tools__names li {
+  white-space: nowrap;
+}
+.mp-home .h-tools__names li::after {
+  content: '';
+  display: inline-block;
+  width: 4px;
+  height: 4px;
+  margin-inline: 0.7em;
+  border-radius: 50%;
+  background: var(--mp-gold);
+  vertical-align: middle;
+  transform: translateY(-0.1em);
+}
+.mp-home .h-tools__names li:last-child::after {
+  display: none;
+}
+.mp-home .h-tools__line {
+  max-width: 70ch;
+  margin: 16px 0 0;
+  font-size: clamp(15px, 1.2vw, 18px);
+  line-height: 1.55;
+  color: var(--mp-snow-2);
+}
+.mp-home .h-tools__go {
+  width: clamp(52px, 5vw, 76px);
+  height: clamp(52px, 5vw, 76px);
+}
+.mp-home .h-tools__go svg {
+  width: 24px;
+  height: 24px;
+}
+
+/* ═══ 06 · S11 CONTACT ════════════════════════════════════════════════════ */
+
+.mp-home .h-contact {
+  padding-block: clamp(80px, 11vw, 190px) clamp(70px, 9vw, 150px);
+}
+.mp-home .h-contact__h {
+  margin-top: clamp(16px, 2vw, 32px);
+  /* 52 px at the bottom: "Contáctenos." is 4.8 em and has to fit 280 px at
+     320 (68 px would run 24 px off the screen). */
+  font-size: clamp(52px, 17.6vw, 380px);
+  line-height: 0.84;
+  letter-spacing: -0.065em;
+  color: #fff;
+}
+.mp-home .h-contact__h .mp-serif {
+  letter-spacing: -0.025em;
+}
+.mp-home .h-contact__sub {
+  max-width: 44ch;
+  margin: clamp(24px, 3vw, 44px) 0 0;
+  font-size: clamp(17px, 1.4vw, 22px);
+}
+.mp-home .h-contact__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  align-items: start;
+  gap: clamp(48px, 8vw, 160px);
+  margin-top: clamp(52px, 7vw, 110px);
+}
+
+/* The four direct lines. */
+.mp-home .h-contact__lines {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--h-hair);
+}
+.mp-home .h-contact__lines li {
+  border-bottom: 1px solid var(--h-hair);
+}
+.mp-home .h-contact__line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px 20px;
+  min-height: 44px;
+  padding: clamp(22px, 2.6vw, 38px) 0;
+  color: inherit;
+  text-decoration: none;
+  transition: padding-left 0.6s var(--h-ease);
+}
+.mp-home .h-contact__line:focus-visible {
+  outline: 2px solid var(--mp-gold);
+  outline-offset: -2px;
+  padding-left: clamp(10px, 1.2vw, 20px);
+}
+.mp-home .h-contact__line:focus-visible .h-ring {
+  border-color: var(--mp-gold);
+  color: var(--mp-gold);
+}
+.mp-home .h-contact__line:focus-visible .h-ring svg {
+  transform: rotate(-45deg);
+}
+@media (hover: hover) and (pointer: fine) {
+  .mp-home .h-contact__line:hover {
+    padding-left: clamp(10px, 1.2vw, 20px);
+  }
+  .mp-home .h-contact__line:hover .h-ring {
+    border-color: var(--mp-gold);
+    color: var(--mp-gold);
+  }
+  .mp-home .h-contact__line:hover .h-ring svg {
+    transform: rotate(-45deg);
+  }
+}
+.mp-home .h-contact__k {
+  grid-column: 1;
+  font-family: var(--mp-mono);
+  font-size: 12px;
+  line-height: 1.4;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--mp-snow-3);
+}
+.mp-home .h-contact__v {
+  grid-column: 1;
+  font-size: clamp(20px, 2vw, 34px);
+  font-weight: 500;
+  line-height: 1.1;
+  letter-spacing: -0.04em;
+  overflow-wrap: anywhere;
+  color: var(--mp-snow);
+}
+/* The telephone number is the large line; the others are long. */
+.mp-home .h-contact__line[href^='tel:'] .h-contact__v {
+  font-size: clamp(24px, 2.5vw, 42px);
+}
+.mp-home .h-contact__go {
+  grid-column: 2;
+  grid-row: 1 / 3;
+  width: 50px;
+  height: 50px;
+}
+
+/* ── The form: the real ContactForm, in its dark skin ─────────────────────
+   `data-variant="home"` is on the <form> and on the success block. The
+   fields keep the site's own structure (a label, an underline); the skin is
+   larger type, mono labels, gold on focus, and a REAL :focus-visible ring on
+   every control. */
+.mp-home .h-contact__form {
+  color-scheme: dark;
+  /* The form's error colours are for a light surface (7.5:1 on paper); on
+     black they would be 2:1. */
+  --mp-error: #ff7a68;
+  --mp-error-ink: #ff9a8a;
+}
+.mp-home .h-contact__form .mp-form {
+  gap: clamp(20px, 2.2vw, 32px);
+}
+@media (min-width: 641px) {
+  .mp-home .h-contact__form .mp-form__row--3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.mp-home .h-contact__form .mp-field {
+  gap: 0;
+}
+.mp-home .h-contact__form .mp-field__label {
+  font-family: var(--mp-mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  color: var(--mp-snow-3);
+}
+.mp-home .h-contact__form .mp-field__opt {
+  font-family: var(--mp-mono);
+  letter-spacing: 0.16em;
+  color: var(--mp-snow-3);
+}
+.mp-home .h-contact__form .mp-field__input {
+  min-height: 56px;
+  padding-block: 10px 8px;
+  font-size: clamp(20px, 1.7vw, 26px);
+  letter-spacing: -0.015em;
+  color: var(--mp-snow);
+}
+.mp-home .h-contact__form .mp-field__textarea {
+  min-height: 130px;
+  font-size: clamp(18px, 1.4vw, 22px);
+  line-height: 1.5;
+}
+.mp-home .h-contact__form .mp-field__input:focus {
+  border-color: var(--mp-gold);
+}
+/* A real ring, not the underline alone: 2 px gold, 6 px out. */
+.mp-home .h-contact__form .mp-field__input:focus-visible,
+.mp-home .h-contact__form .mp-files__native:focus-visible {
+  outline: 2px solid var(--mp-gold);
+  outline-offset: 6px;
+}
+.mp-home .h-contact__form .mp-field__select option {
+  background: var(--mp-graphite);
+  color: var(--mp-snow);
+}
+.mp-home .h-contact__form .mp-files__hint {
+  max-width: 62ch;
+  font-size: 0.9375rem;
+  color: var(--mp-snow-2);
+}
+/* The attachment control: the browser's own file input, its button styled.
+   The browser's "No file chosen" is said in the browser's language and is
+   always true after a pick (the form clears the input and lists the files),
+   so it is not drawn. */
+.mp-home .h-contact__form .mp-files__native {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-height: 48px;
+  padding: 0;
+  font-size: 1rem;
+  color: transparent;
+  cursor: pointer;
+}
+.mp-home .h-contact__form .mp-files__native::file-selector-button {
+  min-height: 48px;
+  margin-inline-end: 16px;
+  padding: 0.85rem 1.4rem;
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--mp-snow);
+  background: transparent;
+  border: 1px solid rgba(246, 244, 239, 0.34);
+  border-radius: 0;
+  appearance: none;
+  cursor: pointer;
+  transition: border-color 0.4s var(--h-ease), color 0.4s var(--h-ease);
+}
+.mp-home .h-contact__form .mp-files__native:hover::file-selector-button,
+.mp-home .h-contact__form .mp-files__native:focus-visible::file-selector-button {
+  border-color: var(--mp-snow);
+}
+.mp-home .h-contact__form .mp-files__native:disabled {
+  cursor: default;
+}
+.mp-home .h-contact__form .mp-files__native:disabled::file-selector-button {
+  opacity: 0.5;
+  cursor: default;
+}
+.mp-home .h-contact__form .mp-btn--solid {
+  min-height: 56px;
+  padding-inline: 2rem;
+  font-size: 1rem;
+}
+.mp-home .h-contact__form .mp-form__success {
+  padding: clamp(24px, 3vw, 48px);
+  border-color: var(--h-hair);
+}
+
+/* ═══ 07 · RESPONSIVE ═════════════════════════════════════════════════════ */
+
+/* From 900 px the credentials plate is three cards in a row under a headline
+   with its sentence beside it, and holds one screen (the slide-over pins it
+   from 900 × 720). Below 900 it opens out: the sentence under the headline,
+   two cards side by side, the contractor's across both. */
+@media (max-width: 899px) {
+  .mp-home .h-cred__head {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+  }
+  .mp-home .h-cred__lede {
+    justify-self: start;
+    max-width: 40ch;
+  }
+  .mp-home .h-cred__row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .mp-home .h-cred__card.mp-partner__card {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 900px) {
+  .mp-home .h-where__head {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+  }
+  .mp-home .h-where__counties {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  /* The direct lines first: a property manager rings without reading a
+     form. (The form is first in the markup, for the desktop.) */
+  .mp-home .h-contact__grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 48px;
+  }
+  .mp-home .h-contact__lines {
+    order: -1;
+  }
+}
+
+/* The email address is one 11-em word: on the narrowest phones it is sized to
+   the room the ring leaves it, so it never breaks in the middle of the name. */
+@media (max-width: 400px) {
+  .mp-home .h-contact__line[href^='mailto:'] .h-contact__v {
+    font-size: clamp(15px, calc((100vw - 2 * var(--h-pad) - 74px) / 11.3), 20px);
+  }
+}
+
+/* The credentials headline is three lines that never wrap, each with its mark
+   (PE / FRSE / PE) on the end of it: on a phone the type is sized so the
+   longest line AND its mark fit the width (9.95 em of English text, 10.8 em of
+   Spanish, 50 px for the mark and its gap), and never above the 34 / 30 px the
+   rest of the page uses. */
+@media (max-width: 480px) {
+  .mp-home .h-cred__h {
+    font-size: clamp(20px, calc((100vw - 2 * var(--h-pad) - 50px) / 9.95), 34px);
+  }
+  .mp-home[data-lang='es'] .h-cred__h {
+    font-size: clamp(18px, calc((100vw - 2 * var(--h-pad) - 50px) / 10.8), 30px);
+  }
+}
+
+@media (max-width: 720px) {
+  .mp-home .h-types__card {
+    flex-basis: 76vw;
+  }
+  .mp-home .h-types__foot {
+    gap: 16px;
+  }
+  .mp-home .h-pause__h {
+    max-width: none;
+  }
+  /* Stacked, no indentation: one card under the other. */
+  .mp-home .h-cred__row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .mp-home .h-tools__row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .mp-home .h-tools__row::before {
+    inset-inline: -12px;
+  }
+  .mp-home .h-tools__num {
+    display: none;
+  }
+}
+
+/* ═══ 08 · REDUCED MOTION ═════════════════════════════════════════════════ */
+
+@media (prefers-reduced-motion: reduce) {
+  .mp-home .h-types__card:hover .h-ph__in img,
+  .mp-home .h-types__card:has(.h-types__link:focus-visible) .h-ph__in img {
+    transform: none;
+  }
+  .mp-home .h-types__rail {
+    scroll-behavior: auto;
+  }
+}

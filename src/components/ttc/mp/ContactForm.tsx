@@ -216,12 +216,43 @@ function reveal(block: HTMLElement | null, focusTarget: HTMLElement | null = blo
  *
  * Spam handling is a honeypot only — no third-party challenge, nothing that
  * blocks a keyboard or screen-reader user.
+ *
+ * TWO VARIANTS, ONE FORM. `page` (the default) is /contact's and every
+ * county page's. `home` is the home page's contact block, on a black plate:
+ * the same fields, the same validation, the same upload, honeypot, route and
+ * success block, and three differences —
+ *   • the two strings that name a notice are the home's own (`home.form`:
+ *     the message placeholder and the attachments hint), because the home is
+ *     a presentation of the firm and says nothing of a notice. (If the
+ *     visitor chooses a county program in the dropdown, the form still
+ *     follows the dropdown as it does everywhere, and speaks of the notice:
+ *     they asked for it.);
+ *   • no `?service=` preset: the home is not a service page, and the form
+ *     starts with the dropdown on its placeholder;
+ *   • the file control is the browser's own <input type="file"> with its
+ *     button styled through `::file-selector-button` (home-lower.css),
+ *     instead of the visually hidden input behind a label-button. Nothing
+ *     depends on script, and the control's focus ring is the input's own.
+ * The form and the success block carry `data-variant="home"`, which
+ * home-lower.css reads for the dark skin and the real :focus-visible outline
+ * on every field. The page variant writes no attribute, so every other
+ * page's markup is exactly what it was.
  */
-export function ContactForm({ presetService }: { presetService?: string }) {
+export function ContactForm({
+  presetService,
+  variant = 'page',
+}: {
+  presetService?: string;
+  variant?: 'page' | 'home';
+}) {
   const c = useContent();
   const lang = useLang();
   const t = c.ui.form;
-  const [f, setF] = useState<Fields>(() => ({ ...EMPTY, service: presetOption(presetService, c) }));
+  const home = variant === 'home';
+  const [f, setF] = useState<Fields>(() => ({
+    ...EMPTY,
+    service: home ? '' : presetOption(presetService, c),
+  }));
   // Read once, on the first render, when `f.service` is still the preset.
   const [noticeFirst] = useState(() => isProgramOption(f.service));
   // What mp.css reads (`:has([data-mp-notice-first])`) to shorten the page
@@ -587,7 +618,7 @@ export function ContactForm({ presetService }: { presetService?: string }) {
     return (
       <>
         {liveRegion}
-        <div ref={successRef} className="mp-form__success" data-mp-notice-first={noticeMark}>
+        <div ref={successRef} className="mp-form__success" data-variant={home ? 'home' : undefined} data-mp-notice-first={noticeMark}>
           <span className="mp-form__success-mark" aria-hidden="true">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
               <path d="M4 10.5l4 4 8-9" stroke="currentColor" strokeWidth="1.6" />
@@ -654,13 +685,13 @@ export function ContactForm({ presetService }: { presetService?: string }) {
         {program ? t.program.attachments : t.attachments} <span className="mp-field__opt">{t.optional}</span>
       </span>
       <p className="mp-files__hint" id="mp-files-hint">
-        {program ? t.program.attachmentsHint : t.attachmentsHint}
+        {program ? t.program.attachmentsHint : home ? c.home.form.attachmentsHint : t.attachmentsHint}
       </p>
       <input
         ref={fileInput}
         id="mp-files"
         type="file"
-        className="mp-sr-only"
+        className={home ? 'mp-files__native' : 'mp-sr-only'}
         multiple
         accept={CONTACT_ACCEPT}
         aria-labelledby="mp-files-label"
@@ -669,10 +700,12 @@ export function ContactForm({ presetService }: { presetService?: string }) {
         disabled={busy}
       />
       <div className="mp-files__row">
-        <label htmlFor="mp-files" className="mp-btn mp-btn--line mp-files__add">
-          <span>{t.addFiles}</span>
-          <span aria-hidden="true">+</span>
-        </label>
+        {home ? null : (
+          <label htmlFor="mp-files" className="mp-btn mp-btn--line mp-files__add">
+            <span>{t.addFiles}</span>
+            <span aria-hidden="true">+</span>
+          </label>
+        )}
         {fileError ? (
           <span className="mp-field__error" id="mp-files-err" role="alert">
             {fileError}
@@ -732,7 +765,14 @@ export function ContactForm({ presetService }: { presetService?: string }) {
   return (
     <>
       {liveRegion}
-      <form ref={formRef} className="mp-form" data-mp-notice-first={noticeMark} onSubmit={onSubmit} noValidate>
+      <form
+        ref={formRef}
+        className="mp-form"
+        data-variant={home ? 'home' : undefined}
+        data-mp-notice-first={noticeMark}
+        onSubmit={onSubmit}
+        noValidate
+      >
         {failed ? (
           <div ref={alertRef} className="mp-form__alert" role="alert" tabIndex={-1}>
             <span aria-hidden="true">!</span>
@@ -796,7 +836,9 @@ export function ContactForm({ presetService }: { presetService?: string }) {
             maxLength={5000}
             value={f.message}
             onChange={set('message')}
-            placeholder={program ? t.program.messagePlaceholder : t.messagePlaceholder}
+            placeholder={
+              program ? t.program.messagePlaceholder : home ? c.home.form.messagePlaceholder : t.messagePlaceholder
+            }
             autoCapitalize="sentences"
             aria-describedby={messageError ? 'mp-message-err' : undefined}
             aria-invalid={messageError ? true : undefined}

@@ -1,0 +1,66 @@
+import React from 'react';
+import { getContent } from '@/lib/ttc/content';
+import type { Lang } from '@/lib/ttc/i18n';
+import { photo } from '@/lib/ttc/media';
+import { Img } from '../media';
+import { Words } from './Words';
+
+/**
+ * S7 · THE PAUSE PHOTOGRAPH, and the wrapper of the plates that follow it.
+ *
+ * HomeView renders `<HomeStack lang>` around the credentials plate and the
+ * snow plate ("where we work"), so this prints the pause plate first and its
+ * children after it, in one box:
+ *
+ *   div.h-stack
+ *     section.h-pause        the photograph and its one line (the h2)
+ *     {children}             HomeCredentials, HomeWhere
+ *
+ * PLAIN FLOW FOR NOW. Three plates, one under the other. The slide-over
+ * (the pause plate pinned while the credentials plate slides over it, and
+ * the snow plate over both — E15) is pure CSS and comes with the motion
+ * slice; the wrapper exists so that slice changes CSS and not markup. Every
+ * spot it hooks into is marked MOTION HOOK.
+ *
+ * THE PHOTOGRAPH IS A PLACE, NOT A PROJECT: the spare aerial of the South
+ * Florida coast, `aria-hidden`, black and white, with a black gradient over
+ * its top and bottom so the line at the foot always reads. The line is the
+ * section's <h2>.
+ *
+ * A SERVER COMPONENT; the only client code is `Img`, already on the page.
+ */
+export function HomeStack({ lang, children }: { lang: Lang; children?: React.ReactNode }) {
+  const c = getContent(lang);
+  const h = c.home.pause;
+
+  return (
+    /* MOTION HOOK: E15, the slide-over stack. At (min-width: 900px) and
+       (min-height: 720px), without reduced motion, the CSS pins
+       `.h-pause` (sticky, top 0, 100svh), pins the credentials plate over it
+       and lets the snow plate slide over both; the covered plate dims with
+       `animation-timeline: view()` where supported. `data-motion="stack"` is
+       the hook. No script, no per-frame writes. */
+    <div className="h-stack" data-motion="stack">
+      <section className="h-pause mp-surface--graphite" aria-labelledby="h-pause-h" data-motion="stack-pause">
+        {/* MOTION HOOK: E14, parallax ±9 % of the frame on fine pointers
+            ≥ 900 px (`Parallax` island; transform only, from this
+            element's position). The frame is 18 % taller than the plate so
+            the shift never shows an edge. */}
+        <div className="h-pause__px" data-parallax="pause">
+          <Img photo={photo.southFloridaAerial} className="h-pause__img" sizes="100vw" />
+        </div>
+        <div className="h-pause__copy">
+          {/* MOTION HOOK: the gold hairline draws across (E11) —
+              `data-fx="line"`. */}
+          <div className="h-pause__line" aria-hidden="true" data-fx="line" />
+          {/* MOTION HOOK: the words rise out of their masks (E8) —
+              `data-fx="words"`. */}
+          <h2 id="h-pause-h" className="h-pause__h" data-fx="words">
+            <Words text={h.title} accent={h.accentWord} />
+          </h2>
+        </div>
+      </section>
+      {children}
+    </div>
+  );
+}

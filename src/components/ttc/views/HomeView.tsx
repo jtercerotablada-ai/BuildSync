@@ -1,58 +1,77 @@
 import React from 'react';
 import type { Lang } from '@/lib/ttc/i18n';
-import { Hero } from '@/components/ttc/mp/Hero';
-import { ProgramsSection } from '@/components/ttc/mp/ProgramSection';
-import { PricingSection, JurisdictionsSection } from '@/components/ttc/mp/CostSection';
-import { NewBuildings } from '@/components/ttc/mp/NewBuildings';
-import { PartnerSection } from '@/components/ttc/mp/PartnerSection';
-import { ContactCTA } from '@/components/ttc/mp/ContactCTA';
+import { HomeBim } from '@/components/ttc/mp/home/HomeBim';
+import { HomeContact } from '@/components/ttc/mp/home/HomeContact';
+import { HomeCredentials } from '@/components/ttc/mp/home/HomeCredentials';
+import { HomeHero } from '@/components/ttc/mp/home/HomeHero';
+import { HomeRibbon } from '@/components/ttc/mp/home/HomeRibbon';
+import { HomeServices } from '@/components/ttc/mp/home/HomeServices';
+import { HomeStack } from '@/components/ttc/mp/home/HomeStack';
+import { HomeStatement } from '@/components/ttc/mp/home/HomeStatement';
+import { HomeTools } from '@/components/ttc/mp/home/HomeTools';
+import { HomeTypes } from '@/components/ttc/mp/home/HomeTypes';
+import { HomeWhere } from '@/components/ttc/mp/home/HomeWhere';
+import '@/app/(public)/home.css';
+import '@/app/(public)/home-lower.css';
 import { HomeAddress } from './meta';
 
 /**
- * Home: six sections, each with one job, each as short as its job allows.
- * Existing buildings come first — the reader with a deadline is the one
- * holding a county notice.
+ * The home page: a PRESENTATION OF THE FIRM, in black, white and gold, in the
+ * spirit of a large structural firm's own site. It is not about recertification
+ * (the owner, 2026-10-24): Miami-Dade Building Recertification and Broward
+ * BSIP are two of EIGHT service names, at the same size and weight as the
+ * rest. The build specification is `home-concepts/SPEC.md`; the words are
+ * `home` in site.ts and site.es.ts; the guards are views/home.test.ts.
  *
- *   Hero                 what · where · one action · four links into the page
- *   ProgramsSection      the two county programs side by side, each opening
- *                        with what waiting costs (#miami-dade | #broward)
- *   PricingSection       fixed-fee ranges, both counties in one table
- *   JurisdictionsSection the offices we file with
- *   NewBuildings         the design side, and its four services (#new-buildings)
- *   PartnerSection       two licensed firms, one team
- *   ContactCTA           the action, again
+ *   HomeAddress   canonical, hreflang and og:url (draws nothing, meta.tsx)
+ *   HomeHero      what, where, the credential words, one action; the film
+ *   HomeRibbon    the eight services and the building types, as moving type
+ *   HomeServices  the eight services, a photograph and one line each
+ *   HomeStatement hurricane wind, high water, decades of salt air
+ *   HomeBim       the structural model, the one thing a camera cannot show
+ *   HomeTypes     the kinds of building, a rail of illustrative photographs
+ *   HomeStack     one photographic pause, then the plates that slide over it:
+ *     HomeCredentials  the licenses, the registration, the contractor's card
+ *     HomeWhere        the offices the firm files with (the one snow plate)
+ *   HomeTools     the free calculators and the guides
+ *   HomeContact   "Get in touch." with the real form
  *
- * The two county columns are one column component rendered once per county,
- * so their rows line up label for label; each prints only its own county's
- * numbers, taken from that service's timing row in site.ts. Under 1024px a
- * switch shows one county at a time. The three anchor ids are the targets
- * of the hero strip (`hero.caps`).
+ * EVERY SECTION IS A SERVER COMPONENT taking `{ lang }` and reading its words
+ * with `getContent(lang)`: the copy of the page is in the HTML and none of it
+ * is shipped to the browser as data (the old `useContent()` pattern put both
+ * languages' whole copy in the script). The client pieces are the islands
+ * inside them: the film, the pause switches, the reveals, the form, and — in
+ * the motion slice — the ribbon, the rail and the parallax.
  *
- * Not here any more: the engineer (his portrait and account live on /about
- * alone — the owner, 2026-10-20: "not mixed in"), "Engineered for this coast"
- * (the jurisdictions say where, office by office), and the "What waiting can
- * cost" section (the owner, 2026-10-20: said up front, in each county's
- * column, instead).
+ * ONE ROOT, TWO LANGUAGES. `.mp-home[data-lang]` carries the language so
+ * home.css can size a headline per locale (the Spanish hero is three lines of
+ * the same shape as the English one, at a smaller size). `/es` renders this
+ * same view with `lang="es"`.
  *
- * Rhythm: dark · paper · concrete · paper · graphite · concrete · dark
- * close. Every section but one reads `lang` from the URL; PartnerSection is
- * a server component and takes it as a prop.
+ * The page has one `<h1>` (the hero's) and every other section an `<h2>`;
+ * cards, credential cards and tool rows are not headings (20 headings, under
+ * the owner's ceiling of 23).
  *
- * Before the sections: HomeAddress, which draws nothing. It is the page's
- * canonical, hreflang and og:url, printed here because Next's metadata
- * cannot print the home page's address with its trailing slash (meta.tsx).
+ * Styles: home.css (tokens, the hero, the ribbon, the services, the statement,
+ * the BIM block) and home-lower.css (the rest), both imported here so the home
+ * is the only route that loads them; mp.css is untouched.
  */
 export function HomeView({ lang }: { lang: Lang }) {
   return (
-    <>
+    <div className="mp-home" data-lang={lang}>
       <HomeAddress lang={lang} />
-      <Hero />
-      <ProgramsSection n="01" />
-      <PricingSection n="02" surface="concrete" />
-      <JurisdictionsSection n="03" />
-      <NewBuildings n="04" />
-      <PartnerSection n="05" lang={lang} />
-      <ContactCTA />
-    </>
+      <HomeHero lang={lang} />
+      <HomeRibbon lang={lang} />
+      <HomeServices lang={lang} />
+      <HomeStatement lang={lang} />
+      <HomeBim lang={lang} />
+      <HomeTypes lang={lang} />
+      <HomeStack lang={lang}>
+        <HomeCredentials lang={lang} />
+        <HomeWhere lang={lang} />
+      </HomeStack>
+      <HomeTools lang={lang} />
+      <HomeContact lang={lang} />
+    </div>
   );
 }
