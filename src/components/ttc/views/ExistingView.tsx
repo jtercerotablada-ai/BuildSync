@@ -55,7 +55,6 @@ export function ExistingView({ lang }: { lang: Lang }) {
         titleLines={accentLines(p.titleLines, p.accentWord)}
         sub={p.sub}
         actions={noticeActions}
-        facts={p.facts}
         photo={imagery.pages.existingBuildings}
       />
 

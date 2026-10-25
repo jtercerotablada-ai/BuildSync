@@ -11,10 +11,11 @@ import { ContactView } from './ContactView';
  * (?service=building-recertification / broward-bsip) and a new-building
  * service's button (?service=peer-review…).
  *
- *   • A county program's form puts the upload first and, on a phone, hides
- *     the hero's direct lines (mp.css). Call and WhatsApp must then still be
- *     on the page, under the form, opening the chat with the notice line —
- *     the guide tells that visitor to send the letter by WhatsApp.
+ *   • The hero has no side panel (the owner, 2026-10-24: "quita"): Call and
+ *     WhatsApp are under the form for every visitor, opening the chat with
+ *     the line that fits — the notice for a county program (the guide tells
+ *     that visitor to send the letter by WhatsApp), a project for a service
+ *     whose reader holds no letter.
  *   • A new-building visitor holds no notice: the hero's sub, like the
  *     WhatsApp text, asks for the project, never the letter.
  *   • Nothing under the Send button (the owner, October 20, 2026).
@@ -67,8 +68,9 @@ describe('/contact: the direct lines and the sub follow the visitor', () => {
         const at = html.indexOf('mp-contact__reach-after');
         expect(at).toBeGreaterThan(html.lastIndexOf('</form>'));
         expect(at).toBeLessThan(html.indexOf('mp-before-title'));
-        // The hero keeps its own pair (shown from 641px; mp.css decides).
-        expect(hrefs(hero(html))).toContain(esc(c.contact.phone!.href));
+        // The hero carries no direct lines at all.
+        expect(hrefs(hero(html))).not.toContain(esc(c.contact.phone!.href));
+        expect(hrefs(hero(html)).filter((x) => x.includes('whatsapp') || x.startsWith('mailto:'))).toEqual([]);
         expect(sub(html)).toBe(p.sub);
       });
     }
@@ -78,15 +80,15 @@ describe('/contact: the direct lines and the sub follow the visitor', () => {
         const html = render(lang, s.slug);
         expect(sub(html)).toBe(p.subNew);
         expect(sub(html)).not.toMatch(lang === 'en' ? /notice|letter|late/i : /notificación|carta|tarde/i);
-        // Never opened notice-first, so no second pair is printed.
-        expect(after(html)).toBeNull();
+        // The pair is there, with the project line and no mention of a notice.
+        expect(text(after(html)!)).toBe(`${r.call} ${c.contact.phone!.display} ${r.whatsappPlain}`);
         expect(html).not.toContain(esc(r.whatsappNotice));
       });
     }
 
     // The assessments page is an existing building with no county letter
     // (site.ts `holdsNotice`): the chat it leads to does not open with "I
-    // received a building inspection notice", and no notice pair is printed.
+    // received a building inspection notice", and the pair under the form says "message us".
     it(`${lang} ?service=structural-condition-assessments: the chat asks for a proposal, not about a notice`, () => {
       const html = render(lang, 'structural-condition-assessments');
       const plain = `&amp;text=${encodeURIComponent(r.whatsappTextPlain).replace(/'/g, '%27')}`;
@@ -96,7 +98,7 @@ describe('/contact: the direct lines and the sub follow the visitor', () => {
         expect(x).toContain(plain);
         expect(x).not.toContain(waNotice);
       }
-      expect(after(html)).toBeNull();
+      expect(text(after(html)!)).toBe(`${r.call} ${c.contact.phone!.display} ${r.whatsappPlain}`);
       expect(html).not.toContain(esc(r.whatsappNotice));
     });
 
@@ -107,10 +109,11 @@ describe('/contact: the direct lines and the sub follow the visitor', () => {
       for (const x of wa) expect(x).toContain(waNotice);
     });
 
-    it(`${lang} bare /contact: the notice sub, the hero's lines, nothing under Send`, () => {
+    it(`${lang} bare /contact: the notice sub, no hero lines, the pair under the form, nothing under Send`, () => {
       const html = render(lang);
       expect(sub(html)).toBe(p.sub);
-      expect(hrefs(hero(html))).toContain(esc(c.contact.phone!.href));
+      expect(hrefs(hero(html))).not.toContain(esc(c.contact.phone!.href));
+      expect(text(after(html)!)).toBe(`${r.call} ${c.contact.phone!.display} ${r.whatsappNotice}`);
       const form = html.match(/<form\b[\s\S]*?<\/form>/)![0];
       // The form ends with the button row: no note, no fine print after it.
       expect(form).not.toContain('mp-form__note');

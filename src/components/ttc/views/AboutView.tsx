@@ -68,7 +68,6 @@ export function AboutView({ lang }: { lang: Lang }) {
         crumbs={[{ href: '/', label: c.ui.home }, { label: navLabel }]}
         titleLines={accentLines(p.titleLines, p.accentWord)}
         sub={p.sub}
-        facts={p.facts}
         photo={imagery.pages.about}
       />
 

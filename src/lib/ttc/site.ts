@@ -2940,13 +2940,6 @@ export const aboutPage = {
      Approach section's to say, and "one engineer" is already its first
      sentence: the lede says each once. */
   sub: 'Built around one accountable team. Tercero Tablada Civil and Structural Engineering Inc. designs new reinforced-concrete buildings and evaluates the ones already standing, across Miami-Dade and Broward.',
-  /* Region stays: it is the only other place "South" is printed on /about,
-     and every word of the H1 must be a word of the page (seo.test). Do not
-     reword it to the two counties. */
-  facts: [
-    { k: 'Team', v: 'Juan Tercero · Melvin Tercero · Rudy Diaz' },
-    { k: 'Region', v: 'South Florida' },
-  ],
   /* One section on /about: the two paragraphs beside the title, then the
      five principles under their own label (`principles.eyebrow`). */
   approach: {
@@ -2995,7 +2988,7 @@ export const aboutPage = {
   team: {
     eyebrow: 'Our team',
     title: 'The people behind your building.',
-    lede: 'Two companies, one team: Juan Tercero and Melvin Tercero at Tercero Tablada Civil and Structural Engineering Inc., and Rudy Diaz at Precision Source Inc., the general and electrical contractor — a separate company — that works with us on recertifications and BSIP inspections.',
+    lede: 'Two companies, one team in South Florida: Juan Tercero and Melvin Tercero at Tercero Tablada Civil and Structural Engineering Inc., and Rudy Diaz at Precision Source Inc., the general and electrical contractor — a separate company — that works with us on recertifications and BSIP inspections.',
     members: [
       {
         id: 'engineer',
@@ -3090,11 +3083,6 @@ export const existingPage = {
      pricing block's, for the two programs this line is about. It used to
      list the five services, which the four situations below name. */
   sub: 'The building is already standing. Left unanswered, a county notice turns into fines and a lien in Miami-Dade, and an enforcement hearing in Broward. Already late? It can still be resolved — send us the letter for a free, fixed-fee proposal.',
-  /* No "Coverage" fact: the H1 already ends "in Miami-Dade and Broward". */
-  facts: [
-    { k: 'For', v: 'Associations, owners, managers' },
-    { k: 'Output', v: 'Reports, repair scopes, reinspections' },
-  ],
   /* THE HUB: four situations, each with the service that answers it.
      This page used to print the four existing-building services as the very
      cards /services prints — same summary, same four rows — under a list of
@@ -3209,13 +3197,13 @@ export const contactPage = {
   /* The line for ?service= with a new-building service (track 'new', the
      same rule as the WhatsApp text in ContactView): that visitor holds no
      notice. No fixed fee (verified for recertification and BSIP only), and
-     no reply time — the hero prints `reach.reply` right under it. */
+     no reply time (`reach.reply` is printed nowhere since 2026-10-24: the
+     hero has no side panel). */
   subNew: 'Send the drawings, or a few lines about the project and where it is — whatever you already have — and get a free proposal with the scope written out.',
   /* The guide beside the form: what to send and what comes back. /contact
      used to close with the home page's "Engineered for this coast" block,
      word for word; this is that reader's block instead. The direct lines are
-     in the hero (and, on a phone opened for a county program, under the
-     form), not restated here.
+     under the form, not restated here.
 
      Every sentence restates something the site already says elsewhere (the
      two programs' next step and steps, `reach`, the principle "A scope you
@@ -3239,7 +3227,7 @@ export const contactPage = {
       { k: 'If the date has already passed', v: 'Write to us all the same, and attach the notice with any letter or citation that came after it. The inspection can still be done and the report filed; the sooner the engineer reads what you received, the sooner you have a plan to put before your Building Official.' },
       { k: 'If no notice has come yet', v: 'Send the address of the building and one date: in Miami-Dade, the year it was built; in Broward, the year of its certificate of occupancy. Each county counts a building’s age from that record, so with it we can tell you what applies to yours before a letter arrives.' },
       { k: 'For any other building or project', v: 'Tell us about the building, where it is and what you need: an assessment, a repair design, the structure of a new building, or a second look at a design by others. Drawings, photographs and earlier reports are welcome, and none of them is required. The proposal for this work is free as well.' },
-      { k: 'After you send it', v: 'When there is a notice, the engineer first reads what your Building Official is asking for. The answer is a set of questions or a written proposal with the scope: what the work includes, what it leaves out, what you will receive and what it costs — for a recertification or a BSIP, a fixed fee. Nothing begins until you have agreed to it.' },
+      { k: 'After you send it', v: 'When there is a notice, the engineer first reads what your Building Official is asking for. Our reply is a set of questions or a written proposal with the scope: what the work includes, what it leaves out, what you will receive and what it costs — for a recertification or a BSIP, a fixed fee. Nothing begins until you have agreed to it.' },
       { k: 'Where, and in which language', v: 'We work in Miami-Dade and Broward, in every city of both counties — from Miami, Hialeah and Coral Gables to Fort Lauderdale, Hollywood and Pompano Beach. Tell us the city, or that the building is outside city limits: that decides which office sends the notice and receives the report. The form and this site are in English and in Spanish; write in whichever is easier for you.' },
     ],
   },

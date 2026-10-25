@@ -3659,19 +3659,11 @@ a.mp-menu__mail {
     border-block-end: 0;
   }
 }
-/* Call and WhatsApp under the form (ContactView): shown only where the
-   hero's are hidden — a phone, with the form opened for a county program
-   (the `data-mp-notice-first` rule in "Contact", 20) — so exactly one pair
-   is visible at every width and the guide's "send it by WhatsApp" has a
-   link to tap. Two classes: .mp-reach (20) comes later and sets display. */
+/* Call and WhatsApp under the form (ContactView): the page's direct line at
+   every width, since the hero has no side panel (2026-10-24). Two classes:
+   .mp-reach (20) comes later and sets the margin. */
 .mp-reach.mp-contact__reach-after {
-  display: none;
-}
-@media (max-width: 640px) {
-  .mp:has([data-mp-notice-first]) .mp-reach.mp-contact__reach-after {
-    display: grid;
-    margin-block-start: var(--mp-8);
-  }
+  margin-block-start: var(--mp-8);
 }
 
 /* ═══ 19 · RESPONSIVE ═════════════════════════════════════════════════════ */
@@ -6650,29 +6642,11 @@ a.mp-menu__mail {
 .mp-section.mp-contact {
   padding-block: var(--mp-12) var(--mp-16);
 }
-/* Call · WhatsApp · email and the usual reply time, in the hero
-   (ContactView): PageHero's side panel from 1024px, under the lede below
-   that. The links are .mp-reach's, the same text links as under every
-   program button; in the panel they stack, one 44px row each. */
-.mp-contact__reach {
-  margin: 0;
-  gap: var(--mp-2);
-}
-.mp-contact__reach .mp-phero__note {
-  margin: 0;
-  max-width: none;
-}
 /* The H1 is written as two short lines ("Tell us about the building." /
    "We reply with a scope."); the large-display cap (11em, ≥1500px) broke
    the first in two. Its column still bounds it. */
 .mp:has(.mp-contact) .mp-phero__title {
   max-width: none;
-}
-@media (min-width: 1024px) {
-  .mp-contact__reach .mp-reach__links {
-    display: grid;
-    justify-items: start;
-  }
 }
 .mp-files {
   gap: 0.6rem;
@@ -6961,16 +6935,6 @@ a.mp-menu__mail {
     padding-block-end: var(--mp-8);
   }
   .mp:has(.mp-contact) .mp-phero__photo {
-    display: none;
-  }
-  /* Opened for a county program (`data-mp-notice-first`): the button
-     promised "a phone photo of the letter is enough", so the upload is the
-     first thing under the lede and the direct lines give way — that visitor
-     came from a page that offered call and WhatsApp beside the button.
-     Call and WhatsApp show under the form instead (.mp-contact__reach-after,
-     section 18). The whole panel goes, not just its content, so no empty
-     grid gap is left. */
-  .mp:has([data-mp-notice-first]) .mp-phero__side:has(.mp-contact__reach) {
     display: none;
   }
 }

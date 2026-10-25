@@ -1853,12 +1853,6 @@ export const es: SiteContent = {
     titleLines: ['Tercero Tablada Civil and Structural', 'Engineering Inc., en el Sur de Florida.'],
     accentWord: 'Sur de Florida.',
     sub: 'Construida alrededor de un solo equipo responsable. Tercero Tablada Civil and Structural Engineering Inc. diseña edificios nuevos de concreto reforzado y evalúa los que ya están en pie, en Miami-Dade y Broward.',
-    /* "Región" se queda: es el único otro lugar de /es/about donde se lee
-       "Sur", y cada palabra del H1 debe estar en la página (seo.test). */
-    facts: [
-      { k: 'Equipo', v: 'Juan Tercero · Melvin Tercero · Rudy Diaz' },
-      { k: 'Región', v: 'Sur de Florida' },
-    ],
     approach: {
       eyebrow: 'Enfoque',
       title: 'Revisado línea por línea, antes de salir.',
@@ -1948,11 +1942,6 @@ export const es: SiteContent = {
        for the sources): no figure, the late reader included, a step that
        costs nothing. */
     sub: 'El edificio ya está en pie. Sin respuesta, una notificación del condado se convierte en multas y un gravamen en Miami-Dade, y en una audiencia de cumplimiento en Broward. ¿Ya va tarde? Todavía tiene solución — envíenos la carta y reciba una propuesta gratis, a precio fijo.',
-    /* No "Cobertura": the H1 already ends "en Miami-Dade y Broward". */
-    facts: [
-      { k: 'Para', v: 'Asociaciones, propietarios, administradores' },
-      { k: 'Resultado', v: 'Informes, alcances de reparación, reinspecciones' },
-    ],
     /* The hub: four situations, each with the service that answers it — one
        item per existing-building service, in the `services` order. See the
        EN comment in site.ts for what a line may and may not say. Written as
