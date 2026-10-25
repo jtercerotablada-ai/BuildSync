@@ -17,11 +17,12 @@ import { Words } from './Words';
  *     section.h-pause        the photograph and its one line (the h2)
  *     {children}             HomeCredentials, HomeWhere
  *
- * PLAIN FLOW FOR NOW. Three plates, one under the other. The slide-over
- * (the pause plate pinned while the credentials plate slides over it, and
- * the snow plate over both — E15) is pure CSS and comes with the motion
- * slice; the wrapper exists so that slice changes CSS and not markup. Every
- * spot it hooks into is marked MOTION HOOK.
+ * THE SLIDE-OVER (E15) is pure CSS (home-motion.css §05): at 901 x 720 and up,
+ * without reduced motion, the pause plate is pinned while the credentials
+ * plate slides over it, and the snow plate over both. The wrapper's hooks are
+ * `data-motion` attributes; anywhere else the three plates are one under the
+ * other. `StackFocus` (mounted by HomeView) puts the page back at the end of
+ * the pause when the keyboard reaches the credentials plate.
  *
  * THE PHOTOGRAPH IS A PLACE, NOT A PROJECT: the spare aerial of the South
  * Florida coast, `aria-hidden`, black and white, with a black gradient over
@@ -35,7 +36,7 @@ export function HomeStack({ lang, children }: { lang: Lang; children?: React.Rea
   const h = c.home.pause;
 
   return (
-    /* MOTION HOOK: E15, the slide-over stack. At (min-width: 900px) and
+    /* E15, the slide-over stack. At (min-width: 901px) and
        (min-height: 720px), without reduced motion, the CSS pins
        `.h-pause` (sticky, top 0, 100svh), pins the credentials plate over it
        and lets the snow plate slide over both; the covered plate dims with
@@ -43,7 +44,7 @@ export function HomeStack({ lang, children }: { lang: Lang; children?: React.Rea
        the hook. No script, no per-frame writes. */
     <div className="h-stack" data-motion="stack">
       <section className="h-pause mp-surface--graphite" aria-labelledby="h-pause-h" data-motion="stack-pause">
-        {/* MOTION HOOK: E14, parallax ±9 % of the frame on fine pointers
+        {/* E14, parallax ±9 % of the frame on fine pointers
             ≥ 900 px (`Parallax` island; transform only, from this
             element's position). The frame is 18 % taller than the plate so
             the shift never shows an edge. */}

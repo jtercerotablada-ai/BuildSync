@@ -26,19 +26,19 @@ import { Words } from './Words';
  * them (the same reason `RevealText` prints one): without it `textContent`
  * ran them together ("Hurricane wind.High water.").
  *
- * MOTION HOOKS: the h2 `[data-fx="words"]` (word rise, `Words` with a running
+ * MOTION: the h2 `[data-fx="words"]` (word rise, `Words` with a running
  * `--wi` across the three lines); the photograph `[data-fx="img"]`.
  */
 export function HomeStatement({ lang }: { lang: Lang }) {
   const c = getContent(lang);
   const s = c.home.statement;
 
-  let start = 0;
-  const lines = s.lines.map((line) => {
-    const node = <Words text={line} start={start} />;
-    start += line.split(/\s+/).length;
-    return node;
-  });
+  /* The index of each line's first word across the three lines, so the rise
+     of the words (E8) runs on from one line to the next. */
+  const first = s.lines.map((_, i) =>
+    s.lines.slice(0, i).reduce((n, line) => n + line.split(/\s+/).filter(Boolean).length, 0),
+  );
+  const lines = s.lines.map((line, i) => <Words key={line} text={line} start={first[i]} />);
 
   return (
     <section className="h-plate h-stmt mp-surface--graphite" aria-labelledby="h-stmt-title">

@@ -18,8 +18,10 @@ import { Words } from './Words';
  * with four small gold corner ticks and the mono caption under it (and the
  * pause switch, at the caption's right: the loop moves, so it carries the
  * control — WCAG 2.2.2 — as the old new-buildings stage did). ON A PHONE the
- * frame comes first and the text after; the frame sits inside the page's
- * gutter, so no tick is ever within 16 px of the screen edge.
+ * text comes first and the frame after, the order of the markup (the pause
+ * switch follows the heading and the link in the tab order); the frame sits
+ * inside the page's gutter, so no tick is ever within 16 px of the screen
+ * edge.
  *
  * `VideoLoop` is lazy by construction: it paints the (lazy) poster, mounts the
  * `<video>` only within one viewport of being seen, never under Save-Data or
@@ -31,7 +33,7 @@ import { Words } from './Words';
  *
  * The ticks are one `::after` with eight 16 × 1 px gradients (home.css).
  *
- * MOTION HOOKS: the h2 `[data-fx="words"]`; the frame `[data-fx="img"]`
+ * MOTION: the h2 `[data-fx="words"]`; the frame `[data-fx="img"]`
  * (clip-path reveal of the whole frame); the caption row, a plain `Reveal`.
  */
 export function HomeBim({ lang }: { lang: Lang }) {

@@ -22,7 +22,7 @@ import { Arrow, Diamond } from './glyphs';
  * and white under a scrim (home.css). `VideoLoop` paints the poster first —
  * the page's LCP, at high priority — and swaps the film in after `load` and
  * an idle moment; reduced motion and Save-Data keep the poster. The shared
- * switch in the bar stops the film (and, later, the ribbon): WCAG 2.2.2.
+ * switch in the bar stops the film and the ribbon: WCAG 2.2.2.
  *
  * EVERY ENTRANCE HERE IS A CSS KEYFRAME (home.css, E2 to E6), not Motion and
  * not a script: the whole first screen paints from the server HTML, with or
@@ -36,11 +36,35 @@ import { Arrow, Diamond } from './glyphs';
  * `DarkHeroSentinel` stays: its presence is what makes the header render
  * transparent from the first paint (`body:has([data-mp-dark-hero])`).
  *
- * MOTION HOOK (E14, parallax): `[data-parallax="hero"]` is the film's box,
+ * E14 (parallax): `[data-parallax="hero"]` is the film's box,
  * deliberately a different element from `.h-hero__film`, which carries the
  * settle keyframe: the two transforms must not share a node. The box is
  * 12 % taller than the hero (top −6 %) so it can travel without a gap.
  */
+/** A sentence with each hyphenated name in `names` kept whole: "Miami-Dade"
+ *  broke at its hyphen on a 360 px phone ("…en Miami-" / "Dade y Broward"). A
+ *  span, not a non-breaking hyphen: the text the page prints, and the tests
+ *  and a search engine read, stays the plain string. */
+function KeepWhole({ text, names }: { text: string; names: readonly string[] }) {
+  const hyphenated = names.filter((n) => n.includes('-'));
+  if (hyphenated.length === 0) return <>{text}</>;
+  const escape = (n: string) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = new RegExp(`(${hyphenated.map(escape).join('|')})`);
+  return (
+    <>
+      {text.split(pattern).map((part, i) =>
+        hyphenated.includes(part) ? (
+          <span key={i} className="h-nowrap">
+            {part}
+          </span>
+        ) : (
+          part
+        ),
+      )}
+    </>
+  );
+}
+
 export function HomeHero({ lang }: { lang: Lang }) {
   const c = getContent(lang);
   const h = c.home.hero;
@@ -84,7 +108,9 @@ export function HomeHero({ lang }: { lang: Lang }) {
         />
 
         <div className="h-hero__foot">
-          <p className="h-hero__sub">{h.sub}</p>
+          <p className="h-hero__sub">
+            <KeepWhole text={h.sub} names={h.counties} />
+          </p>
           <a className="h-btn" href="#contact">
             <span>{h.cta}</span>
             <span className="h-btn__arrow" aria-hidden="true">

@@ -41,8 +41,8 @@ const FALLBACK_LOGO = { w: 160, h: 64 };
  * GOLD ON SNOW reads olive, so the accent word is ink italic, and the only
  * gold-family colour is the 1 px `--mp-gold-ink` rule over each block.
  *
- * Plain flow for now: the motion slice slides this plate over the credentials
- * and pause plates (E15) and slides the county blocks in from the left (E10).
+ * At 901 x 720 and up this plate slides over the credentials and pause plates
+ * (E15, home-motion.css §05); the county blocks slide in from the left (E10).
  * A SERVER COMPONENT.
  */
 export function HomeWhere({ lang }: { lang: Lang }) {
@@ -51,7 +51,7 @@ export function HomeWhere({ lang }: { lang: Lang }) {
   const k = c.pricing.jurisdictions;
 
   return (
-    /* MOTION HOOK: E15, this plate is `position: relative; z-index: 3` and
+    /* E15, this plate is `position: relative; z-index: 3` and
        slides over the two plates under it. */
     <section
       id="where"

@@ -23,9 +23,11 @@ import { Words } from './Words';
  * dropped by `clamp(90px, 15vw, 260px)`. Each column opens with its own
  * legend (what the track is, in one line), so the dropped column carries its
  * legend down with it. Under 900 px the columns dissolve (`display: contents`)
- * and `order: var(--o)` — the card's place in `home.order` — puts the cards
- * back in the alternating sequence, each carrying its track tag, so the
- * alternation reads as a legend. The DOM stays grouped by track.
+ * and the page reads as the new-buildings legend and its four cards, then the
+ * existing-buildings legend and its four, each card carrying its track tag:
+ * the order of the markup, so the keyboard and a screen reader go the way the
+ * eye does. `--o` on each card is its place in `home.order` (the ribbon runs
+ * in that order; nothing in the stylesheets orders by it).
  *
  * THE LINK IS THE TITLE, AND THE WHOLE CARD IS THE TARGET — the pattern of
  * Typologies.tsx: the `<a>` holds the title alone (link text well under 120
@@ -40,14 +42,13 @@ import { Words } from './Words';
  * The photographs are stock and are never captioned as the firm's work: the
  * tag in the head says so ("Illustrative photographs").
  *
- * MOTION HOOKS (spec E8 to E12). The static page carries only the attributes;
- * nothing below is hidden or moved until the motion slice arms it:
+ * MOTION (spec E8 to E12), by attribute (home-motion.css):
  *   `[data-fx="words"]`   the h2: each word rises out of its mask (`Words`)
  *   `[data-fx="left"]`    each column's legend slides in from the left (E10)
  *   `[data-fx="img"]`     each photograph: clip-path reveal on `.h-ph__in`,
  *                         settle on its image (E12)
  * The head's label, tag, lede and link are wrapped in plain `Reveal`s, the
- * production fade-up (E9, which the motion slice may retune with `fx`).
+ * production fade-up (E9).
  */
 export function HomeServices({ lang }: { lang: Lang }) {
   const c = getContent(lang);

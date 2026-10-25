@@ -291,18 +291,21 @@ html.js .mp-home .h-types__ctl:empty {
    screen while the credentials plate slides up over it, and the snow plate
    slides up over both. Pure CSS, no script, no per-frame writes.
 
-   ONLY AT (min-width: 900px) and (min-height: 720px), and without reduced
+   ONLY AT (min-width: 901px) and (min-height: 720px), and without reduced
    motion. Anywhere else the plates are three blocks in a column (the rules
    in home-lower.css). A zoomed or short window that falls below the media
    query turns the pinning off by itself, so a plate taller than the screen is
-   never pinned with its foot out of reach.
+   never pinned with its foot out of reach. 901, not 900: the phone bar is
+   shown at 900 px and below and would lie over the foot of a pinned plate.
+   (stack-math.ts holds the same condition, for StackFocus; a test keeps the
+   two together.)
 
    Order in the page, and what covers what:
      .h-pause   sticky at the top, one screen tall, z auto: lowest
      .h-cred    sticky at the top, at least one screen tall, z 2: over the pause
      .h-where   in the flow, z 3: over both, and the plate the stack ends on */
 
-@media (min-width: 900px) and (min-height: 720px) and (prefers-reduced-motion: no-preference) {
+@media (min-width: 901px) and (min-height: 720px) and (prefers-reduced-motion: no-preference) {
   .mp-home .h-stack .h-pause {
     position: sticky;
     top: 0;
@@ -324,6 +327,14 @@ html.js .mp-home .h-types__ctl:empty {
     min-height: 100svh;
     padding-block-start: calc(var(--mp-header-h, 76px) + clamp(4px, 1.2svh, 24px));
     padding-block-end: clamp(16px, 3.5svh, 72px);
+    /* A pause before this plate slides over the photograph: the photograph
+       stays pinned and whole, its one line readable, for 45 % of a screen of
+       scrolling (360 px at the least). Without it the plate began to cover the
+       line with the first wheel notch, and the page's one full-screen breath
+       was whole for about 170 px of scrolling. The margin does not move the
+       pin: a sticky box is held by its border edge. */
+    margin-top: 45vh;
+    margin-top: max(45svh, 360px);
   }
   .mp-home .h-stack .h-where {
     position: relative;
@@ -350,7 +361,7 @@ html.js .mp-home .h-types__ctl:empty {
    view itself, is animated by it. `timeline-scope` on the stack lets an
    earlier sibling read a later sibling's timeline. Elsewhere: plain overlap. */
 @supports (animation-timeline: view()) and (timeline-scope: --h-a) {
-  @media (min-width: 900px) and (min-height: 720px) and (prefers-reduced-motion: no-preference) {
+  @media (min-width: 901px) and (min-height: 720px) and (prefers-reduced-motion: no-preference) {
     .mp-home .h-stack {
       timeline-scope: --h-over-cred, --h-over-where;
     }
@@ -370,10 +381,36 @@ html.js .mp-home .h-types__ctl:empty {
     }
   }
 }
+/* Dimmed with `filter`, never `opacity`: a plate that goes translucent over
+   the still-pinned photograph shows that photograph's giant headline through
+   its own small text. Brightness darkens the plate and keeps it opaque. */
 @keyframes h-covered {
   to {
-    opacity: 0.78;
+    filter: brightness(0.72);
     transform: scale(1.07);
+  }
+}
+
+/* The credentials plate is a full screen at 1440 × 900 and 900 × 720; on a
+   shorter screen it was taller than the window, or flush with its foot. Below
+   900 px of height the vertical rhythm tightens, not the content: a smaller
+   headline, a smaller gap before the cards, less padding inside them. Same
+   conditions as the pin above (and the same cut-off at 901 px of width). */
+@media (min-width: 901px) and (min-height: 720px) and (max-height: 899px) and (prefers-reduced-motion: no-preference) {
+  .mp-home .h-cred__h {
+    font-size: clamp(30px, min(5.6vw, 8.2svh), 104px);
+  }
+  .mp-home[data-lang='es'] .h-cred__h {
+    font-size: clamp(30px, min(4.7vw, 8.2svh), 88px);
+  }
+  .mp-home .h-cred__head {
+    margin-top: clamp(14px, 2.6svh, 44px);
+  }
+  .mp-home .h-cred__row {
+    margin-top: clamp(20px, 3.4svh, 64px);
+  }
+  .mp-home .h-cred__card {
+    padding-block: clamp(18px, 3.2svh, 36px);
   }
 }
 

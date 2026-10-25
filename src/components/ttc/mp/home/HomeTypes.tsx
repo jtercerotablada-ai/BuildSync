@@ -16,9 +16,10 @@ import { TypesRail } from './TypesRail';
  *
  * A SERVER COMPONENT: static markup for a native horizontal scroller. It
  * scrolls with a trackpad, a finger, the arrow keys (the region is
- * focusable) and shift + wheel, with no script at all. A later slice adds the
- * client island (`TypesRail`: prev / next buttons, mouse drag, the progress
- * bar and the counter); every spot it hooks into is marked MOTION HOOK.
+ * focusable) and shift + wheel, with no script at all. The client island
+ * (`TypesRail`: prev / next buttons, mouse drag, the progress bar, the
+ * counter, and bringing a card the keyboard lands on whole into view) reads
+ * the elements marked `data-motion` below.
  *
  * SIX CARDS. The first five are `typologies[0..4]`, so their titles and links
  * are the ones /services prints; the sixth is new — "Repair design for
