@@ -377,8 +377,12 @@ export const ui = {
   /** Labels over the two halves of each How-we-work card. */
   stepYourPart: 'Your part',
   stepYouGet: 'You get',
-  /** Background-video toggle (WCAG 2.2.2). The label names the action the button takes. */
-  pauseMotion: 'Pause background video',
+  /** The pause switch (WCAG 2.2.2). The label names the action the button
+      takes. It was "Pause background video" until the home page began to
+      move in more than one place (the film, the BIM loop, the ribbon of
+      service names): one switch stops all of it, so the label says
+      "motion". Same words on every page. */
+  pauseMotion: 'Pause motion',
   /** The one label for the representative profiles on Work — they are not past jobs. */
   typicalEngagements: 'Typical engagements',
   relatedServices: 'Related services',
@@ -510,6 +514,18 @@ export const ui = {
       message: 'Comments',
       messagePlaceholder:
         'Anything you want us to know. No notice yet? Tell us how old the building is.',
+    },
+    /* The two strings of the form that name a notice, said without one:
+       the home page's form (ContactForm variant "home") swaps them in for
+       the message placeholder and the attachments hint above. The home page
+       is a presentation of the firm, not a page about a notice (the owner,
+       2026-10-24), so its form does not mention one. `home.form` reads this
+       object: one source. */
+    home: {
+      messagePlaceholder:
+        'Building type, what you need engineered or inspected, and anything else we should know.',
+      attachmentsHint:
+        'Photographs, drawings or reports. PDF, images, DWG, DXF or ZIP, up to 25 MB each, five files.',
     },
     errors: {
       name: 'Please enter your name',
@@ -2708,6 +2724,194 @@ export const newBuildings = {
 } as const;
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   HOME — the firm's presentation (the words of the new home page)
+   ═══════════════════════════════════════════════════════════════════════════
+   Written 2026-10-25 from the build specification of the new home page; the
+   Spanish twin is `home` in site.es.ts, key for key. The keys are in the
+   order of the page.
+
+   THE OWNER'S RULES (Juan Tercero, 2026-10-24) — views/home.test.ts holds
+   every one of them against every string below, in both languages:
+     • The home is a presentation of the firm, in the spirit of emxse.com.
+       It is NOT about recertification: no notice (of any kind), no day
+       count, no "letter", no "package", no lateness, no fine, no urgency,
+       no free-proposal line, no promise of a reply time. Miami-Dade
+       Building Recertification and Broward BSIP are two of EIGHT service
+       names, at the same size and weight as the rest.
+     • No money: no amount, range, fee or "from …".
+     • The company speaks, never a person: no name, no portrait, no
+       founder, no "I", no "led by", no headcount. The team lives on /about.
+     • "Professional Engineers", "Structural Engineers", "licensed" and
+       "Registered Florida Engineering Business" are welcome. Engineering
+       license numbers never; and no "SE license" (Florida has none).
+     • The contractor is named in ONE place: the credentials card, with its
+       logo, the role line (`partner.construction.role`) and both license
+       numbers. Nothing in this object says "contractor" or "partner", or
+       that the firm builds: the firm designs and inspects.
+     • Plain words, few per screen, no small print, no text under buttons.
+
+   WHAT IS NOT HERE, because the page reads it from where it already lives
+   (one home for each fact):
+     • the firm's name — `company.name`; the registry line — `company.registry`
+     • the lede of the credentials plate — `partner.lede`; the role line and
+       the licenses of the contractor — `partner.construction`
+     • the disclaimer of the county logos — `pricing.jurisdictions.disclaimer`
+     • the offices — `pricing.jurisdictions.lists`; the county logos — `marks`
+     • the titles of the first five building types — `typologies[0..4]`
+     • the phone, the email and the service area — `contact`; the WhatsApp
+       link text — `reach.whatsappPlain` and `reach.whatsappTextHome`
+     • the names of the open calculators — `calculatorFamilies`; the two
+       counts — `openCalculatorCount` and `guideSlugs.length`, said in words
+       by `numberWord` (lib/ttc/number-words.ts); a `{n}` below is where the
+       word goes. The count is never typed.
+
+   `services.lines` are the one line under each card's title. Each differs
+   from that service's `summary`, `heroSub` and `card.*` — those are printed
+   on /services and on the service's own page, and a line may not be printed
+   on two pages (shared-text.test.ts, and home.test.ts for these).
+
+   `accentWord` of each block is the one phrase set in the italic serif; it
+   is a phrase of the block's own title (or paragraph), once.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+export const home = {
+  /* The order of the eight services on the home, in the ribbon and in the
+     grid: new and existing alternate, Reinforced Concrete first, the two
+     county programs 4th and 6th. */
+  order: [
+    'reinforced-concrete-design',
+    'structural-condition-assessments',
+    'structural-analysis',
+    'building-recertification',
+    'bim-coordination',
+    'broward-bsip',
+    'peer-review',
+    'milestone-inspections',
+  ],
+  /* The chrome on the home alone (header, phone menu, footer). `callLabel`
+     is the name of the phone button: `{phone}` is `contact.phone.display`. */
+  chrome: {
+    headerCta: 'Get in touch',
+    callLabel: 'Call {phone}',
+    footerTag: 'Structural engineering for South Florida: Miami-Dade and Broward.',
+  },
+  form: ui.form.home,
+  hero: {
+    eyebrow: ['Professional Engineers', 'Structural Engineers'],
+    titleLines: ['Structural', 'engineers for', 'South Florida.'],
+    accentWord: 'Florida.',
+    sub: 'Professional Engineers licensed in Florida. We design new buildings and examine existing ones, in Miami-Dade and Broward.',
+    cta: 'Get in touch',
+    /* The two counties in the hero bar, between the firm's name and the
+       pause switch. */
+    counties: ['Miami-Dade', 'Broward'],
+  },
+  ribbon: {
+    label: 'What we engineer',
+    sideNew: 'New buildings',
+    sideExisting: 'Existing buildings',
+    /* The second row, under the eight service names. */
+    types: [
+      'Residences',
+      'Townhouses',
+      'Mid-rise Concrete',
+      'Mixed-use',
+      'Commercial Frames',
+      'Foundations',
+      'Repair Design',
+    ],
+  },
+  services: {
+    label: 'Services',
+    title: 'Eight services. One discipline.',
+    accentWord: 'discipline.',
+    lede: 'We read the buildings that stand and engineer the ones that do not yet.',
+    legend: {
+      existing: { k: 'Existing buildings', v: 'Inspection, assessment and repair design.' },
+      new: { k: 'New buildings', v: 'Foundations, frame and hurricane-wind design.' },
+    },
+    tag: 'Illustrative photographs',
+    all: 'All services',
+    lines: {
+      'reinforced-concrete-design': 'Foundations, columns, beams and slabs, designed as one structure.',
+      'structural-condition-assessments': 'What a building is doing today, and the repairs it needs.',
+      'structural-analysis': 'Gravity, hurricane wind and the foundations that carry it all.',
+      'building-recertification': 'Inspections and reports for Miami-Dade County’s recertification program.',
+      'bim-coordination': 'Coordinated models that settle conflicts on screen.',
+      'broward-bsip': 'Inspections and reports for Broward County’s building safety program.',
+      'peer-review': 'An independent second read of a structural design.',
+      'milestone-inspections': 'Structural safety inspections under Florida’s milestone law and beyond it.',
+    },
+  },
+  statement: {
+    lines: ['Hurricane wind.', 'High water.', 'Decades of salt air.'],
+    dim: 'We engineer for all of it, and write it down so an owner, an architect and a reviewer can follow.',
+    accentWord: 'all',
+  },
+  bim: {
+    label: 'Modeling',
+    title: 'The structure, modeled.',
+    accentWord: 'modeled.',
+    body: 'We model the structure and check it against the architect’s model and the building’s systems, so conflicts are settled on screen, not on site.',
+    caption: 'A structural model, assembling floor by floor',
+  },
+  types: {
+    label: 'Building types',
+    title: 'From a single house to a mid-rise concrete frame.',
+    accentWord: 'mid-rise',
+    tag: 'Illustrative photographs',
+    /* Names of the rail and of its two buttons. */
+    region: 'Building types we engineer',
+    prev: 'Previous building types',
+    next: 'Next building types',
+    /* The first five cards are `typologies[0..4]`; the sixth is new: the
+       repair design of existing structures, not "repairs" (a photograph of
+       a worker with a trowel over "repairs" reads as the firm doing them). */
+    sixth: { title: 'Repair design for existing structures' },
+  },
+  pause: {
+    title: 'Where structure meets the coast.',
+    accentWord: 'coast.',
+  },
+  credentials: {
+    label: 'Credentials',
+    titleLines: ['Licensed Professional Engineers.', 'Structural Engineers.', 'Registered in Florida.'],
+    accentWord: 'Registered',
+    /* Card 1 names the license, with no number. Card 2 is the firm itself:
+       its name is `company.registry`. Card 3 is the contractor's
+       (`partner.construction`). */
+    engineers: { k: 'Engineers', name: 'Florida Professional Engineer license' },
+    firm: { k: 'The firm' },
+  },
+  where: {
+    label: 'Where we work',
+    title: 'The offices we file with.',
+    accentWord: 'file',
+    lede: 'Miami-Dade and Broward County, and every city office we file with.',
+  },
+  tools: {
+    label: 'Free to use',
+    title: 'Engineering you can use.',
+    accentWord: 'use.',
+    calc: { title: '{n} free engineering calculators' },
+    guides: {
+      title: '{n} guides for building owners',
+      line: 'In plain words, in English and in Spanish.',
+    },
+  },
+  contact: {
+    label: 'Contact',
+    title: 'Get in touch.',
+    accentWord: 'touch.',
+    sub: 'Tell us about the building. Write in English or in Spanish.',
+    call: 'Call',
+    whatsapp: 'WhatsApp',
+    email: 'Email',
+    where: 'Where',
+  },
+} as const;
+
+/* ═══════════════════════════════════════════════════════════════════════════
    HOW WE WORK — the client-facing process, five steps
    ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -3434,7 +3638,7 @@ export const legal = {
         ...(ADS.on ? privacyAds.p : [
           'The public pages of this site set no cookies and run no analytics, advertising or social-media scripts. Their scripts, fonts, photographs and video are served from this site’s own address, and the form uses no outside verification service (CAPTCHA).',
         ]),
-        'One preference is kept in your browser and is never sent to us: if you pause the background video, the site remembers it so that the video stays paused on the next page.',
+        'One preference is kept in your browser and is never sent to us: if you pause the background video or the moving words, the site remembers it so that they stay paused on the next page.',
         'Cookies may be used by the authenticated project-management area of this domain for sign-in purposes; those are strictly necessary to keep a session active and are not used to profile visitors to the public site.',
       ] },
       { h: 'Links that leave this site', p: 'Calling us, writing by WhatsApp and following a link to a county office, to the state license search or to another official source all happen outside this website. What you send or do there is handled by that service under its own privacy terms, which we do not control. The WhatsApp link opens a chat with a first line already written; nothing is sent until you send it.' },
@@ -3555,6 +3759,12 @@ export const reach = {
      Proposal": in the bar on a 360–390px screen that took two lines, and
      the header's button is hidden while the bar is up. Free is a fact. */
   formPlain: 'Free proposal',
+  /* The same two on the home page (notice-pages.ts: the home holds no
+     notice). The home is a presentation of the firm: the bar's main cell
+     opens the contact block on the page, and the WhatsApp chat opens with
+     a first line that promises nothing and names no notice. */
+  formHome: 'Get in touch',
+  whatsappTextHome: 'Hello, I would like to talk about a building.',
   reply: 'We usually reply within two hours.',
 };
 
@@ -3592,8 +3802,13 @@ export const partner = {
   eyebrow: 'Who we work with',
   kicker: 'Two licensed firms',
   title: 'One team on your building.',
-  lede:
-    'We carry out Miami-Dade recertifications and Broward BSIP inspections together with Precision Source Inc., a Florida-certified general and electrical contractor based in Miami. Two licensed firms working as one team, from the notice to the final report, with more than 30 years of combined experience between them.',
+  /* The owner's sentence, 2026-10-24, split in two: the home page is a
+     presentation of the firm, not a page about recertification, so the
+     county programs, the notice and the final report are no longer in it.
+     "Combined" and "two firms" stay in the same breath, so it never reads
+     as thirty years of one person. Printed once, as one text node
+     (shared-text.test.ts counts the exact string). */
+  lede: 'More than 30 years of combined experience. Two licensed firms, working as one team.',
   licensesLabel: 'Florida licenses',
   /* The engineering card takes its name, engineer, P.E. number and business
      registry from `company` and `leadership` — one source for each fact. */
@@ -3725,6 +3940,7 @@ export const en = {
   footerNav,
   ui,
   hero,
+  home,
   services,
   contactServiceOptions,
   typologiesSection,

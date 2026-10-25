@@ -22,26 +22,36 @@ type Pages = 'home' | 'services' | 'existing' | 'work' | 'about' | 'contact' | '
  * longer ones are cut off mid-sentence — each one unique, with no code names
  * (ACI, ASCE, F.S.…).
  *
- * The descriptions lead with the two county programs, each by its own name —
- * Miami-Dade's is "recertification", Broward's is the "Building Safety
- * Inspection Program (BSIP)" — because that is the order of the site and
- * what the people holding a notice search for. NO age and NO day count goes
- * in a description: those numbers live in the timing rows of site.ts, next
- * to their authority and their date, and a meta description is where a
- * stale number survives longest. The titles keep their structure on purpose:
- * the home title is the approved tagline, and the two program pages (their
- * `seo` lives with each service in site.ts) are the ones that target the
- * program queries — the home page must not compete with them. That includes
- * the name owners still type, "40-year recertification": it is in the two
- * program titles, as a former name, and in no title in this file.
+ * The descriptions of the listing pages lead with the two county programs,
+ * each by its own name — Miami-Dade's is "recertification", Broward's is the
+ * "Building Safety Inspection Program (BSIP)" — because that is the order of
+ * the site and what the people holding a notice search for. NO age and NO
+ * day count goes in a description: those numbers live in the timing rows of
+ * site.ts, next to their authority and their date, and a meta description
+ * is where a stale number survives longest. The titles keep their structure
+ * on purpose: the home title is the approved tagline, and the two program
+ * pages (their `seo` lives with each service in site.ts) are the ones that
+ * target the program queries — the home page must not compete with them.
+ * That includes the name owners still type, "40-year recertification": it
+ * is in the two program titles, as a former name, and in no title in this
+ * file.
+ *
+ * THE HOME IS THE EXCEPTION since 2026-10-25: it presents the firm (the
+ * owner, 2026-10-24: not about recertification), so its description and
+ * keywords say who and where — Professional Engineers, structural
+ * engineers, South Florida, new and existing buildings — and carry no
+ * program, notice or recertification word. The queries for those belong to
+ * the program pages. Watch the home's impressions on "structural engineer
+ * Miami/Broward" in Search Console, and the program pages' on
+ * "recertification".
  */
 export const SEO: Record<Lang, Record<Pages, PageSeo>> = {
   en: {
     home: {
       title: 'Structural Engineering for South Florida',
       description:
-        'Miami-Dade building recertification, Broward BSIP inspections and structural design for new buildings in South Florida, backed by a Florida Professional Engineer.',
-      keywords: ['structural engineer Miami', 'structural engineer Broward', 'building recertification Miami-Dade', 'Broward BSIP', 'building safety inspection program Broward', '40 year recertification Miami', 'structural engineering South Florida'],
+        'Professional Engineers and structural engineers in South Florida: design of new buildings, and inspection, assessment and repair design for existing ones.',
+      keywords: ['structural engineer South Florida', 'structural engineer Miami', 'structural engineer Broward', 'Professional Engineer Miami', 'structural design Miami-Dade', 'structural engineering South Florida'],
     },
     services: {
       title: 'Structural Engineering Services — Miami-Dade & Broward',
@@ -92,10 +102,8 @@ export const SEO: Record<Lang, Record<Pages, PageSeo>> = {
     home: {
       title: 'Ingeniería estructural para el Sur de Florida',
       description:
-        'Recertificación de edificios en Miami-Dade, BSIP en Broward y diseño estructural de edificios nuevos, con un Ingeniero Profesional (P.E.) de Florida.',
-      // "BSIP" and "recertificación 40 años" are what people type; the page
-      // says "Programa de Inspección de Seguridad de Edificios (BSIP)".
-      keywords: ['ingeniero estructural Miami', 'ingeniero estructural Broward', 'recertificación de edificios Miami-Dade', 'BSIP Broward', 'inspección de seguridad de edificios Broward', 'recertificación 40 años Miami', 'ingeniería estructural Sur de Florida'],
+        'Ingenieros Profesionales e ingenieros estructurales en el Sur de Florida: diseño de edificios nuevos, e inspección, evaluación y reparación de los existentes.',
+      keywords: ['ingeniero estructural Sur de Florida', 'ingeniero estructural Miami', 'ingeniero estructural Broward', 'Ingeniero Profesional Miami', 'diseño estructural Miami-Dade', 'ingeniería estructural Sur de Florida'],
     },
     services: {
       title: 'Servicios de ingeniería estructural — Miami-Dade y Broward',

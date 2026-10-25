@@ -183,7 +183,7 @@ const TODAY = {
     collect: 'The only personal information this website collects is what you submit through the proposal request form: ',
     p: [
       'The public pages of this site set no cookies and run no analytics, advertising or social-media scripts. Their scripts, fonts, photographs and video are served from this site’s own address, and the form uses no outside verification service (CAPTCHA).',
-      'One preference is kept in your browser and is never sent to us: if you pause the background video, the site remembers it so that the video stays paused on the next page.',
+      'One preference is kept in your browser and is never sent to us: if you pause the background video or the moving words, the site remembers it so that they stay paused on the next page.',
       'Cookies may be used by the authenticated project-management area of this domain for sign-in purposes; those are strictly necessary to keep a session active and are not used to profile visitors to the public site.',
     ],
   },
@@ -192,7 +192,7 @@ const TODAY = {
     collect: 'La única información personal que recopila este sitio web es la que usted envía a través del formulario de solicitud de propuesta: ',
     p: [
       'Las páginas públicas de este sitio no instalan cookies ni ejecutan scripts de analítica, de publicidad o de redes sociales. Sus scripts, tipografías, fotografías y videos se sirven desde la propia dirección de este sitio, y el formulario no usa ningún servicio externo de verificación (CAPTCHA).',
-      'Una sola preferencia se guarda en su navegador y nunca se nos envía: si usted pausa el video de fondo, el sitio lo recuerda para que siga en pausa en la página siguiente.',
+      'Una sola preferencia se guarda en su navegador y nunca se nos envía: si usted pausa el video de fondo o las palabras en movimiento, el sitio lo recuerda para que sigan en pausa en la página siguiente.',
       'El área autenticada de gestión de proyectos de este dominio puede usar cookies para el inicio de sesión; esas son estrictamente necesarias para mantener una sesión activa y no se usan para perfilar a los visitantes del sitio público.',
     ],
   },

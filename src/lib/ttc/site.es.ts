@@ -1315,6 +1315,16 @@ const services: SiteContent['services'] = [
 
 const caseStudies: SiteContent['caseStudies'] = [];
 
+/* The two strings of the home page's form, said without a notice. Printed
+   by `ui.form.home` and read as `home.form`: one object, so the two keys
+   cannot drift (the Spanish twin of `ui.form.home` in site.ts). */
+const homeForm = {
+  messagePlaceholder:
+    'Tipo de edificio, lo que necesita diseñar o inspeccionar y cualquier otro dato que debamos saber.',
+  attachmentsHint:
+    'Fotografías, planos o informes. PDF, imágenes, DWG, DXF o ZIP, hasta 25 MB cada uno, cinco archivos.',
+};
+
 /* ═══════════════════════════════════════════════════════════════════════════
    BUNDLE
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -1483,7 +1493,9 @@ export const es: SiteContent = {
     inBothCounties: 'En Miami-Dade y Broward',
     stepYourPart: 'Su parte',
     stepYouGet: 'Usted recibe',
-    pauseMotion: 'Pausar video de fondo',
+    /* Was "Pausar video de fondo": the one switch now also stops the ribbon
+       of service names on the home page. */
+    pauseMotion: 'Pausar el movimiento',
     typicalEngagements: 'Trabajos típicos',
     relatedServices: 'Servicios relacionados',
     atAGlance: 'De un vistazo',
@@ -1583,6 +1595,9 @@ export const es: SiteContent = {
         messagePlaceholder:
           'Lo que quiera que sepamos. ¿Aún no tiene la carta? Indíquenos la antigüedad del edificio.',
       },
+      /* Mirror of `home` in site.ts: the form of the home page, which names
+         no notice. `home.form` is this same object. */
+      home: homeForm,
       errors: {
         name: 'Por favor, ingrese su nombre',
         email: 'Por favor, ingrese un correo electrónico',
@@ -1648,6 +1663,135 @@ export const es: SiteContent = {
       { label: 'Evaluaciones y reparaciones', href: '/services/structural-condition-assessments' },
       { label: 'Diseño de edificios nuevos', href: '#new-buildings' },
     ],
+  },
+
+  /* The Spanish twin of `home` in site.ts: read the comment there, it holds
+     the owner's rules. Usted throughout ("Contáctenos", "Cuéntenos",
+     "Escríbanos"); "presentamos" for "file with", the site's own verb. The
+     three-line headings are written to the same line count as the English
+     (the hero's third line is the widest: do not lengthen it). Which
+     words stay in English: Miami-Dade, Broward, BSIP, BIM, WhatsApp,
+     "milestone" beside "hitos" (the law's name), Townhouses. */
+  home: {
+    order: [
+      'reinforced-concrete-design',
+      'structural-condition-assessments',
+      'structural-analysis',
+      'building-recertification',
+      'bim-coordination',
+      'broward-bsip',
+      'peer-review',
+      'milestone-inspections',
+    ],
+    chrome: {
+      headerCta: 'Contáctenos',
+      callLabel: 'Llamar {phone}',
+      footerTag: 'Ingeniería estructural para el Sur de Florida: Miami-Dade y Broward.',
+    },
+    form: homeForm,
+    hero: {
+      eyebrow: ['Ingenieros Profesionales', 'Ingenieros Estructurales'],
+      titleLines: ['Ingenieros', 'estructurales para', 'el Sur de Florida.'],
+      accentWord: 'Florida.',
+      sub: 'Ingenieros Profesionales con licencia en Florida. Diseñamos edificios nuevos y examinamos los existentes, en Miami-Dade y Broward.',
+      cta: 'Contáctenos',
+      counties: ['Miami-Dade', 'Broward'],
+    },
+    ribbon: {
+      label: 'Lo que hacemos',
+      sideNew: 'Edificios nuevos',
+      sideExisting: 'Edificios existentes',
+      types: [
+        'Viviendas',
+        'Townhouses',
+        'Concreto de mediana altura',
+        'Uso mixto',
+        'Estructuras comerciales',
+        'Cimentaciones',
+        'Diseño de reparaciones',
+      ],
+    },
+    services: {
+      label: 'Servicios',
+      title: 'Ocho servicios. Una disciplina.',
+      accentWord: 'disciplina.',
+      lede: 'Leemos los edificios que ya están en pie y diseñamos los que aún no existen.',
+      legend: {
+        existing: { k: 'Edificios existentes', v: 'Inspección, evaluación y diseño de reparaciones.' },
+        new: { k: 'Edificios nuevos', v: 'Cimentaciones, estructura y diseño para viento de huracán.' },
+      },
+      tag: 'Fotografías ilustrativas',
+      all: 'Todos los servicios',
+      lines: {
+        'reinforced-concrete-design': 'Cimentaciones, columnas, vigas y losas, diseñadas como una sola estructura.',
+        'structural-condition-assessments': 'Lo que hoy le ocurre al edificio y las reparaciones que necesita.',
+        'structural-analysis': 'Gravedad, viento de huracán y las cimentaciones que lo llevan todo al terreno.',
+        'building-recertification': 'Inspecciones e informes para el programa de recertificación del Condado de Miami-Dade.',
+        'bim-coordination': 'Modelos coordinados que resuelven los conflictos en pantalla.',
+        'broward-bsip': 'Inspecciones e informes para el programa de seguridad de edificios del Condado de Broward.',
+        'peer-review': 'Una segunda lectura independiente de un diseño estructural.',
+        'milestone-inspections': 'Inspecciones de seguridad estructural bajo la ley de hitos (milestone) de Florida y más allá.',
+      },
+    },
+    statement: {
+      lines: ['Viento de huracán.', 'Agua alta.', 'Décadas de aire salino.'],
+      dim: 'Diseñamos para todo eso y lo dejamos por escrito para que un propietario, un arquitecto y un revisor puedan seguirlo.',
+      accentWord: 'todo',
+    },
+    bim: {
+      label: 'Modelado',
+      title: 'La estructura, modelada.',
+      accentWord: 'modelada.',
+      body: 'Modelamos la estructura y la verificamos contra el modelo del arquitecto y los sistemas del edificio, para resolver los conflictos en pantalla y no en obra.',
+      caption: 'Un modelo estructural que se arma piso por piso',
+    },
+    types: {
+      label: 'Tipos de edificio',
+      title: 'De una vivienda unifamiliar a un edificio de mediana altura en concreto.',
+      accentWord: 'mediana altura',
+      tag: 'Fotografías ilustrativas',
+      region: 'Tipos de edificio que diseñamos',
+      prev: 'Tipos de edificio anteriores',
+      next: 'Tipos de edificio siguientes',
+      sixth: { title: 'Diseño de reparaciones para estructuras existentes' },
+    },
+    pause: {
+      title: 'Donde la estructura se encuentra con la costa.',
+      accentWord: 'costa.',
+    },
+    credentials: {
+      label: 'Credenciales',
+      titleLines: ['Ingenieros Profesionales con licencia.', 'Ingenieros Estructurales.', 'Registrados en Florida.'],
+      accentWord: 'Registrados',
+      engineers: { k: 'Ingenieros', name: 'Licencia de Ingeniero Profesional de Florida' },
+      firm: { k: 'La firma' },
+    },
+    where: {
+      label: 'Dónde trabajamos',
+      title: 'Las oficinas ante las que presentamos.',
+      accentWord: 'presentamos.',
+      lede: 'El Condado de Miami-Dade y el de Broward, y cada oficina municipal ante la que presentamos.',
+    },
+    tools: {
+      label: 'De uso gratuito',
+      title: 'Ingeniería que usted puede usar.',
+      accentWord: 'usar.',
+      calc: { title: '{n} calculadoras de ingeniería gratuitas' },
+      guides: {
+        title: '{n} guías para propietarios de edificios',
+        line: 'En palabras sencillas, en inglés y en español.',
+      },
+    },
+    contact: {
+      label: 'Contacto',
+      title: 'Contáctenos.',
+      accentWord: 'Contáctenos.',
+      sub: 'Cuéntenos sobre el edificio. Escríbanos en inglés o en español.',
+      call: 'Llamar',
+      whatsapp: 'WhatsApp',
+      email: 'Correo',
+      where: 'Dónde',
+    },
   },
 
   services,
@@ -1794,8 +1938,10 @@ export const es: SiteContent = {
     eyebrow: 'Con quién trabajamos',
     kicker: 'Dos empresas con licencia',
     title: 'Un solo equipo en su edificio.',
-    lede:
-      'Realizamos las recertificaciones de Miami-Dade y las inspecciones BSIP de Broward junto a Precision Source Inc., contratista general y eléctrico certificado en Florida, con sede en Miami. Dos empresas con licencia que trabajan como un solo equipo, desde el aviso hasta el informe final, con más de 30 años de experiencia combinada entre las dos.',
+    /* La frase del propietario (2026-10-24), en dos: la página de inicio
+       presenta a la firma y no habla de recertificación. "Combinada" y
+       "dos empresas" van en el mismo aliento. */
+    lede: 'Más de 30 años de experiencia combinada. Dos empresas con licencia, trabajando como un solo equipo.',
     licensesLabel: 'Licencias de Florida',
     engineering: {
       role: 'Ingeniería estructural',
@@ -1842,6 +1988,9 @@ export const es: SiteContent = {
     whatsappPlain: 'Escríbanos por WhatsApp',
     whatsappTextPlain: 'Hola, quisiera una propuesta para un proyecto.',
     formPlain: 'Propuesta gratis',
+    /* Mirror of `formHome` and `whatsappTextHome` in site.ts. */
+    formHome: 'Contáctenos',
+    whatsappTextHome: 'Hola, quisiera hablar sobre un edificio.',
     reply: 'Normalmente respondemos en menos de dos horas.',
   },
 
@@ -2146,7 +2295,7 @@ export const es: SiteContent = {
           ...(ADS.on ? privacyAds.p : [
             'Las páginas públicas de este sitio no instalan cookies ni ejecutan scripts de analítica, de publicidad o de redes sociales. Sus scripts, tipografías, fotografías y videos se sirven desde la propia dirección de este sitio, y el formulario no usa ningún servicio externo de verificación (CAPTCHA).',
           ]),
-          'Una sola preferencia se guarda en su navegador y nunca se nos envía: si usted pausa el video de fondo, el sitio lo recuerda para que siga en pausa en la página siguiente.',
+          'Una sola preferencia se guarda en su navegador y nunca se nos envía: si usted pausa el video de fondo o las palabras en movimiento, el sitio lo recuerda para que sigan en pausa en la página siguiente.',
           'El área autenticada de gestión de proyectos de este dominio puede usar cookies para el inicio de sesión; esas son estrictamente necesarias para mantener una sesión activa y no se usan para perfilar a los visitantes del sitio público.',
         ] },
         { h: 'Enlaces que salen de este sitio', p: 'Llamarnos, escribirnos por WhatsApp y seguir un enlace a una oficina del condado, a la búsqueda de licencias del estado o a otra fuente oficial son cosas que ocurren fuera de este sitio web. Lo que usted envíe o haga allí lo gestiona ese servicio conforme a sus propias condiciones de privacidad, que no controlamos. El enlace de WhatsApp abre un chat con una primera línea ya escrita; nada se envía hasta que usted lo envíe.' },
