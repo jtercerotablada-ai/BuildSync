@@ -25,8 +25,8 @@ import { useContent, useL } from './lang';
  * link: it would sit under that layer.
  *
  * Rendered on /services, after the two tracks. It left the home page when the
- * county programs took its place; the home page keeps the headline, on
- * NewBuildings, so the two never share a page.
+ * county programs took its place; the home page has its own building-types
+ * rail (home/HomeTypes.tsx), so the two never share a page.
  *
  * A RULED LIST, NOT A PHOTO GRID. Six large colour photographs (930px of the
  * page at 1440, 2,600px on a phone) answered one question. Each typology is

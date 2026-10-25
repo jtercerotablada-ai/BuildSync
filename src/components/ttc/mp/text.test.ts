@@ -34,7 +34,7 @@ describe('firstSentence', () => {
 
 /**
  * `afterFirstSentence` is the other half: what the home page prints under a
- * county program's button (ProgramSection), where the whole line belongs to
+ * county program's button (the county pages), where the whole line belongs to
  * the program's own page. The two halves must put the line back together.
  */
 describe('afterFirstSentence', () => {

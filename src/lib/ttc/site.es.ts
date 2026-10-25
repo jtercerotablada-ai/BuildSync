@@ -1473,7 +1473,6 @@ export const es: SiteContent = {
     seeAllServices: 'Todos los servicios',
     newProjects: 'Proyectos nuevos',
     existingBuildings: 'Edificios existentes',
-    chooseCounty: '¿En qué condado está el edificio?',
     whenYouNeedIt: 'Cuándo lo necesita',
     whatsIncluded: 'Qué incluye',
     whatYouReceive: 'Qué recibe',
@@ -1637,34 +1636,6 @@ export const es: SiteContent = {
     },
   },
 
-  hero: {
-    eyebrow: 'Ingeniería estructural para el Sur de Florida',
-    title: '¿Le llegó la carta? Basta una foto.',
-    titleLines: ['¿Le llegó la carta?', 'Basta una foto.'],
-    accentWord: 'Basta una foto.',
-    /* The headline as a neighbour in Hialeah asks it — "llegar", not
-       "recibir", and "Le" keeps usted — then the one easy step, in the
-       Spanish ads' own words ("Basta una foto de la carta"). See the
-       English block for the reasoning. "Llegó" is a word of the page only
-       because the sub says "Si llegó ayer": keep it (seo.test). The sub
-       answers the question for the reader who is already late. No
-       regulatory number in the hero, as in English; "normalmente" stays in
-       front of the reply time. */
-    sub: 'Si llegó ayer o si ya pasó la fecha: recertificación de Miami-Dade (aún llamada “de 40 años”) o BSIP de Broward. Propuesta gratis; un ingeniero estructural normalmente responde en menos de dos horas.',
-    primary: { href: '/contact?service=building-recertification', label: 'Enviar mi carta de Miami-Dade' },
-    secondary: { href: '/contact?service=broward-bsip', label: 'Enviar mi carta de Broward' },
-    /* Four links — same hrefs as English; the hash ones are anchors on the
-       home page and are not localized. The third label is the service's own
-       short title: the literal "Evaluaciones y diseño de reparaciones" was
-       ten characters longer than any English cap and would wrap the strip. */
-    caps: [
-      { label: 'Miami-Dade · Recertificación', href: '#miami-dade' },
-      { label: 'Broward · BSIP', href: '#broward' },
-      { label: 'Evaluaciones y reparaciones', href: '/services/structural-condition-assessments' },
-      { label: 'Diseño de edificios nuevos', href: '#new-buildings' },
-    ],
-  },
-
   /* The Spanish twin of `home` in site.ts: read the comment there, it holds
      the owner's rules. Usted throughout ("Contáctenos", "Cuéntenos",
      "Escríbanos"); "presentamos" for "file with", the site's own verb. The
@@ -1807,7 +1778,7 @@ export const es: SiteContent = {
   ],
 
   /* The grid's own headline, a question — see the EN comment. The home
-     page keeps "De una vivienda unifamiliar…", on `newBuildings`. */
+     page keeps "De una vivienda unifamiliar…", on `home.types`. */
   typologiesSection: {
     eyebrow: 'Qué diseñamos',
     title: '¿Diseñamos su tipo de edificio?',
@@ -1823,19 +1794,6 @@ export const es: SiteContent = {
     { n: '05', title: 'Cimentaciones en sitios difíciles', lede: 'Lotes estrechos, suelo de baja capacidad, nivel freático alto y vecinos lo bastante cerca como para importar — la subestructura diseñada a partir del estudio geotécnico, no a pesar de él.', track: 'new', href: '/services/structural-analysis', photo: photo.foundationMatPit },
     { n: '06', title: 'Reparaciones de estructuras existentes', lede: 'Balcones, fachadas, losas y columnas con décadas en servicio — condición documentada, reparaciones diseñadas, y la documentación que pide el condado.', track: 'existing', href: '/existing-buildings', photo: photo.repairSoffitTrowel },
   ],
-
-  /* The design side of the practice in ONE home-page section — see the
-     banner over `newBuildings` in site.ts. It replaced `pathsSection`,
-     `paths`, `recertBand` and `bim`, which are gone from both bundles. The
-     headline is the approved "Qué diseñamos" line, printed here only: the
-     typology grid on /services has its own. */
-  newBuildings: {
-    eyebrow: 'Edificios nuevos',
-    title: 'De una vivienda unifamiliar a un edificio de mediana altura en concreto.',
-    accentWord: 'mediana altura',
-    body: 'Casas, townhouses, edificios de concreto de mediana altura y estructuras comerciales — cimentaciones, estructura y diseño por viento de huracán resueltos como una sola estructura y emitidos como un juego de planos firmado y sellado para el permiso. Construimos primero el modelo estructural y lo comparamos con el modelo del arquitecto y con los de las instalaciones mecánicas, eléctricas y de plomería, para que los conflictos se resuelvan en pantalla antes de convertirse en una orden de cambio en obra.',
-    cta: { href: '/services#new', label: 'Servicios para proyectos nuevos' },
-  },
 
   howWeWork: {
     eyebrow: 'Cómo trabajamos',
@@ -1941,8 +1899,6 @@ export const es: SiteContent = {
      nunca el ingeniero solo. */
   partner: {
     eyebrow: 'Con quién trabajamos',
-    kicker: 'Dos empresas con licencia',
-    title: 'Un solo equipo en su edificio.',
     /* La frase del propietario (2026-10-24), en dos: la página de inicio
        presenta a la firma y no habla de recertificación. "Combinada" y
        "dos empresas" van en el mismo aliento. */
@@ -2239,10 +2195,6 @@ export const es: SiteContent = {
     pageLink: 'Precios según el tamaño del edificio: {name}',
     delivery: 'El paquete completo, firmado y sellado, de tres a cuatro días después de la inspección. ¿Tiene prisa? De uno a dos días.',
     jurisdictions: {
-      eyebrow: 'Jurisdicciones',
-      title: 'Las oficinas ante las que presentamos.',
-      lede: 'Su notificación viene de una de estas oficinas, o de una vecina. Los pasos y los formularios son de ellas; el proceso es nuestro.',
-      more: 'Todos los municipios de ambos condados.',
       /* `mark` is the English key of the county's mark in `marks`: the
          Spanish title is not a key, and without it the county's own mark
          was missing from this page. */
@@ -2251,7 +2203,6 @@ export const es: SiteContent = {
         { title: 'Condado de Broward', mark: 'Broward County', names: browardMunicipalities },
       ],
       disclaimer: 'Los logotipos de los condados pertenecen a sus gobiernos y se muestran solo para identificar la oficina. Tercero Tablada Civil and Structural Engineering Inc. es una firma independiente: no está afiliada a ninguna de ellas, ni cuenta con su aval, ni actúa en su nombre.',
-      creditLabel: 'Créditos de imágenes',
     },
   },
   legal: {

@@ -1,6 +1,6 @@
 /**
  * Every municipality of the two counties, by name. Shown on the home page
- * under each county's own logo (CostSection) in both languages: place names
+ * under each county's own logo (home/HomeWhere.tsx) in both languages: place names
  * are not translated, so the lists are shared, and the two counties stay in
  * their own lists.
  *

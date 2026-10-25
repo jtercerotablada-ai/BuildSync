@@ -1,12 +1,22 @@
-import { describe, expect, it } from 'vitest';
+import { createElement as h } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { describe, expect, it, vi } from 'vitest';
 import { openCalculatorPaths } from '@/lib/ttc/calculator-paths';
 import { calculatorFamilies, openCalculatorCount } from '@/lib/ttc/calculators';
 import { getContent } from '@/lib/ttc/content';
 import { getGuides } from '@/lib/ttc/guide-content';
 import { guideSlugs } from '@/lib/ttc/guides';
 import type { Lang } from '@/lib/ttc/i18n';
+import { localePath } from '@/lib/ttc/i18n';
+import { photo, video } from '@/lib/ttc/media';
 import { NUMBER_WORD_MAX, numberWord, withNumberWord } from '@/lib/ttc/number-words';
+import { HomeView } from './HomeView';
 import { SEO } from './seo';
+
+// The sections read the language from the URL where they must (the form, the
+// ribbon's links); outside Next there is none, so each render supplies it.
+const route = vi.hoisted(() => ({ pathname: '/' }));
+vi.mock('next/navigation', () => ({ usePathname: () => route.pathname }));
 
 /**
  * THE HOME PAGE'S OWN GUARDS — the owner's rules for the new home (Juan
@@ -30,14 +40,13 @@ import { SEO } from './seo';
  *      every string; 4 (the order); 6 (each service's line is its own);
  *      8 (the counts said in words); 9 (the Spanish mirror).
  *
- *   2. RENDER-BASED GUARDS (to be added by the slice that rewrites
- *      `HomeView`, under the heading at the bottom of this file, in their
- *      own `describe` blocks, with `renderToStaticMarkup(HomeView)` and the
- *      same `route` mock the other view tests use): 1 (one h1, headings
- *      ≤ 23), 2 and 3 again over the rendered text, 4 (the eight services
- *      once each; the two program cards in the same component and size
- *      class), 5 (no money, every <img> has an alt, every photograph with
- *      its catalogue alt and aria-hidden, no repairSoffitTrowel), 7 (the
+ *   2. RENDER-BASED GUARDS (the bottom of this file, since the slice that
+ *      rewrote `HomeView`; `renderToStaticMarkup(HomeView)` in both languages
+ *      with the same `route` mock the other view tests use): 1 (one h1,
+ *      headings ≤ 23), 2 and 3 again over the rendered text, 4 (the eight
+ *      services once each; the two program cards in the same component and
+ *      size class), 5 (no money, every <img> has an alt, every photograph
+ *      with its catalogue alt and aria-hidden, no repairSoffitTrowel), 7 (the
  *      Precision Source logo with its role line and both numbers in one card
  *      and nowhere else), 8 (the numerals printed equal the counts), 10 (no
  *      <script>).
@@ -414,19 +423,6 @@ describe('a sentence of the home is printed once in the bundle (the site’s rul
     s.toLowerCase().replace(/[^\p{L}\p{N} ]/gu, ' ').replace(/\s+/g, ' ').trim();
   const wordCount = (s: string) => (s.match(/\p{L}[\p{L}\p{N}'’-]*/gu) ?? []).length;
 
-  /**
-   * Strings the new home shares with the OLD home's, for now. Both are lines
-   * the owner approved and the new home keeps; the old sections that print
-   * them go in the slice that rewrites HomeView, and these two keys go (or
-   * stay as unprinted data) with them. DELETE THIS LIST WITH THE OLD HOME.
-   *
-   *   • `newBuildings.title` — "From a single house to a mid-rise concrete
-   *     frame." is `home.types.title`.
-   *   • `pricing.jurisdictions.title` — "The offices we file with." is
-   *     `home.where.title` (the JurisdictionsSection of the old home).
-   */
-  const UNTIL_THE_OLD_HOME_GOES = new Set(['newBuildings.title', 'pricing.jurisdictions.title']);
-
   for (const lang of LANGS) {
     const c = getContent(lang);
 
@@ -437,7 +433,6 @@ describe('a sentence of the home is printed once in the bundle (the site’s rul
       const where = new Map<string, string[]>();
       for (const e of entries(c, '')) {
         if (e.path.startsWith('home.') || e.path.startsWith('ui.form.home')) continue;
-        if (UNTIL_THE_OLD_HOME_GOES.has(e.path)) continue;
         where.set(norm(e.text), [...(where.get(norm(e.text)) ?? []), e.path]);
       }
       const shared = homeStrings(lang)
@@ -642,12 +637,373 @@ describe('the home’s search description says who and where, not recertificatio
 });
 
 /* ═══════════════════════════════════════════════════════════════════════
-   2 · RENDER-BASED GUARDS — added by the slice that rewrites HomeView
+   2 · RENDER-BASED GUARDS
    ═══════════════════════════════════════════════════════════════════════
-   Spec §6.4, "New views/home.test.ts", items 1, 2 and 3 (over the rendered
-   text, with tags and attributes stripped; reuse NOT_ON_THE_HOME and
-   NOT_A_PERSON above, whitelisting the phone number, the two license
-   numbers, "30", "25 MB", the copyright year and the two tool numerals),
-   4 (render part), 5, 7, 8 (render part) and 10. Each in its own `describe`,
-   in both languages, with `renderToStaticMarkup(h(HomeView, { lang }))`.
+   The page as the server sends it: `renderToStaticMarkup(HomeView)`, in both
+   languages, read the way a crawler and a screen reader read it. Spec §6.4,
+   "New views/home.test.ts", items 1, 2 and 3 (over the rendered text), 4
+   (the render part), 5, 7, 8 (the numerals printed) and 10.
+
+   HomeView is the page's own body: the header, the footer and the phone bar
+   are the shared chrome (SiteChrome) and are guarded where they live.
    ═══════════════════════════════════════════════════════════════════════ */
+
+const html: Record<Lang, string> = { en: '', es: '' };
+for (const lang of LANGS) {
+  route.pathname = localePath('/', lang);
+  html[lang] = renderToStaticMarkup(h(HomeView, { lang }));
+}
+
+/** A string as React prints it in text or in an attribute. */
+const esc = (s: string) => renderToStaticMarkup(h('i', null, s)).slice(3, -4);
+const unescape = (s: string) =>
+  s
+    .replace(/&quot;/g, '"')
+    .replace(/&#x27;|&#39;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
+const attr = (tag: string, name: string) => tag.match(new RegExp(` ${name}="([^"]*)"`))?.[1];
+/** The text a reader meets: no tags, no style, no script, entities decoded. */
+const text = (markup: string) =>
+  unescape(
+    markup
+      .replace(/<(script|style)\b[\s\S]*?<\/\1>/g, '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim(),
+  );
+const imgs = (markup: string) => [...markup.matchAll(/<img\b[^>]*>/g)].map((m) => m[0]);
+/** The element that opens at `start` (a `<div`), through its matching `</div>`. */
+function divAt(markup: string, start: number): string {
+  let depth = 0;
+  for (const m of markup.slice(start).matchAll(/<(\/?)div\b/g)) {
+    depth += m[1] ? -1 : 1;
+    if (depth === 0) return markup.slice(start, start + m.index! + '</div>'.length);
+  }
+  throw new Error('unbalanced <div>');
+}
+/** The contractor's card: the one `div.mp-partner__card`. */
+function contractorCard(markup: string): string {
+  const at = [...markup.matchAll(/<div class="mp-partner__card\b/g)].map((m) => m.index!);
+  expect(at, 'one contractor card on the home page').toHaveLength(1);
+  return divAt(markup, at[0]);
+}
+/** A `<section id="…">`, whole. */
+function section(markup: string, id: string): string {
+  const open = markup.indexOf(`<section id="${id}"`);
+  expect(open, `section #${id}`).toBeGreaterThanOrEqual(0);
+  return markup.slice(open, markup.indexOf('</section>', open) + '</section>'.length);
+}
+/** The places a pattern finds, with a little around each. */
+function found(re: RegExp, body: string): string[] {
+  const g = new RegExp(re.source, re.flags.includes('g') ? re.flags : `${re.flags}g`);
+  return [...body.matchAll(g)].map((m) => `…${body.slice(Math.max(0, m.index! - 32), m.index! + m[0].length + 32)}…`);
+}
+/** What a reader is told by each attribute that carries words (a photograph's
+    description, a button's name). */
+const attributeWords = (markup: string) =>
+  [...markup.matchAll(/ (?:alt|aria-label|title)="([^"]*)"/g)].map((m) => unescape(m[1]));
+
+for (const lang of LANGS) {
+  const c = getContent(lang);
+  const markup = html[lang];
+  const body = text(markup);
+  const FIRM = c.company.name;
+
+  describe(`${lang}: the home as rendered`, () => {
+    // Spec item 1.
+    it('has one h1, which is the hero’s headline, and an outline with no skipped level', () => {
+      const headings = [...markup.matchAll(/<h([1-6])\b[^>]*>([\s\S]*?)<\/h\1>/g)].map((m) => ({
+        level: Number(m[1]),
+        text: text(m[2]),
+      }));
+      const h1 = headings.filter((x) => x.level === 1);
+      expect(h1).toHaveLength(1);
+      expect(h1[0].text).toBe(c.home.hero.titleLines.join(' '));
+      expect(headings[0].level).toBe(1);
+      for (let i = 1; i < headings.length; i++) {
+        expect(headings[i].level - headings[i - 1].level, `${headings[i - 1].text} → ${headings[i].text}`).toBeLessThanOrEqual(1);
+      }
+      // The owner's on-page check lists more than 23 headings as too many.
+      // One h1, nine h2 (the sections), ten h3 (the eight services and the
+      // two counties); cards, credentials and tool rows are not headings.
+      expect(headings.length).toBeLessThanOrEqual(23);
+      expect(headings.filter((x) => x.level === 2)).toHaveLength(9);
+      expect(headings.filter((x) => x.level === 3)).toHaveLength(10);
+      expect(headings.filter((x) => x.level > 3)).toEqual([]);
+    });
+
+    it('has the five anchors the chrome points at, in order, and none of the old home’s', () => {
+      const ids = ['services', 'credentials', 'where', 'tools', 'contact'];
+      const at = ids.map((id) => markup.indexOf(`id="${id}"`));
+      for (const [i, id] of ids.entries()) expect(at[i], id).toBeGreaterThan(-1);
+      expect([...at].sort((a, b) => a - b)).toEqual(at);
+      // `miami-dade`, `broward`, `new-buildings`, `pricing`, `jurisdictions`
+      // and `contractor` were the old home's; links to the first two are
+      // sent to the program pages by the first-frame script instead.
+      for (const id of ['miami-dade', 'broward', 'new-buildings', 'pricing', 'jurisdictions', 'contractor', 'engineer', 'melvin', 'rudy']) {
+        expect(markup, id).not.toContain(`id="${id}"`);
+      }
+      expect(markup).not.toMatch(/class="mp-team/);
+    });
+
+    it('carries the page language on its root, so the headlines are sized per locale', () => {
+      // (React hoists HomeAddress's canonical and hreflang links above the root.)
+      expect(markup).toContain(`<div class="mp-home" data-lang="${lang}">`);
+      expect(markup.match(/class="mp-home"/g)).toHaveLength(1);
+    });
+
+    // Spec item 10 (and ads-pages.test.ts: no executable script on any page).
+    it('prints no <script>', () => {
+      expect(markup).not.toMatch(/<script\b/i);
+    });
+
+    // Spec item 2, over what a visitor reads and over what a screen reader or
+    // a search engine is told about the pictures and the buttons.
+    for (const [says, pattern] of NOT_ON_THE_HOME) {
+      it(`says nothing of ${says}`, () => {
+        expect(found(pattern, body)).toEqual([]);
+        expect(attributeWords(markup).flatMap((w) => found(pattern, w))).toEqual([]);
+      });
+    }
+
+    // Spec item 3. The firm's own name holds "Tercero Tablada" and the
+    // contractor's card holds the contractor: the name is removed before the
+    // person patterns are read, the card before the contractor's is.
+    it('names the firm in full, and never with an ampersand', () => {
+      expect(body).toContain(FIRM);
+      // "Tercero Tablada" is only ever the first words of the full name.
+      expect(found(/Tercero Tablada(?! Civil and Structural Engineering Inc\.)/, body)).toEqual([]);
+      expect(found(/Tablada\s*(?:&|and)\s*(?:Associates|Partners|Co)\b|Civil\s*&\s*Structural/i, body)).toEqual([]);
+    });
+
+    const withoutFirm = (t: string) => t.split(FIRM).join(' ');
+    for (const [says, pattern] of NOT_A_PERSON) {
+      // The services are named "Assessments & Repairs": the ampersand rule is
+      // about the firm's name, held above.
+      if (says === 'an ampersand') continue;
+      it(`says nothing of ${says}`, () => {
+        const outside = markup.replace(contractorCard(markup), ' ');
+        expect(found(pattern, withoutFirm(text(outside)))).toEqual([]);
+        expect(attributeWords(outside).flatMap((w) => found(pattern, withoutFirm(w)))).toEqual([]);
+      });
+    }
+
+    it('has no digit but the phone number, the two license numbers, the 30 years, the file size and the numerals of the tools and the rail', () => {
+      let rest = body;
+      for (const a of [
+        c.contact.phone!.display,
+        ...c.partner.construction.licenses.map((l) => l.number),
+      ]) rest = rest.split(a).join(' ');
+      for (const a of [
+        /\b30\b/g,
+        /\b25 MB\b/g,
+        /\b0[79]\b/g, // the tool rows' numerals: nine calculators, seven guides
+        /\b01 \/ 06\b/g, // the rail's counter
+      ]) rest = rest.replace(a, ' ');
+      expect(found(/\d/, rest)).toEqual([]);
+    });
+
+    it('has no money: no currency sign, no figure “from”', () => {
+      expect(found(/[$€£]|\bUSD\b/, markup)).toEqual([]);
+      expect(found(/\bfrom\s+\d|\bdesde\s+\d/i, body)).toEqual([]);
+    });
+  });
+
+  describe(`${lang}: the eight services (spec item 4, render part)`, () => {
+    const servicesHtml = section(markup, 'services');
+    const articles = [...servicesHtml.matchAll(/<article class="([^"]*)" style="([^"]*)">([\s\S]*?)<\/article>/g)].map((m) => ({
+      cls: m[1],
+      style: m[2],
+      inner: m[3],
+      slug: m[3].match(/href="[^"]*\/services\/([a-z-]+)"/)?.[1] ?? '',
+      title: text(m[3].match(/<h3\b[^>]*>([\s\S]*?)<\/h3>/)?.[1] ?? ''),
+      h3: m[3].match(/<h3\b[^>]*>/)?.[0] ?? '',
+    }));
+    const place = (a: (typeof articles)[number]) => Number(a.style.match(/--o:(\d+)/)?.[1]) - 1;
+    const ribbonA = markup.match(/<ul class="h-rib__list h-rib__a">[\s\S]*?<\/ul>/)![0];
+
+    it('prints each of the eight services once, as a card whose title is the link', () => {
+      expect(articles).toHaveLength(8);
+      expect(articles.map((a) => a.slug).sort()).toEqual(c.services.map((s) => s.slug).sort());
+      for (const a of articles) {
+        const s = c.services.find((x) => x.slug === a.slug)!;
+        expect(a.title, a.slug).toBe(s.title);
+        // The whole card is the target through the title's link: one link in it.
+        expect([...a.inner.matchAll(/<a\b/g)], a.slug).toHaveLength(1);
+        expect(a.inner, a.slug).toContain(esc((c.home.services.lines as Record<string, string>)[a.slug]));
+      }
+    });
+
+    it('puts them in home.order: the first two are not the county programs, which are 4th and 6th', () => {
+      const byPlace = [...articles].sort((a, b) => place(a) - place(b)).map((a) => a.slug);
+      expect(byPlace).toEqual([...c.home.order]);
+      expect(byPlace.indexOf('building-recertification')).toBe(3);
+      expect(byPlace.indexOf('broward-bsip')).toBe(5);
+      for (const slug of ['building-recertification', 'broward-bsip']) {
+        const i = byPlace.indexOf(slug);
+        expect(i, `${slug}: services before it`).toBeGreaterThanOrEqual(2);
+        expect(byPlace.length - 1 - i, `${slug}: services after it`).toBeGreaterThanOrEqual(2);
+      }
+      // The ribbon runs the same eight, in the same order.
+      const ribbon = [...ribbonA.matchAll(/href="[^"]*\/services\/([a-z-]+)"/g)].map((m) => m[1]);
+      expect(ribbon).toEqual([...c.home.order]);
+    });
+
+    it('draws the two county programs with the same component, class and title element as the other six', () => {
+      expect(new Set(articles.map((a) => a.cls)).size).toBe(1);
+      expect(new Set(articles.map((a) => a.h3)).size).toBe(1);
+      expect(new Set(articles.map((a) => a.inner.match(/<a class="([^"]*)"/)?.[1])).size).toBe(1);
+      // …and the same type in the ribbon: one list, one item class for all eight.
+      expect([...ribbonA.matchAll(/<li>/g)]).toHaveLength(8);
+    });
+
+    it('prints the words recertification, BSIP and milestone only where the services are named', () => {
+      // On the home the programs are two service names: in the ribbon, in
+      // their cards and in the form's list of services, nowhere else.
+      const outside = text(
+        markup
+          .replace(servicesHtml, ' ')
+          .replace(/<div class="h-rib__rows"[\s\S]*?<\/section>/, ' ')
+          .replace(/<select\b[\s\S]*?<\/select>/, ' '),
+      );
+      expect(found(words('recertif\\p{L}*', 'BSIP', 'milestone', 'hitos'), outside)).toEqual([]);
+    });
+  });
+
+  describe(`${lang}: photographs and logos (spec item 5)`, () => {
+    const tags = imgs(markup);
+    const written = new Map<string, { alt: string; altEs: string }>();
+    for (const p of Object.values(photo)) written.set(p.src, p);
+    for (const clip of Object.values(video)) written.set(clip.poster, clip);
+
+    it('has no <img> without a description', () => {
+      expect(tags.length).toBeGreaterThanOrEqual(17);
+      for (const tag of tags) expect(attr(tag, 'alt')?.trim(), tag).toBeTruthy();
+    });
+
+    it('describes each photograph with its catalogue description, and every image is aria-hidden', () => {
+      const catalogued = tags.filter((tag) => written.has(attr(tag, 'src') ?? ''));
+      // 8 services, the statement, the pause, 6 building types, the hero poster.
+      expect(catalogued.length).toBeGreaterThanOrEqual(17);
+      for (const tag of catalogued) {
+        const m = written.get(attr(tag, 'src')!)!;
+        expect(attr(tag, 'alt'), tag).toBe(esc(lang === 'es' ? m.altEs : m.alt));
+      }
+      // Decorative: the same words are printed beside each photograph (the
+      // types rail) or the photograph illustrates a heading (pages.test.ts:
+      // only the footer lockup is read out).
+      for (const tag of tags) expect(attr(tag, 'aria-hidden'), tag).toBe('true');
+    });
+
+    it('does not use the worker with the trowel, and uses the spare photographs the spec names', () => {
+      const stem = (src: string) => src.replace(/\.[a-z]+$/, '');
+      expect(markup).not.toContain(stem(photo.repairSoffitTrowel.src));
+      for (const p of [photo.midriseBalconies, photo.southFloridaAerial, photo.miamiTowersUp]) {
+        expect(markup, p.src).toContain(stem(p.src));
+      }
+    });
+
+    it('captions each building type with its photograph’s own description', () => {
+      const from = markup.indexOf('class="h-types');
+      const types = text(markup.slice(from, markup.indexOf('class="h-stack', from)));
+      for (const p of [photo.houseConcreteGarden, photo.houseTownhouses, photo.frameCurvedBalconies, photo.frameCraneClean, photo.foundationMatPit, photo.midriseBalconies]) {
+        expect(types, p.src).toContain(lang === 'es' ? p.altEs : p.alt);
+      }
+    });
+  });
+
+  describe(`${lang}: the credentials plate and the contractor (spec items 3 and 7)`, () => {
+    const plate = section(markup, 'credentials');
+    const k = c.partner.construction;
+    const dbpr = esc(c.leadership.license!.url);
+
+    it('puts the Precision Source logo, the role line and both license numbers in one card, as links to the state’s search', () => {
+      const card = contractorCard(markup);
+      expect(markup.split(k.logo.src).length - 1).toBe(1);
+      expect(card).toContain(k.logo.src);
+      expect(text(card)).toContain(k.role);
+      expect(text(card)).toContain(k.name);
+      for (const l of k.licenses) {
+        const link = [...card.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/g)].filter((m) => attr(m[1], 'href') === dbpr && text(m[2]).startsWith(l.number));
+        expect(link, l.number).toHaveLength(1);
+        expect(text(link[0][2]), l.number).toContain(c.ui.engineer.verify);
+      }
+    });
+
+    it('names the contractor, and says “partner”, nowhere else', () => {
+      const card = contractorCard(markup);
+      const outside = markup.replace(card, ' ');
+      expect(outside).not.toContain(k.logo.src);
+      expect(found(words('Precision', k.licenses[0].number, k.licenses[1].number), text(outside))).toEqual([]);
+      expect(found(words('contractors?', 'contratistas?', 'partners?', 'aliad[oa]s?', 'socios?'), text(outside))).toEqual([]);
+      expect(text(card).match(lang === 'en' ? /\bpartner\b/gi : /\baliad[oa]\b/gi) ?? []).toHaveLength(1);
+    });
+
+    it('prints the sentence of the plate once, as one text node, and no engineering license number', () => {
+      expect(body.split(c.partner.lede).length - 1).toBe(1);
+      expect(markup.split(`>${esc(c.partner.lede)}<`).length - 1).toBe(1);
+      for (const no of ['105256', '40285']) expect(body, no).not.toContain(no);
+      expect(text(plate)).toContain(c.company.registry);
+    });
+
+    it('carries the three disciplines with their marks: PE, FRSE and PE, and prints SE nowhere', () => {
+      const h2 = plate.match(/<h2\b[^>]*>([\s\S]*?)<\/h2>/)![1];
+      const tagTexts = [...h2.matchAll(/<span class="h-cred__tag">([^<]*)<\/span>/g)].map((m) => m[1]);
+      expect(tagTexts).toEqual([...c.home.credentials.marks]);
+      // (The accent word is a span of its own: the text has a space before
+      // the full stop that follows it.)
+      const heading = text(h2).replace(/\s+([.,])/g, '$1');
+      for (const [i, line] of c.home.credentials.titleLines.entries()) {
+        expect(heading, line).toContain(`${line} ${c.home.credentials.marks[i]}`);
+      }
+      // Never "SE": a license Florida does not have. FRSE is the Board's own
+      // recognition, and only the structural line carries it.
+      expect(found(wordsExact('SE', 'S\\.E\\.'), body)).toEqual([]);
+      expect(found(/licensed structural engineers?|ingenieros estructurales con licencia/i, body)).toEqual([]);
+      expect(body.split('FRSE').length - 1).toBe(1);
+    });
+
+    it('names the electrical engineers in the hero’s eyebrow and the plate’s headline, and nowhere else', () => {
+      const electrical = lang === 'en' ? /\belectrical engineers?\b/gi : /\bingenieros? el[eé]ctricos?\b/gi;
+      expect([...body.matchAll(electrical)]).toHaveLength(2);
+      expect(text(markup.match(/<p class="h-hero__eyebrow">[\s\S]*?<\/p>/)![0])).toMatch(electrical);
+      expect(text(plate.match(/<h2\b[^>]*>[\s\S]*?<\/h2>/)![0])).toMatch(electrical);
+    });
+  });
+
+  describe(`${lang}: the tools, the offices and the contact block (spec item 8, numerals printed)`, () => {
+    it('prints the count of calculators and of guides as a numeral and in words, equal to the real counts', () => {
+      const tools = text(section(markup, 'tools'));
+      const pad = (n: number) => String(n).padStart(2, '0');
+      expect(tools).toContain(`${pad(openCalculatorCount)} ${withNumberWord(c.home.tools.calc.title, openCalculatorCount, lang)}`);
+      expect(tools).toContain(`${pad(guideSlugs.length)} ${withNumberWord(c.home.tools.guides.title, guideSlugs.length, lang)}`);
+      const names = calculatorFamilies.flatMap((f) => f.items).filter((i) => i.href).map((i) => i.name[lang]);
+      for (const n of names) expect(tools, n).toContain(n);
+    });
+
+    it('has the real form, with the home’s two strings and no service preset, and four direct lines', () => {
+      const contact = section(markup, 'contact');
+      expect(contact).toContain('data-variant="home"');
+      expect(contact).toContain(esc(c.home.form.messagePlaceholder));
+      expect(contact).toContain(esc(c.home.form.attachmentsHint));
+      expect(contact).toContain(`href="${c.contact.phone!.href}"`);
+      expect(contact).toContain(`href="mailto:${c.contact.email}"`);
+      expect(contact).toContain('href="#where"');
+      expect(text(contact)).toContain(c.contact.phone!.display);
+      expect(text(contact)).toContain(c.contact.serviceAreaLabel);
+      // A different form for the home would be a different promise.
+      expect(contact).toMatch(/<form\b/);
+      expect(contact).not.toContain('?service=');
+    });
+
+    it('prints the disclaimer of the county logos once, and the logo of the two counties only', () => {
+      expect(body.split(c.pricing.jurisdictions.disclaimer).length - 1).toBe(1);
+      expect(markup.match(/\/ttc\/img\/jurisdictions\/[a-z-]+\.webp/g)?.sort()).toEqual([
+        '/ttc/img/jurisdictions/broward.webp',
+        '/ttc/img/jurisdictions/miami-dade.webp',
+      ]);
+    });
+  });
+}

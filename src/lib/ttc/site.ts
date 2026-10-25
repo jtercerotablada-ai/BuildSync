@@ -351,8 +351,6 @@ export const ui = {
   seeAllServices: 'All Services',
   newProjects: 'New projects',
   existingBuildings: 'Existing buildings',
-  /** Over the home page's county switch, on a phone (ProgramSection). */
-  chooseCounty: 'Which county is the building in?',
   whenYouNeedIt: 'When you need it',
   whatsIncluded: "What's included",
   whatYouReceive: 'What you receive',
@@ -577,57 +575,6 @@ export const ui = {
 } as const;
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   HERO
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-export const hero = {
-  /* The firm's old headline, kept as the line over the new one: the words
-     the home page's <title> and searches use ("Structural Engineering for
-     South Florida") stay on the first screen. */
-  eyebrow: 'Structural Engineering for South Florida',
-  title: 'Recertification notice? Send us a photo.',
-  /** Line breaks of the headline as rendered; the accent word is italic serif. */
-  titleLines: ['Recertification notice?', 'Send us a photo.'],
-  accentWord: 'Send us a photo.',
-  /* THE HEADLINE NAMES THE LETTER IN THE READER'S HAND, THEN ONE EASY STEP.
-     Chosen 2026-10-20 after a research and judging round (voice of the
-     customer, competitors' heroes, six angles, six judges: a conversion
-     copywriter, three owner personas, SEO/ads, honesty/legal). Why it wins:
-     many owners are late because the letter confused them; "Send us a
-     photo" asks them to understand nothing. It has no time word, so it is
-     as true the day the letter arrives as a year after the deadline (the
-     owner rejected "…before the deadline" for exactly that), and it uses
-     the ads' own words ("Got a Recertification Notice?", "Send a Photo of
-     the Notice"). Every word of it is also a word of the page (seo.test).
-
-     The sub-line says first that late is fine, then names the two county
-     programs by the names on the letters (and the name most owners still
-     use), and carries NO regulatory number: every age and deadline lives
-     in a timing row that names its authority and its date. "Usually" stays
-     in front of the reply time.
-
-     Each button names one notice and opens the form with that program
-     already selected; the form takes the photo. "Request a Proposal" is
-     still one tap away in the header, and Services stays in the menu and in
-     the strip below. */
-  sub: 'On time or late: Miami-Dade recertification (still called the 40-year) or Broward’s Building Safety Inspection Program (BSIP). Free proposal; a structural engineer usually replies within two hours.',
-  primary: { href: '/contact?service=building-recertification', label: 'Send My Miami-Dade Notice' },
-  secondary: { href: '/contact?service=broward-bsip', label: 'Send My Broward Notice' },
-  /**
-   * The strip under the hero is four links, not four labels. A `#hash` href
-   * is an anchor on the home page itself (the ids come from
-   * `Service.program.id` and the new-buildings section) and is rendered
-   * as-is; a path href goes through the locale helper like any other link.
-   */
-  caps: [
-    { label: 'Miami-Dade · Recertification', href: '#miami-dade' },
-    { label: 'Broward · BSIP', href: '#broward' },
-    { label: 'Assessments & repair design', href: '/services/structural-condition-assessments' },
-    { label: 'New-building design', href: '#new-buildings' },
-  ],
-} as const;
-
-/* ═══════════════════════════════════════════════════════════════════════════
    SERVICES
    ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -806,8 +753,8 @@ export type Service = {
    * code-publisher pages only: a city's or a town's website is never linked
    * (see `offices`), and pages.test.ts lists the hosts the site may link.
    *
-   * On the two county programs, `rows[0]` is ALSO what the home page reads
-   * (ProgramSection): the rows flagged `home`, the same labels in the same
+   * On the two county programs, `rows[0]` is ALSO what the city pages read:
+   * the rows flagged `home`, the same labels in the same
    * order on both, so the two counties compare line by line. Do not restate a number from a
    * row anywhere else in the service — point at the row instead.
    *
@@ -976,7 +923,9 @@ export type Service = {
    * which must always equal the row's "Time to file".
    */
   program?: {
-    /** Anchor id on the home page: 'miami-dade' | 'broward' (see `hero.caps`). */
+    /** Anchor id of the program: 'miami-dade' | 'broward' (the price table's
+        column ids, and the old home page's anchors; the first-frame script
+        sends those two old hashes to the program pages). */
     id: string;
     /** The county alone ("Miami-Dade"): the home page's county switch on a
         phone, and the label over each price in the phone price table. */
@@ -2659,9 +2608,8 @@ export const imagery = {
 /* ═══════════════════════════════════════════════════════════════════════════
    WHAT WE DESIGN — building typologies (photos illustrate the KIND, never a job)
    ═══════════════════════════════════════════════════════════════════════════
-   Rendered on /services, after the two tracks. It left the home page when
-   the county programs took its place; the home page keeps the headline, on
-   `newBuildings`.
+   Rendered on /services, after the two tracks. The home page has its own
+   building-types rail (home.types, titles of the first five from here).
    ═══════════════════════════════════════════════════════════════════════════ */
 
 export type Typology = {
@@ -2676,7 +2624,7 @@ export type Typology = {
 /* The grid's own headline: the question its cards answer, and the one the
    lede under it picks up ("If your project is not on this list…"). It used
    to carry "From a single house to a mid-rise concrete frame.", which is
-   the home page's headline (`newBuildings`, below) — the same h2 on two
+   the home page's headline (`home.types.title`) — the same h2 on two
    pages. The home page keeps the approved line; this section asks. */
 export const typologiesSection = {
   eyebrow: 'What we design',
@@ -2693,35 +2641,6 @@ export const typologies: Typology[] = [
   { n: '05', title: 'Foundations on difficult sites', lede: 'Tight lots, poor bearing, high water table and neighbors close enough to matter — the substructure engineered against the geotechnical report, not around it.', track: 'new', href: '/services/structural-analysis', photo: photo.foundationMatPit },
   { n: '06', title: 'Repairs to existing structures', lede: 'Balconies, facades, slabs and columns that have been in service for decades — condition documented, repairs engineered, and the paperwork the county asks for.', track: 'existing', href: '/existing-buildings', photo: photo.repairSoffitTrowel },
 ];
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   NEW BUILDINGS (home) — the design side of the practice, in one section
-   ═══════════════════════════════════════════════════════════════════════════
-   The home page used to give new construction three sections: the "I am
-   building something new" door, the six-photo typology grid and the BIM
-   stage. Its first two sections are now the county programs, so this ONE
-   paragraph carries what the door and the BIM section said — what gets
-   designed, how it is coordinated, what is issued. The component lists the
-   four `track: 'new'` services itself, beside the model clip.
-
-   The headline is the owner-approved "What we design" line, and this is now
-   the only place it is printed: the typology grid on /services, which also
-   carried it, has a headline of its own (`typologiesSection`). Owners and
-   boards read the home page: no "federate", no "MEP", and no promise about
-   what gets built.
-
-   Gone with this change, in both languages: `pathsSection` / `paths` (the
-   two doors), `recertBand` (one band that merged both counties' ages into a
-   single sentence) and `bim` (replaced by this section).
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-export const newBuildings = {
-  eyebrow: 'New buildings',
-  title: 'From a single house to a mid-rise concrete frame.',
-  accentWord: 'mid-rise',
-  body: 'Houses, townhouses, mid-rise concrete and commercial frames — foundations, frame and hurricane-wind design engineered as one structure and issued as a signed and sealed permit set. We build the structural model first and check it against the architect’s model and the mechanical, electrical and plumbing models, so conflicts are settled on screen before they can become a change order on site.',
-  cta: { href: '/services#new', label: 'Services for New Projects' },
-} as const;
 
 /* ═══════════════════════════════════════════════════════════════════════════
    HOME — the firm's presentation (the words of the new home page)
@@ -3462,7 +3381,7 @@ export const contactPage = {
 } as const;
 
 /* Kept for local SEO (`areaServed`). Not rendered as a visible list; the
-   home page names every municipality under its mark (JurisdictionsSection),
+   home page names every municipality under its mark (HomeWhere),
    and the city pages name their own. */
 export const municipalities = [
   'Miami', 'Miami Beach', 'Coral Gables', 'Hialeah', 'Miami Springs',
@@ -3822,8 +3741,6 @@ export const reach = {
  */
 export const partner = {
   eyebrow: 'Who we work with',
-  kicker: 'Two licensed firms',
-  title: 'One team on your building.',
   /* The owner's sentence, 2026-10-24, split in two: the home page is a
      presentation of the firm, not a page about recertification, so the
      county programs, the notice and the final report are no longer in it.
@@ -3882,8 +3799,8 @@ export const partner = {
 };
 
 /* ── Fixed-fee ranges, the cost of waiting, and the offices we file with ──
-   One home section on the public home page (CostSection). The ranges are
-   fixed-fee ranges by building size; they are NOT regulatory facts and carry
+   Printed on the cost page (and, for the offices, on the home page's "where
+   we work" plate). The ranges are fixed-fee ranges by building size; they are NOT regulatory facts and carry
    no date. No age or day count belongs here (those live in the timing rows).
    The penalty line quotes the firm's own owner letter. `items` of
    `jurisdictions` names every municipality and shows each COUNTY's logo only
@@ -3938,10 +3855,6 @@ const pricing = {
      in a hurry. Spelled out in words, not figures. */
   delivery: 'The complete package, signed and sealed, three to four days after the inspection. In a hurry? One to two days.',
   jurisdictions: {
-    eyebrow: 'Jurisdictions',
-    title: 'The offices we file with.',
-    lede: 'Your notice comes from one of these offices, or from a neighbour of theirs. The steps and the forms are theirs; the process is ours.',
-    more: 'Every municipality in both counties.',
     /* `mark` is the county's own entry in `marks` (municipalities.ts), the
        same key in both languages. Every municipality is named in plain text
        under the county's logo; no city logo is shown. */
@@ -3950,7 +3863,6 @@ const pricing = {
       { title: 'Broward County', mark: 'Broward County', names: browardMunicipalities },
     ],
     disclaimer: 'The county logos belong to their governments and are shown only to identify the office. Tercero Tablada Civil and Structural Engineering Inc. is an independent firm: not affiliated with, endorsed by or acting for any of them.',
-    creditLabel: 'Image credits',
   },
 };
 
@@ -3961,13 +3873,11 @@ export const en = {
   primaryCta,
   footerNav,
   ui,
-  hero,
   home,
   services,
   contactServiceOptions,
   typologiesSection,
   typologies,
-  newBuildings,
   howWeWork,
   caseStudies,
   engagements,

@@ -176,8 +176,10 @@ describe('who we work with: whole on the home page, short on the other two', () 
         .filter((m) => m[1] === dbpr)
         .map((m) => text(m[2]));
 
-    it(`${lang}: the lede and the cards' headline are the home page's alone`, () => {
-      for (const line of [p.lede, p.title]) {
+    it(`${lang}: the credentials plate's sentence is the home page's alone`, () => {
+      // (`partner.title` and `partner.kicker`, the old cards' headline, left
+      // with the old home page: the plate's headline is `home.credentials`.)
+      for (const line of [p.lede]) {
         expect(count(home, line), line).toBe(1);
         expect(count(about, line), line).toBe(0);
         expect(count(hub, line), line).toBe(0);

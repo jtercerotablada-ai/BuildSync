@@ -125,12 +125,13 @@ describe('the board’s duties: the same law on both pages', () => {
 });
 
 /**
- * The home page's two program sections are a SUMMARY of the program pages:
- * the facts flagged `home`, each cut to its first sentence, and of the line
- * under the button its second half (ProgramSection). All of it is read from
+ * The city pages' summary of a county program (they print the facts flagged
+ * `home`; the old home page's two program sections did too) is a SUMMARY of
+ * the program pages: the facts flagged `home`, each cut to its first sentence, and of the line
+ * under the button its second half (the city pages). All of it is read from
  * the same row and the same line — so what must hold is here, on the data.
  */
-describe('the home page’s summary of a county program', () => {
+describe('the summary of a county program (the facts flagged `home`)', () => {
   const facts = (c: SiteContent, slug: string) => svc(c, slug).timing?.rows[0]?.facts ?? [];
   const flagged = (c: SiteContent, slug: string) =>
     facts(c, slug).flatMap((f, i) => (f.home ? [i] : []));
@@ -187,12 +188,12 @@ describe('the home page’s summary of a county program', () => {
   });
 });
 
-/* The home page prints once what the two programs share (ProgramSection):
+/* The city pages and the cost page print once what the two programs share:
    the four steps under both county columns, and one column of building
-   sizes in the price table (CostSection). That is only true while they ARE
+   sizes in the price table. That is only true while they ARE
    shared — if a county ever gets its own steps or its own sizes, these fail
    and the page has to print them per county again. */
-describe('the home page prints the shared parts once', () => {
+describe('the shared parts of the two programs are printed once', () => {
   it('both programs run the same four steps', () => {
     for (const [, c] of bundles) {
       const [a, b] = PROGRAMS.map((slug) => svc(c, slug).program!.steps);
