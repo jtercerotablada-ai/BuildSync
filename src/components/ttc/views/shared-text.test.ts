@@ -294,11 +294,17 @@ describe('the team: on /about alone, as equals, and none of it on the home page'
       expect(aboutText).not.toMatch(/universit|universidad|barcelona/i);
     });
 
-    it(`${lang}: Melvin is M.Sc., EIT — never an engineer or a PE`, () => {
+    it(`${lang}: Melvin is "Engineer in Training", M.Sc. — never a PE, never licensed`, () => {
+      // The owner, 2026-10-24: "Melvin Engineer in Training"; Juan's tile reads
+      // "Civil Engineer, P.E.".
       const tile = (id: string) => about.match(new RegExp(`<li id="${id}"[\\s\\S]*?</li>`))?.[0] ?? '';
       const melvin = text(tile('melvin'));
-      expect(melvin).toContain('EIT');
-      expect(melvin).not.toMatch(/engineer(?!ing)|ingenier|\bPE\b|licen|passed|aprob/i);
+      const phrase = lang === 'en' ? 'Engineer in Training' : 'Ingeniero en Formación';
+      expect(melvin).toContain(phrase);
+      expect(melvin).toContain('M.Sc.');
+      expect(melvin.split(phrase).join('')).not.toMatch(/engineer|ingenier|\bPE\b|\bP\.E\./i);
+      expect(melvin).not.toMatch(/licen|passed|aprob/i);
+      expect(text(tile('engineer'))).toContain(lang === 'en' ? 'Civil Engineer, P.E.' : 'Ingeniero Civil, P.E.');
     });
 
     it(`${lang}: no tile and no team sentence says "separate company" or "partner"`, () => {

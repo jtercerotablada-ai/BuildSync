@@ -2976,12 +2976,16 @@ export const aboutPage = {
      keeps the contractor's licensing on the contractor (F.S. 489.127(1)(f),
      489.103(11)); the register at the foot of /about names Precision Source
      Inc. and its numbers.
-       · Juan Tercero — PE (Florida Professional Engineer), M.Sc.
-       · Melvin Tercero — M.Sc., EIT, the owner's words for his brother.
-         Never "engineer", "PE" or "passed the PE exam": an Engineer Intern
-         holds a certification, not a license, and "cannot call yourself an
-         engineer" (FBPE; F.S. 471.031(1)(b)). EIT says the opposite of
-         licensed; Florida's own term for it is "E.I.".
+       · Juan Tercero — "Civil Engineer, P.E." (the owner's words,
+         2026-10-24: "en about puede ser yo mejor Civil Engineer, P.E."),
+         M.Sc. on the letters line.
+       · Melvin Tercero — "Engineer in Training", M.Sc.; the owner's words
+         for his brother (2026-10-24: "Melvin Engineer in Training"). Never
+         "PE", "licensed" or "passed the PE exam": an Engineer Intern holds a
+         certification, not a license, and the Board's line is that he
+         "cannot call yourself an engineer" (FBPE; F.S. 471.031(1)(b)).
+         Florida's own term for the certification is "Engineer Intern"
+         (E.I.); the owner chose "Engineer in Training" knowing that.
        · Rudy Diaz — GC and EC (Certified General and Electrical Contractor)
          and an MBA. His numbers are in the register at the foot of /about
          (`partner`), as F.S. 489.119(5)(b) asks.
@@ -2995,16 +2999,16 @@ export const aboutPage = {
       {
         id: 'engineer',
         name: 'Juan Tercero',
-        letters: 'PE, M.Sc.',
-        role: 'Structural Engineer',
-        photo: { src: '/ttc/img/leadership/juan-tercero.jpg', alt: 'Juan Tercero, PE, M.Sc., in a dark suit and navy tie', w: 800, h: 814 },
+        letters: 'M.Sc.',
+        role: 'Civil Engineer, P.E.',
+        photo: { src: '/ttc/img/leadership/juan-tercero.jpg', alt: 'Juan Tercero, Civil Engineer, P.E., M.Sc., in a dark suit and navy tie', w: 800, h: 814 },
       },
       {
         id: 'melvin',
         name: 'Melvin Tercero',
-        letters: 'M.Sc., EIT',
-        role: 'Structural Design',
-        photo: { src: '/ttc/img/leadership/melvin-tercero.jpg', alt: 'Melvin Tercero, M.Sc., EIT, in a dark suit and navy tie', w: 800, h: 800 },
+        letters: 'M.Sc.',
+        role: 'Engineer in Training',
+        photo: { src: '/ttc/img/leadership/melvin-tercero.jpg', alt: 'Melvin Tercero, Engineer in Training, M.Sc., in a dark suit and navy tie', w: 800, h: 800 },
       },
       {
         id: 'rudy',

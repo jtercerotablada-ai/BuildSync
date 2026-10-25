@@ -1880,16 +1880,16 @@ export const es: SiteContent = {
         {
           id: 'engineer',
           name: 'Juan Tercero',
-          letters: 'PE, M.Sc.',
-          role: 'Ingeniero Estructural',
-          photo: { src: '/ttc/img/leadership/juan-tercero.jpg', alt: 'Juan Tercero, PE, M.Sc., con traje oscuro y corbata azul marino', w: 800, h: 814 },
+          letters: 'M.Sc.',
+          role: 'Ingeniero Civil, P.E.',
+          photo: { src: '/ttc/img/leadership/juan-tercero.jpg', alt: 'Juan Tercero, Ingeniero Civil, P.E., M.Sc., con traje oscuro y corbata azul marino', w: 800, h: 814 },
         },
         {
           id: 'melvin',
           name: 'Melvin Tercero',
-          letters: 'M.Sc., EIT',
-          role: 'Diseño Estructural',
-          photo: { src: '/ttc/img/leadership/melvin-tercero.jpg', alt: 'Melvin Tercero, M.Sc., EIT, con traje oscuro y corbata azul marino', w: 800, h: 800 },
+          letters: 'M.Sc.',
+          role: 'Ingeniero en Formación',
+          photo: { src: '/ttc/img/leadership/melvin-tercero.jpg', alt: 'Melvin Tercero, Ingeniero en Formación, M.Sc., con traje oscuro y corbata azul marino', w: 800, h: 800 },
         },
         {
           id: 'rudy',
