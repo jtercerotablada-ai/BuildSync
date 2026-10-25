@@ -17,6 +17,8 @@
      6  S4 Statement
      7  S5 BIM
      8  Reduced motion, print
+     9  The header's Call button on a phone (the rest of the chrome's
+        differences on the home are in SiteHeader, MobileActionBar, SiteFooter)
 
    THE PALETTE is the site's, not a new one: graphite for the page and the
    plates, charcoal for a lifted surface, snow for text, the two greys for
@@ -1182,5 +1184,57 @@ html:not(.js) .mp-home .h-rib__row--rev .h-rib__track {
   .mp-home .h-ph,
   .mp-home .h-bim__media {
     display: none !important;
+  }
+}
+
+/* ═══ 9 · THE HEADER'S CALL BUTTON ═══════════════════════════════════════
+   SiteHeader renders `.mp-header__call` on the home alone, and this is the
+   only rule that shows it: on a phone or small tablet (900px and below, the
+   width the phone bar works at) it sits beside the language link, the
+   header's button and the burger, so a visitor can ring from the first screen.
+   It is the burger's twin (44 by 44, the same hairline in the header's own
+   colour, which follows the transparent and graphite states), and it steps
+   aside exactly where the burger's neighbours do: while the phone bar is up
+   (the bar carries Call) and while the menu is open (the menu has its own
+   links; `visibility` also takes it out of the Tab order, as it does for the
+   language link and the header's button). It is a link, so it has no JS. */
+
+.mp-header__call {
+  display: none;
+}
+@media (max-width: 900px) {
+  .mp-header__call {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 44px;
+    height: 44px;
+    border: 1px solid var(--hdr-border);
+    color: inherit;
+    text-decoration: none;
+    transition: border-color var(--mp-dur) var(--mp-ease);
+  }
+  body:has(.mp-bar.is-shown) .mp-header__call {
+    display: none;
+  }
+  .mp-header.is-menu-open .mp-header__call {
+    visibility: hidden;
+  }
+}
+@media (hover: hover) and (pointer: fine) {
+  .mp-header__call:hover {
+    border-color: var(--mp-gold);
+  }
+}
+/* Under 360px the bar has room for the logo, the language link, the Call
+   button and the burger, and for the header's button only by squeezing it:
+   at 320px "Get in touch" broke onto three lines and "Contáctenos", one word,
+   was cut off. The same words are the hero's button, the phone bar's main
+   cell and the menu's first button, so the header's steps aside there. From
+   360px up (the common Android width) it fits on one line in both languages. */
+@media (max-width: 359px) {
+  body:has(.mp-home) .mp-header__cta {
+    display: none;
   }
 }

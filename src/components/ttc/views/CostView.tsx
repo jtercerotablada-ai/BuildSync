@@ -189,9 +189,12 @@ export function CostView({ lang }: { lang: Lang }) {
                 ))}
               </ul>
               <p className="mp-costp__late">
-                {/* What waiting costs opens each county's column on the home
-                    page (there is no #urgency section any more). */}
-                <TextLink href={`${localePath('/', lang)}#miami-dade`}>{k.outside.lateLink}</TextLink>
+                {/* What waiting can cost is told on the county program's own
+                    page. It used to open the Miami-Dade column of the home
+                    page (`/#miami-dade`); the home is a presentation of the
+                    firm now and has no such column (first-frame.ts sends the
+                    old anchor here too). */}
+                <TextLink href={localePath('/services/building-recertification', lang)}>{k.outside.lateLink}</TextLink>
               </p>
             </div>
           </div>

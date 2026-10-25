@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { getContent } from '@/lib/ttc/content';
 import type { Lang } from '@/lib/ttc/i18n';
-import { whatsappHref } from './ReachRow';
+import { whatsappHomeHref, whatsappHref } from './ReachRow';
 
 /**
  * The WhatsApp link. It is on every page (the reach rows, the bar on phones,
@@ -58,6 +58,23 @@ describe('whatsappHref, plain', () => {
       expect(url.searchParams.get('text')).toBe(c.reach.whatsappTextPlain);
       expect(c.reach.whatsappTextPlain).not.toBe(c.reach.whatsappText);
       expect([...url.searchParams.keys()]).toEqual(['phone', 'text']);
+    });
+  }
+});
+
+/* The home page is a presentation of the firm, not an answer to a notice or
+   a request for a proposal: its chat opens with a line that says neither
+   (the phone bar and the phone menu of the home). */
+describe('whatsappHomeHref', () => {
+  for (const lang of LANGS) {
+    const c = getContent(lang);
+    it(`${lang}: prefills the home's own first line, on the firm's number`, () => {
+      const url = new URL(whatsappHomeHref(c)!);
+      expect(url.searchParams.get('text')).toBe(c.reach.whatsappTextHome);
+      expect(c.reach.whatsappTextHome).not.toBe(c.reach.whatsappText);
+      expect(c.reach.whatsappTextHome).not.toBe(c.reach.whatsappTextPlain);
+      expect([...url.searchParams.keys()]).toEqual(['phone', 'text']);
+      expect(url.searchParams.get('phone')).toBe(new URL(whatsappHref(c)!).searchParams.get('phone'));
     });
   }
 });

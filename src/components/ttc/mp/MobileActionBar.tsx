@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import { openCalculatorPaths } from '@/lib/ttc/calculator-paths';
 import { stripLang } from '@/lib/ttc/i18n';
 import { useContent, useL } from './lang';
-import { whatsappHref } from './ReachRow';
+import { whatsappHomeHref, whatsappHref } from './ReachRow';
 import { pageHoldsNotice } from '@/lib/ttc/notice-pages';
 
 /**
@@ -21,6 +21,13 @@ import { pageHoldsNotice } from '@/lib/ttc/notice-pages';
  *
  * Why it waits for a scroll: the first screen already carries its own
  * buttons, and a bar over the hero would cover the strip of links under it.
+ *
+ * On the HOME it has its own third wording: the home is a presentation of the
+ * firm and holds no notice (notice-pages.ts), so the main cell is "Get in
+ * touch" (`reach.formHome`) and takes the visitor to the contact block of the
+ * same page (`#contact`, a plain anchor that smooth-scroll.tsx scrolls to),
+ * and WhatsApp opens with a first line that names no notice and no proposal
+ * (`reach.whatsappTextHome`).
  *
  * Not on a calculator either: its reader is an engineer at work, not an owner
  * with a notice, and the bar lay over the last field and the diagram being
@@ -51,13 +58,14 @@ export function MobileActionBar() {
   if (!phone) return null;
   if (/\/contact\/?$/.test(pathname)) return null;
   const canonical = stripLang(pathname).replace(/\/$/, '');
+  const home = stripLang(pathname) === '/';
   if (canonical === '/resources' || openCalculatorPaths.some((p) => p === canonical)) return null;
-  /* Where the reader holds a notice (pageHoldsNotice: the home page, the
-     existing-building pages, the guides, the cost page, a county program,
-     the milestone page and their city pages) the bar sends the notice.
-     Elsewhere it offers the free proposal, and the WhatsApp chat opens
-     without "I received a notice". A service page's button keeps its
-     service chosen.
+  /* Where the reader holds a notice (pageHoldsNotice: the existing-building
+     pages, the guides, the cost page, a county program, the milestone page
+     and their city pages) the bar sends the notice. Elsewhere it offers the
+     free proposal, and the WhatsApp chat opens without "I received a
+     notice". A service page's button keeps its service chosen. The home is
+     neither: see above.
 
      Its own short label, not the header's "Request a Proposal": that one
      broke onto two lines in the bar's third of a 360–390px screen, and the
@@ -65,7 +73,7 @@ export function MobileActionBar() {
      are never on screen together. */
   const svc = c.services.find((s) => canonical === `/services/${s.slug}` || canonical.startsWith(`/services/${s.slug}/`));
   const notice = pageHoldsNotice(canonical);
-  const wa = whatsappHref(c, !notice);
+  const wa = home ? whatsappHomeHref(c) : whatsappHref(c, !notice);
   const r = c.reach;
 
   return (
@@ -82,9 +90,15 @@ export function MobileActionBar() {
           {r.whatsapp}
         </a>
       ) : null}
-      <Link className="mp-bar__item mp-bar__item--main" href={l(svc ? `/contact?service=${svc.slug}` : '/contact')}>
-        {notice ? r.form : r.formPlain}
-      </Link>
+      {home ? (
+        <a className="mp-bar__item mp-bar__item--main" href="#contact">
+          {r.formHome}
+        </a>
+      ) : (
+        <Link className="mp-bar__item mp-bar__item--main" href={l(svc ? `/contact?service=${svc.slug}` : '/contact')}>
+          {notice ? r.form : r.formPlain}
+        </Link>
+      )}
     </nav>
   );
 }

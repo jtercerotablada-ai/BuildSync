@@ -16,7 +16,9 @@ import {
   localePath,
   stripLang,
 } from '@/lib/ttc/i18n';
+import { reveal, startHide, stepHide, type HideState } from './header-hide';
 import { addressNow, refreshSearch, useCarriedHash, useContent, useLang, useSearch } from './lang';
+import { whatsappHomeHref } from './ReachRow';
 
 /** How long the menu's entrance has to have been on screen for a close to
  *  be worth an exit (the panel is about nine tenths in by then). */
@@ -24,6 +26,11 @@ const ENTRANCE_SHOWN_MS = 100;
 
 /** The burger shows at ≤1180px (mp.css); the menu has no reason to exist past it. */
 const MENU_MQ = '(max-width: 1180px)';
+
+/** On the home, the header slides away on the way down at this width and
+ *  below (header-hide.ts, home-motion.css). */
+const HIDE_MQ = '(max-width: 900px)';
+const REDUCED_MQ = '(prefers-reduced-motion: reduce)';
 
 /**
  * Header state is deliberately NOT React state.
@@ -33,12 +40,25 @@ const MENU_MQ = '(max-width: 1180px)';
  * the correct appearance is present on the very first paint, survives a
  * JS-disabled visit, and needs no per-route allow-list.
  *
- * JavaScript contributes exactly three class toggles, all written straight to
+ * JavaScript contributes exactly four class toggles, all written straight to
  * the DOM through a ref:
  *   .is-floating   — the page has moved at all, so something is now sliding
  *                    under the header and it needs a backing
- *   .is-stuck      — we have scrolled past the dark hero
+ *   .is-stuck      — we have scrolled past the dark hero (never on the home:
+ *                    the home is black from top to bottom, so its header
+ *                    never becomes the paper bar)
  *   .is-menu-open  — the mobile menu is covering the page
+ *   .is-away       — the header has slid up out of the way (the home, on a
+ *                    phone, after 120px of scrolling down: header-hide.ts)
+ *
+ * THE HOME (the canonical path "/", after stripLang) differs from every other
+ * page in this file in exactly these ways, and in no other:
+ *   · the button reads "Get in touch" and goes to the page's own contact
+ *     block (`#contact`) instead of "Request a Proposal" → /contact;
+ *   · a Call button beside the burger on a phone, hidden by CSS while the
+ *     phone bar is up and while the menu is open (home.css);
+ *   · the menu's foot carries Call and WhatsApp above the email;
+ *   · it slides away on the way down (above) and never turns paper.
  *
  * The three states swap in ONE frame — the bar colour, the text colour and
  * the logo (which flips via `display`, and cannot fade) — so there is no
@@ -61,6 +81,9 @@ const MENU_MQ = '(max-width: 1180px)';
  */
 export function SiteHeader() {
   const pathname = usePathname() ?? '/';
+  const canonical = stripLang(pathname);
+  /* The home: everything this file does differently for it keys on this. */
+  const isHome = canonical === '/';
   const lang = useLang();
   const c = useContent();
   const search = useSearch();
@@ -137,9 +160,12 @@ export function SiteHeader() {
       return;
     }
     // The sentinel marks the BOTTOM edge of the dark hero; the test is "has
-    // that edge risen above the header?", not `isIntersecting`.
+    // that edge risen above the header?", not `isIntersecting`. Never on the
+    // home: it is black from the film to the footer, and a paper bar over it
+    // (or over its one snow plate) would be wrong. It keeps the transparent
+    // state over the film and the graphite backing (.is-floating) after.
     const update = (rect: DOMRectReadOnly | DOMRect) => {
-      header.classList.toggle('is-stuck', rect.top <= header.offsetHeight);
+      header.classList.toggle('is-stuck', !isHome && rect.top <= header.offsetHeight);
       header.classList.toggle('is-floating', window.scrollY > 4);
     };
     const io = new IntersectionObserver(
@@ -157,7 +183,38 @@ export function SiteHeader() {
       window.removeEventListener('resize', onScroll);
       header.classList.remove('is-floating');
     };
-  }, [pathname]);
+  }, [pathname, isHome]);
+
+  /* ── the home's header slides away on the way down (E17) ──────────────────
+     At 900px and below, on the home only: after 120px of scrolling down the
+     header slides up; any scroll up, the top of the page, the menu opening
+     and focus entering the header bring it back. Never under reduced motion.
+     The rule is header-hide.ts; this only reads the scroll position, asks it,
+     and writes the class (the slide is CSS, home-motion.css). Torn down while
+     the menu is open, so a header that was away is back the moment the menu
+     opens and stays while it is open. */
+  useEffect(() => {
+    const header = headerRef.current;
+    if (!header) return;
+    header.classList.remove('is-away');
+    if (!isHome || open) return;
+    const narrow = window.matchMedia(HIDE_MQ);
+    const reduced = window.matchMedia(REDUCED_MQ);
+    let state: HideState = startHide(window.scrollY);
+    const show = (next: HideState) => {
+      state = next;
+      header.classList.toggle('is-away', state.hidden);
+    };
+    const onScroll = () => show(stepHide(state, window.scrollY, narrow.matches && !reduced.matches));
+    const onFocusIn = () => show(reveal(state));
+    window.addEventListener('scroll', onScroll, { passive: true });
+    header.addEventListener('focusin', onFocusIn);
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      header.removeEventListener('focusin', onFocusIn);
+      header.classList.remove('is-away');
+    };
+  }, [isHome, open]);
 
   /* ── menu: appearance, scroll lock, inert page, focus cycle ───────────────
      The menu is a DISCLOSURE, not a modal dialog. It used to be
@@ -286,7 +343,6 @@ export function SiteHeader() {
     return () => window.clearTimeout(timer);
   }, [closing]);
 
-  const canonical = stripLang(pathname);
   const isActive = useCallback(
     (href: string) =>
       href === '/'
@@ -368,6 +424,66 @@ export function SiteHeader() {
       {otherLink}
     </div>
   );
+
+  /* The button, in the bar and at the foot of the menu. Everywhere it is the
+     site's "Request a Proposal" → /contact. On the home it is "Get in touch"
+     → the page's own contact block: a plain anchor, because Next's <Link>
+     would route a same-page hash and smooth-scroll.tsx scrolls to it itself
+     (and leaves it in the history as the hash, without a new entry). */
+  const ctaClass = 'mp-btn mp-btn--solid';
+  const ctaLabel = isHome ? c.home.chrome.headerCta : c.primaryCta.label;
+  const ctaInner = (arrow: boolean) => (
+    <>
+      <span>{ctaLabel}</span>
+      {arrow ? (
+        <span className="mp-btn__arrow" aria-hidden="true">
+          →
+        </span>
+      ) : null}
+    </>
+  );
+  const cta = isHome ? (
+    <a href="#contact" className={`${ctaClass} mp-header__cta`}>
+      {ctaInner(false)}
+    </a>
+  ) : (
+    <Link href={l(c.primaryCta.href)} className={`${ctaClass} mp-header__cta`}>
+      {ctaInner(false)}
+    </Link>
+  );
+  const menuCta = isHome ? (
+    <a href="#contact" className={ctaClass}>
+      {ctaInner(true)}
+    </a>
+  ) : (
+    <Link href={l(c.primaryCta.href)} className={ctaClass}>
+      {ctaInner(true)}
+    </Link>
+  );
+
+  /* The home, on a phone: a way to ring from the first screen. CSS shows it at
+     900px and below only, hides it while the phone bar is up (the bar carries
+     Call) and while the menu is open (home.css). Its name for a screen reader
+     is "Call (772) 265-8506", the visible words of the menu's own link. */
+  const phone = c.contact.phone;
+  const callLabel = phone ? c.home.chrome.callLabel.replace('{phone}', phone.display) : '';
+  const callButton =
+    isHome && phone ? (
+      <a className="mp-header__call" href={phone.href}>
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
+          <path
+            d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+        <span className="mp-sr-only">{callLabel}</span>
+      </a>
+    ) : null;
+  const whatsapp = isHome ? whatsappHomeHref(c) : null;
 
   return (
     <>
@@ -451,12 +567,8 @@ export function SiteHeader() {
                 and hides it while the menu (which has its own switch) is
                 open. */}
             <div className="mp-lang mp-header__lang-compact">{otherLink}</div>
-            <Link
-              href={l(c.primaryCta.href)}
-              className="mp-btn mp-btn--solid mp-header__cta"
-            >
-              <span>{c.primaryCta.label}</span>
-            </Link>
+            {cta}
+            {callButton}
             <button
               ref={burgerRef}
               type="button"
@@ -517,13 +629,19 @@ export function SiteHeader() {
           </nav>
 
           <div className="mp-menu__foot">
-            <Link href={l(c.primaryCta.href)} className="mp-btn mp-btn--solid">
-              <span>{c.primaryCta.label}</span>
-              <span className="mp-btn__arrow" aria-hidden="true">
-                →
-              </span>
-            </Link>
+            {menuCta}
             <div className="mp-menu__lang">{langSwitch}</div>
+            {/* The home's phone menu rings and writes first, above the email. */}
+            {isHome && phone ? (
+              <a className="mp-menu__mail" href={phone.href}>
+                {callLabel}
+              </a>
+            ) : null}
+            {whatsapp ? (
+              <a className="mp-menu__mail" href={whatsapp} target="_blank" rel="noopener noreferrer">
+                {c.reach.whatsappPlain}
+              </a>
+            ) : null}
             <a className="mp-menu__mail" href={`mailto:${c.contact.email}`}>
               {c.contact.email}
             </a>

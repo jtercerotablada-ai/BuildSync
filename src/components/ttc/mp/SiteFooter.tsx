@@ -2,7 +2,8 @@
 
 import React, { useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { htmlLang } from '@/lib/ttc/i18n';
+import { usePathname } from 'next/navigation';
+import { htmlLang, stripLang } from '@/lib/ttc/i18n';
 import { useContent, useL, useLang } from './lang';
 
 /**
@@ -53,6 +54,12 @@ const ICON: Record<'linkedin' | 'facebook' | 'instagram', string> = {
 
 export function SiteFooter() {
   const c = useContent();
+  /* The tagline under the logo is the firm's one-line description on every
+     page. On the home alone it is the home's own line (`home.chrome.footerTag`):
+     the description names the two county programs and recertification, and
+     the home is a presentation of the firm, not about either. */
+  const onHome = stripLang(usePathname() ?? '/') === '/';
+  const tagline = onHome ? c.home.chrome.footerTag : c.company.description;
   const social = [
     { href: c.contact.social.linkedin, label: c.ui.footer.linkedin, icon: ICON.linkedin },
     { href: c.contact.social.facebook, label: c.ui.footer.facebook, icon: ICON.facebook },
@@ -83,7 +90,7 @@ export function SiteFooter() {
                 decoding="async"
               />
             </div>
-            <p className="mp-footer__tag">{c.company.description}</p>
+            <p className="mp-footer__tag">{tagline}</p>
             {/* The firm's profiles as icons. Each link keeps its network's
                 name as visually hidden text, so it still reads "LinkedIn"
                 to a screen reader and to the link checks. */}

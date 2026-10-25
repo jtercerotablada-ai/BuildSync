@@ -20,6 +20,18 @@ export function whatsappHref(c: SiteContent, plain = false): string | null {
 }
 
 /**
+ * The WhatsApp link on the home page: the chat opens with a first line that
+ * promises nothing and names no notice and no proposal
+ * (`reach.whatsappTextHome`). For the home's phone bar and its phone menu; the
+ * contact block of the page words its own line the same way
+ * (HomeContact). `null` when no WhatsApp line is set.
+ */
+export function whatsappHomeHref(c: SiteContent): string | null {
+  const wa = c.contact.whatsapp;
+  return wa ? `${wa.href}&text=${encodeURIComponent(c.reach.whatsappTextHome)}` : null;
+}
+
+/**
  * Call and WhatsApp, as two plain links under a button. A board holding a
  * notice with a deadline phones whoever answers, and a Spanish-speaking owner
  * sends the photo of the letter by WhatsApp — the form alone lost both.

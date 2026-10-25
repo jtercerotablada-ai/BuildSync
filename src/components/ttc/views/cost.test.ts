@@ -143,7 +143,12 @@ describe('the cost page', () => {
     it(`${lang}: links each county's page and the cost of waiting`, () => {
       const hrefs = [...body.matchAll(/<a\b[^>]*href="([^"]*)"/g)].map((m) => m[1]);
       for (const p of c.pricing.programs) expect(hrefs).toContain(localePath(`/services/${p.slug}`, lang));
-      expect(hrefs).toContain(`${localePath('/', lang)}#miami-dade`);
+      // The cost of waiting is told on the Miami-Dade program's page: the
+      // home page has no #miami-dade section any more (first-frame.ts sends
+      // the old anchor to the same page).
+      const late = [...body.matchAll(/<a\b[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/g)].find((m) => text(m[2]).startsWith(k.outside.lateLink));
+      expect(late?.[1]).toBe(localePath('/services/building-recertification', lang));
+      expect(hrefs.filter((href) => href.includes('#miami-dade') || href.includes('#broward'))).toEqual([]);
     });
   }
 });

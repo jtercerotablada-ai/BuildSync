@@ -50,9 +50,19 @@ describe('pageHoldsNotice: the lists agree with the pages', () => {
 });
 
 describe('pageHoldsNotice: by address', () => {
-  it('the home page, /existing-buildings and the cost page hold one', () => {
-    for (const p of ['', '/', '/existing-buildings', '/existing-buildings/', COST_PATH]) {
+  it('/existing-buildings and the cost page hold one', () => {
+    for (const p of ['/existing-buildings', '/existing-buildings/', COST_PATH]) {
       expect(pageHoldsNotice(p), p).toBe(true);
+    }
+  });
+
+  // The home is a presentation of the firm (the owner, 2026-10-24): no notice,
+  // so the phone bar does not say "Send the notice" there and its WhatsApp chat
+  // does not open with one. "" is the home as the phone bar sees it after it
+  // has cut the slash.
+  it('the home page does not hold one, with or without its slash', () => {
+    for (const p of ['', '/']) {
+      expect(pageHoldsNotice(p), JSON.stringify(p)).toBe(false);
     }
   });
 

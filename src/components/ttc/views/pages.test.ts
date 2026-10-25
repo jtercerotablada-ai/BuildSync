@@ -9,7 +9,7 @@ import { firstSentence, keepHyphens } from '@/components/ttc/mp/text';
 import { cityPath } from '@/lib/ttc/cities';
 import { getCityPages } from '@/lib/ttc/city-content';
 import { pageHoldsNotice } from '@/lib/ttc/notice-pages';
-import { whatsappHref } from '@/components/ttc/mp/ReachRow';
+import { whatsappHomeHref, whatsappHref } from '@/components/ttc/mp/ReachRow';
 import { GuideView } from './GuideView';
 import { AboutView } from './AboutView';
 import { BEAM_PATH, BeamCalculatorView } from './BeamCalculatorView';
@@ -681,11 +681,21 @@ describe('no "Send the notice" where there is no notice', () => {
     const c = getContent(lang);
     const r = c.reach;
     const notice = pageHoldsNotice(path);
-    it(`${lang} ${path}: the phone bar ${notice ? 'sends the notice' : 'offers the free proposal'}`, () => {
-      expect(bar).toContain(`>${esc(notice ? r.form : r.formPlain)}</a>`);
-      expect(bar).not.toContain(`>${esc(notice ? r.formPlain : r.form)}</a>`);
-      expect(bar).not.toContain(`>${esc(c.primaryCta.label)}</a>`);
-      expect(bar).toContain(esc(whatsappHref(c, !notice)!));
+    // The home is neither (the owner, 2026-10-24: no notice, no proposal on
+    // the home): its bar says "Get in touch", to the contact block of the
+    // page, and its WhatsApp chat names neither.
+    const home = path === '/';
+    const label = home ? r.formHome : notice ? r.form : r.formPlain;
+    it(`${lang} ${path}: the phone bar ${home ? 'says "Get in touch"' : notice ? 'sends the notice' : 'offers the free proposal'}`, () => {
+      expect(bar).toContain(`>${esc(label)}</a>`);
+      for (const other of [r.form, r.formPlain, r.formHome, c.primaryCta.label].filter((x) => x !== label)) {
+        expect(bar).not.toContain(`>${esc(other)}</a>`);
+      }
+      expect(bar).toContain(esc(home ? whatsappHomeHref(c)! : whatsappHref(c, !notice)!));
+      if (home) {
+        expect(bar).toContain('href="#contact"');
+        expect(bar).not.toContain('/contact');
+      }
     });
   }
 

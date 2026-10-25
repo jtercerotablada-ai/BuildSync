@@ -13,7 +13,8 @@
      03  The building-types rail, E13
      04  Parallax, E14
      05  The slide-over stack, E15
-     06  The header: the drop-in (E1) and the progress line (E16)
+     06  The header: the drop-in (E1), the progress line (E16) and the slide
+         away on the way down on a phone (E17)
      07  Hover on the snow plate (E18)
 
    THE RULE OF THIS FILE, the one reveal.ts keeps: NOTHING IS HIDDEN UNLESS
@@ -406,6 +407,30 @@ html.js .mp-home .h-types__ctl:empty {
 @keyframes h-header-progress {
   to {
     transform: scaleX(1);
+  }
+}
+/* …and not over the open menu, where it would hang as a stray gold stub
+   under the logo. */
+body:has(.mp-home) .mp-header.is-menu-open::after {
+  display: none;
+}
+
+/* E17 · on a phone the header slides up out of the way after 120 px of
+   scrolling down, and is back on any scroll up, when the menu opens and when
+   focus enters it. SiteHeader writes `.is-away` (header-hide.ts holds the
+   rule and its tests); the slide is this. At 900 px and below only, and not at
+   all under reduced motion: the class is simply never written there (the
+   script asks the same two media queries), and this block would not move the
+   bar if it were. The menu is not inside the header, so the transform cannot
+   become the containing block of its fixed panel. */
+@media (max-width: 900px) and (prefers-reduced-motion: no-preference) {
+  body:has(.mp-home) .mp-header {
+    transition:
+      border-color var(--mp-dur) var(--mp-ease),
+      transform 0.5s var(--mp-ease);
+  }
+  body:has(.mp-home) .mp-header.is-away:not(.is-menu-open) {
+    transform: translateY(-100%);
   }
 }
 
