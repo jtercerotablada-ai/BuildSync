@@ -239,13 +239,19 @@ describe('the owner’s vocabulary rules, over every string the home says (spec 
     });
 
     // The owner, 2026-10-25: "SE" for the structural engineers. Florida has
-    // no SE license; it has the board's recognition, FRSE (Florida Board
-    // Recognized Structural Engineer, s. 471.055 F.S.), which its holders "may
-    // identify ... in marketing and advertising". So the structural line
-    // carries "FRSE" as its mark, and "SE" itself is printed nowhere.
-    it(`${lang}: the Structural Engineers line carries FRSE, and "SE" is printed nowhere`, () => {
+    // no SE license, and the structural associate's own site shows a PE and
+    // a Special Inspector (threshold buildings), not an SE or an FRSE. The
+    // owner then chose: "cámbialo a Special Inspector Threshold Buildings".
+    // So the structural line carries that credential, and "SE" and "FRSE" are
+    // printed nowhere.
+    it(`${lang}: the Structural Engineers line carries the Special Inspector credential, and "SE" and "FRSE" are printed nowhere`, () => {
       const c = getContent(lang);
-      expect(c.home.credentials.marks).toEqual(['PE', 'FRSE', 'PE']);
+      expect(c.home.credentials.marks).toEqual([
+        'PE',
+        lang === 'en' ? 'Special Inspector · Threshold Buildings' : 'Inspector Especial · Edificios Threshold',
+        'PE',
+      ]);
+      expect(JSON.stringify(c.home)).not.toMatch(/\bFRSE\b/);
       expect(c.home.credentials.titleLines[1]).toMatch(lang === 'en' ? /^Structural Engineers\.$/ : /^Ingenieros Estructurales\.$/);
       const texts = JSON.stringify(c.home);
       expect(texts).not.toMatch(/\bSE\b|\bS\.E\./);
@@ -520,8 +526,7 @@ describe('the Spanish mirror has the English home’s shape (spec item 9)', () =
       'home.hero.counties[1]',
       'home.ribbon.types[1]', // "Townhouses", the word Miami uses
       'home.contact.whatsapp',
-      'home.credentials.marks[0]', // "PE", "FRSE", "PE": credential marks
-      'home.credentials.marks[1]',
+      'home.credentials.marks[0]', // "PE" and "PE": credential marks
       'home.credentials.marks[2]',
     ]);
     const english = new Map(entries(en, 'home').map((e) => [e.path, e.text]));
@@ -948,9 +953,9 @@ for (const lang of LANGS) {
       expect(text(plate)).toContain(c.company.registry);
     });
 
-    it('carries the three disciplines with their marks: PE, FRSE and PE, and prints SE nowhere', () => {
+    it('carries the three disciplines with their marks: PE, the Special Inspector credential and PE, and prints SE and FRSE nowhere', () => {
       const h2 = plate.match(/<h2\b[^>]*>([\s\S]*?)<\/h2>/)![1];
-      const tagTexts = [...h2.matchAll(/<span class="h-cred__tag">([^<]*)<\/span>/g)].map((m) => m[1]);
+      const tagTexts = [...h2.matchAll(/<span class="h-cred__tag(?: h-cred__tag--wide)?">([^<]*)<\/span>/g)].map((m) => m[1]);
       expect(tagTexts).toEqual([...c.home.credentials.marks]);
       // (The accent word is a span of its own: the text has a space before
       // the full stop that follows it.)
@@ -958,11 +963,11 @@ for (const lang of LANGS) {
       for (const [i, line] of c.home.credentials.titleLines.entries()) {
         expect(heading, line).toContain(`${line} ${c.home.credentials.marks[i]}`);
       }
-      // Never "SE": a license Florida does not have. FRSE is the Board's own
-      // recognition, and only the structural line carries it.
+      // Never "SE": a license Florida does not have; never "FRSE": the
+      // Board's recognition, which nothing public shows the associate holds.
       expect(found(wordsExact('SE', 'S\\.E\\.'), body)).toEqual([]);
       expect(found(/licensed structural engineers?|ingenieros estructurales con licencia/i, body)).toEqual([]);
-      expect(body.split('FRSE').length - 1).toBe(1);
+      expect(body).not.toContain('FRSE');
     });
 
     it('names the electrical engineers in the hero’s eyebrow and the plate’s headline, and nowhere else', () => {

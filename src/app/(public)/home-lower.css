@@ -358,7 +358,7 @@ html:not(.js) .mp-home .h-types__rail::-webkit-scrollbar {
   font-size: clamp(30px, 4.7vw, 88px);
   font-size: clamp(30px, min(4.7vw, 9.4svh), 88px);
 }
-/* The credential mark at the end of a line (PE / FRSE / PE): a small mono tag
+/* The credential mark at the end of a line (PE / Special Inspector / PE): a small mono tag
    in a thin gold ring, sitting on the heading's baseline, and held to its
    line (the line never wraps). Not a heading and not a link. */
 .mp-home .h-cred__tag {
@@ -375,6 +375,19 @@ html:not(.js) .mp-home .h-types__rail::-webkit-scrollbar {
   text-transform: uppercase;
   color: var(--mp-gold);
   vertical-align: 0.9em;
+}
+
+/* The long mark (the Special Inspector credential) is not a badge at the end
+   of a line: it takes its own line under the heading line, left-aligned with
+   it, and wraps inside the plate on a phone. */
+.mp-home .h-cred__tag--wide {
+  display: table;
+  margin: 0.7em 0 0.55em;
+  max-width: 100%;
+  vertical-align: baseline;
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  white-space: normal;
 }
 .mp-home .h-cred__lede {
   justify-self: end;

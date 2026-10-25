@@ -20,14 +20,15 @@ import { Words } from './Words';
  * allowed only in the strings of the `home` object, which are what is
  * printed here (complete-package.test.ts lets exactly those through).
  *
- * THE MARKS (owner, 2026-10-25, ADDENDUM B of the spec): each line ends in
- * its credential, in the owner's own formula — Professional Engineers PE,
- * Structural Engineers FRSE, Electrical Engineers PE (`home.credentials.marks`,
- * one per line). Florida has no "SE" license; it has the Board's own
- * recognition, "Florida Board Recognized Structural Engineer" (FRSE, s.
- * 471.055 F.S., Rule 61G15-20.0011), which its holders may use in marketing.
- * So the structural line carries FRSE, never SE. PUBLISH GATE: the owner
- * confirms who holds it before any deploy.
+ * THE MARKS (owner, 2026-10-25, ADDENDUM C of the spec): each line ends in
+ * its credential — Professional Engineers PE, Structural Engineers "Special
+ * Inspector · Threshold Buildings", Electrical Engineers PE
+ * (`home.credentials.marks`, one per line). Florida has no "SE" license, and
+ * the FRSE recognition (s. 471.055 F.S.) is not shown for the structural
+ * associate, so neither is printed: the owner chose the Special Inspector
+ * credential (s. 553.71(9) F.S.), no number, no name. The long mark sits on
+ * its own line under its heading line (`h-cred__tag--wide`); the short ones
+ * ride the end of theirs.
  *
  * THE THREE-UP ROW, left to right:
  *   1. The engineers — `home.credentials.engineers`: the Florida Professional
@@ -88,13 +89,16 @@ export function HomeCredentials({ lang }: { lang: Lang }) {
                 {i > 0 ? ' ' : null}
                 <span className="h-cred__line">
                   <Words text={line} accent={h.accentWord} start={wordsBefore[i]} />
-                  {/* The credential mark of the line (PE, FRSE, PE): a small
-                      mono tag that rides the end of its line and wraps with
-                      it. Not a heading, not a link. */}
+                  {/* The credential mark of the line: a small mono tag. The
+                      short ones (PE) ride the end of their line; the long
+                      one (the Special Inspector credential) takes a line of
+                      its own under it. Not a heading, not a link. */}
                   {h.marks[i] ? (
                     <>
                       {' '}
-                      <span className="h-cred__tag">{h.marks[i]}</span>
+                      <span className={h.marks[i].length > 6 ? 'h-cred__tag h-cred__tag--wide' : 'h-cred__tag'}>
+                        {h.marks[i]}
+                      </span>
                     </>
                   ) : null}
                 </span>

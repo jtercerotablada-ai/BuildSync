@@ -2801,16 +2801,17 @@ export const home = {
        Structural and Electrical Engineers. The registration in Florida is
        card 2's own line, and the Florida license is card 1's. No "SE". */
     titleLines: ['Professional Engineers.', 'Structural Engineers.', 'Electrical Engineers.'],
-    /* The mark printed at the end of each line, in the owner's formula
-       (2026-10-25: "Professional Engineers PE, Structural Engineers SE y
-       Electrical Engineer PE"). Florida has no SE license, but it has the
-       board's own recognition: "Florida Board Recognized Structural
-       Engineer", FRSE (s. 471.055, F.S.; Rule 61G15-20.0011): "may identify
-       such recognition ... in marketing and advertising materials". So the
-       structural line carries FRSE, never "SE". PUBLISH GATE: print it only
-       once the owner confirms that a recognized engineer is on the FBPE's
-       list (the associate called in for threshold buildings is not named). */
-    marks: ['PE', 'FRSE', 'PE'],
+    /* The mark printed at the end of each line (2026-10-25: "Professional
+       Engineers PE, Structural Engineers SE y Electrical Engineer PE"). Florida
+       has no SE license, and the structural associate's own site shows a PE
+       and a Special Inspector (Threshold Building inspections) credential, not
+       an SE or the Board's FRSE recognition. So the owner chose, the same
+       day: "sí, cámbialo a Special Inspector Threshold Buildings" — the
+       structural line carries that credential (Florida's own term: a Special
+       Inspector certified under ch. 471 to inspect threshold buildings, s.
+       553.71(9) F.S.). No number, no name. If the associate later receives
+       the FRSE recognition (s. 471.055 F.S.), that is a separate edit. */
+    marks: ['PE', 'Special Inspector · Threshold Buildings', 'PE'],
     accentWord: 'Structural',
     /* Card 1 names the license, with no number, and says which engineering
        it covers ("scope": the owner's own words were that the firm has the

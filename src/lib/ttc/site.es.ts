@@ -1733,7 +1733,7 @@ export const es: SiteContent = {
     credentials: {
       label: 'Credenciales',
       titleLines: ['Ingenieros Profesionales.', 'Ingenieros Estructurales.', 'Ingenieros Eléctricos.'],
-      marks: ['PE', 'FRSE', 'PE'],
+      marks: ['PE', 'Inspector Especial · Edificios Threshold', 'PE'],
       accentWord: 'Estructurales',
       engineers: {
         k: 'Ingenieros',
