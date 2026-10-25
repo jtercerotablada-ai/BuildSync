@@ -2797,7 +2797,10 @@ export const home = {
   },
   form: ui.form.home,
   hero: {
-    eyebrow: ['Professional Engineers', 'Structural Engineers'],
+    /* The owner, 2026-10-25: "Professional Engineers PE, Structural
+       Engineers, Electrical Engineer PE: we have them" — so the three
+       disciplines are named. No "SE" (Florida has no such license). */
+    eyebrow: ['Professional Engineers', 'Structural Engineers', 'Electrical Engineers'],
     titleLines: ['Structural', 'engineers for', 'South Florida.'],
     accentWord: 'Florida.',
     sub: 'Professional Engineers licensed in Florida. We design new buildings and examine existing ones, in Miami-Dade and Broward.',
@@ -2875,12 +2878,21 @@ export const home = {
   },
   credentials: {
     label: 'Credentials',
-    titleLines: ['Licensed Professional Engineers.', 'Structural Engineers.', 'Registered in Florida.'],
-    accentWord: 'Registered',
-    /* Card 1 names the license, with no number. Card 2 is the firm itself:
-       its name is `company.registry`. Card 3 is the contractor's
-       (`partner.construction`). */
-    engineers: { k: 'Engineers', name: 'Florida Professional Engineer license' },
+    /* The three disciplines the owner named (2026-10-25): Professional,
+       Structural and Electrical Engineers. The registration in Florida is
+       card 2's own line, and the Florida license is card 1's. No "SE". */
+    titleLines: ['Professional Engineers.', 'Structural Engineers.', 'Electrical Engineers.'],
+    accentWord: 'Structural',
+    /* Card 1 names the license, with no number, and says which engineering
+       it covers ("scope": the owner's own words were that the firm has the
+       structural and the electrical engineers and calls on them as each
+       project requires). Card 2 is the firm itself: its name is
+       `company.registry`. Card 3 is the contractor's (`partner.construction`). */
+    engineers: {
+      k: 'Engineers',
+      name: 'Florida Professional Engineer license',
+      scope: 'Structural and electrical engineering, as each project requires.',
+    },
     firm: { k: 'The firm' },
   },
   where: {

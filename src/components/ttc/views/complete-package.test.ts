@@ -409,7 +409,16 @@ describe('the whole site: conditions in words, and no word on who signs which pa
     // credential is claimed that the site does not show.
     it(`${lang}: no part is assigned to a person, a trade or a firm`, () => {
       const who = /electrical engineer|certified thermographer|thermographer|licensed electrician|ingenier[oa] (?:eléctric[oa]|electricista)|termógraf[oa]|electricista/i;
-      expect(all.filter((s) => who.test(s))).toEqual([]);
+      // The one exception: the home page names the firm's disciplines (the
+      // owner, 2026-10-25: "Professional Engineers PE, Structural Engineers,
+      // Electrical Engineer PE: we have them, mention them too"). That is a
+      // credential line, not a part of a package assigned to a person.
+      const named = new Set<string>([
+        ...c.home.hero.eyebrow,
+        ...c.home.credentials.titleLines,
+        c.home.credentials.engineers.scope,
+      ]);
+      expect(all.filter((s) => who.test(s) && !named.has(s))).toEqual([]);
       // Not by a description of the person either: the price table's list
       // said the electrical report was "signed by a professional qualified
       // in electrical design" — the sentence removed on October 6-7.

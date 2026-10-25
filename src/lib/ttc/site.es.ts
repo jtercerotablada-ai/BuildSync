@@ -1690,7 +1690,7 @@ export const es: SiteContent = {
     },
     form: homeForm,
     hero: {
-      eyebrow: ['Ingenieros Profesionales', 'Ingenieros Estructurales'],
+      eyebrow: ['Ingenieros Profesionales', 'Ingenieros Estructurales', 'Ingenieros Eléctricos'],
       titleLines: ['Ingenieros', 'estructurales para', 'el Sur de Florida.'],
       accentWord: 'Florida.',
       sub: 'Ingenieros Profesionales con licencia en Florida. Diseñamos edificios nuevos y examinamos los existentes, en Miami-Dade y Broward.',
@@ -1761,9 +1761,13 @@ export const es: SiteContent = {
     },
     credentials: {
       label: 'Credenciales',
-      titleLines: ['Ingenieros Profesionales con licencia.', 'Ingenieros Estructurales.', 'Registrados en Florida.'],
-      accentWord: 'Registrados',
-      engineers: { k: 'Ingenieros', name: 'Licencia de Ingeniero Profesional de Florida' },
+      titleLines: ['Ingenieros Profesionales.', 'Ingenieros Estructurales.', 'Ingenieros Eléctricos.'],
+      accentWord: 'Estructurales',
+      engineers: {
+        k: 'Ingenieros',
+        name: 'Licencia de Ingeniero Profesional de Florida',
+        scope: 'Ingeniería estructural y eléctrica, según lo requiera cada proyecto.',
+      },
       firm: { k: 'La firma' },
     },
     where: {

@@ -212,9 +212,28 @@ describe('the owner’s vocabulary rules, over every string the home says (spec 
       expect(c.home.hero.sub).toMatch(
         lang === 'en' ? /^Professional Engineers licensed in Florida\./ : /^Ingenieros Profesionales con licencia en Florida\./,
       );
+      // The owner, 2026-10-25: the firm has Professional, Structural and
+      // Electrical Engineers and the home names all three. Never an "SE"
+      // license (Florida has none): the words are disciplines, and "PE" is
+      // the only license printed anywhere.
       expect(c.home.hero.eyebrow).toEqual(
-        lang === 'en' ? ['Professional Engineers', 'Structural Engineers'] : ['Ingenieros Profesionales', 'Ingenieros Estructurales'],
+        lang === 'en'
+          ? ['Professional Engineers', 'Structural Engineers', 'Electrical Engineers']
+          : ['Ingenieros Profesionales', 'Ingenieros Estructurales', 'Ingenieros Eléctricos'],
       );
+      expect(c.home.credentials.titleLines).toEqual(
+        lang === 'en'
+          ? ['Professional Engineers.', 'Structural Engineers.', 'Electrical Engineers.']
+          : ['Ingenieros Profesionales.', 'Ingenieros Estructurales.', 'Ingenieros Eléctricos.'],
+      );
+      expect(c.home.credentials.engineers.scope).toMatch(lang === 'en' ? /structural and electrical/i : /estructural y eléctrica/i);
+    });
+
+    it(`${lang}: no "SE" license is claimed anywhere on the home`, () => {
+      const c = getContent(lang);
+      const texts = JSON.stringify(c.home);
+      expect(texts).not.toMatch(/\bSE\b|\bS\.E\./);
+      expect(texts).not.toMatch(/licensed structural engineer|ingenieros? estructurales? con licencia/i);
     });
   }
 
