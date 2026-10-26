@@ -207,9 +207,9 @@ describe('measurement off (no variable set): the site is what it was', () => {
     expect(off.ads.ADS).toEqual({ on: false, why: null });
   });
 
-  // Sixteen pages a language — the thirty-two of the sitemap — and the 404.
+  // Fourteen pages a language — the twenty-eight of the sitemap — and the 404.
   it('every public page is rendered, in both states', () => {
-    expect(off.pages).toHaveLength(34);
+    expect(off.pages).toHaveLength(30);
     expect(on.pages.map((p) => `${p.lang} ${p.path}`)).toEqual(off.pages.map((p) => `${p.lang} ${p.path}`));
   });
 

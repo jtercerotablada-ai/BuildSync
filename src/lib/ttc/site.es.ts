@@ -1518,7 +1518,7 @@ export const es: SiteContent = {
       tag: 'Fotografías ilustrativas',
       all: 'Todos los servicios',
       lines: {
-        'structural-condition-assessments': 'Lo que hoy le ocurre al edificio y las reparaciones que necesita. Hallazgos que una junta puede leer, y un alcance de reparación sobre el que puede actuar.',
+        'structural-condition-assessments': 'Lo que hoy le ocurre al edificio y las reparaciones que necesita. Hallazgos que una junta puede leer y sobre los que puede actuar.',
         'building-recertification': 'Inspecciones e informes para el programa de recertificación del Condado de Miami-Dade. Estructural y eléctrica, en los formularios del condado.',
         'threshold-inspections': 'Inspecciones especiales de un edificio de más de tres pisos, etapa por etapa mientras se construye. Un informe al departamento de construcción en cada una.',
         'broward-bsip': 'Inspecciones e informes para el programa de seguridad de edificios del Condado de Broward. Estructural y eléctrica, presentadas en los formularios propios del condado.',
