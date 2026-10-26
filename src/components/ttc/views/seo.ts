@@ -54,10 +54,12 @@ export const SEO: Record<Lang, Record<Pages, PageSeo>> = {
       keywords: ['structural engineer South Florida', 'structural engineer Miami', 'structural engineer Broward', 'Professional Engineer Miami', 'structural design Miami-Dade', 'structural engineering South Florida'],
     },
     services: {
-      title: 'Structural Engineering Services — Miami-Dade & Broward',
+      // The six services, for the state (2026-10-26, with the page's H1): no
+      // county in the title, and none of the design services that left.
+      title: 'Six Engineering Services for Florida’s Buildings',
       description:
-        'Eight structural services in Miami-Dade and Broward: recertification, BSIP, inspections and repairs; design, analysis, BIM and peer review for new projects.',
-      keywords: ['structural engineering services Miami', 'structural design Broward', 'building recertification Miami-Dade', 'Broward BSIP', 'milestone inspection', 'BIM coordination'],
+        'Six engineering services for Florida’s buildings: recertification, BSIP, milestone and threshold inspections, assessments with repair design, and peer review.',
+      keywords: ['engineering services Florida buildings', 'building recertification Miami-Dade', 'Broward BSIP', 'milestone inspection', 'threshold building inspection', 'structural peer review'],
     },
     existing: {
       // The place came in and "& Repairs" went out to pay for it: the two
@@ -106,11 +108,11 @@ export const SEO: Record<Lang, Record<Pages, PageSeo>> = {
       keywords: ['ingeniero estructural Sur de Florida', 'ingeniero estructural Miami', 'ingeniero estructural Broward', 'Ingeniero Profesional Miami', 'diseño estructural Miami-Dade', 'ingeniería estructural Sur de Florida'],
     },
     services: {
-      title: 'Servicios de ingeniería estructural — Miami-Dade y Broward',
+      title: 'Seis servicios de ingeniería para edificios en Florida',
       description:
-        'Ocho servicios estructurales en Miami-Dade y Broward: recertificación, BSIP, inspecciones y reparaciones; diseño, análisis, BIM y revisión por pares.',
+        'Seis servicios de ingeniería para los edificios de Florida: recertificación, BSIP, inspecciones de hito y threshold, evaluaciones con diseño de reparaciones y revisión por pares.',
       // People search "inspección milestone"; the page says "inspección de hito".
-      keywords: ['servicios ingeniería estructural Miami', 'diseño estructural Broward', 'recertificación de edificios Miami-Dade', 'BSIP Broward', 'inspección milestone', 'inspección de hito', 'coordinación BIM'],
+      keywords: ['servicios de ingeniería Florida edificios', 'recertificación de edificios Miami-Dade', 'BSIP Broward', 'inspección milestone', 'inspección de hito', 'revisión por pares estructural'],
     },
     existing: {
       title: 'Edificios existentes del Sur de Florida — Recertificación y BSIP',
