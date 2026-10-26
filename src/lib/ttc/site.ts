@@ -2802,10 +2802,11 @@ export const home = {
      2026-10-25, of emxse.com's block): a list of the disciplines with the
      credential behind each, a heading and one paragraph. Disciplines, not
      people: no name, no count, no license number. "SE" is never printed:
-     Florida issues no SE license and nobody on the team holds one from
-     another state (the owner asked for EMX's "(PE) and (SE) licenses" on
-     2026-10-25 and was told why not; the Special Inspector tag he had chosen
-     before was dropped the same day at his request). Nothing of the
+     Florida issues no SE license; what Florida has is the Board's
+     recognition, FRSE (s. 471.055 F.S.), which the structural associate's
+     PE carries (DBPR, "FL Board Recognized Structural Engineer", effective
+     2024-02-13, verified 2026-10-25) and the home prints as his mark and in
+     the paragraph. Nothing of the
      contractor or of the combined experience is here any more (the owner,
      the same day: "quitar eso de ambas empresas de la página principal");
      those live on /about and /existing-buildings. The firm's own
@@ -2814,15 +2815,17 @@ export const home = {
     label: 'Credentials',
     /* In the register of the large firms' credentials blocks (the owner,
        2026-10-25: "me gusta mucho más el texto de EMX"), in our own words and
-       with our own facts: PE licenses only (no "SE": nobody on the team
-       holds one), the Florida Board, the state's register, both languages,
-       both counties. */
+       with our own facts: PE licenses, the Florida Board's own recognition of
+       a structural engineer (FRSE — "FL Board Recognized Structural
+       Engineer", verified on the DBPR register the same night: the structural
+       associate's PE carries it, effective 2024-02-13; no "SE", which Florida
+       does not issue), the state's register, both languages, both counties. */
     title: 'Licensed by the State of Florida.',
     accentWord: 'Florida.',
-    body: 'We stand behind the principles of engineering licensure and the ethical standards that come with it. With Professional Engineering (PE) licenses held by our team in civil, structural and electrical engineering, all issued by the Florida Board of Professional Engineers and open to check on the state’s public register, we hold every drawing, calculation and report to the standard the profession sets, in English or in Spanish, across Miami-Dade and Broward County.',
+    body: 'We stand behind the principles of engineering licensure and the ethical standards that come with it. With Professional Engineering (PE) licenses held by our team in civil, structural and electrical engineering, and a Florida Board Recognized Structural Engineer (FRSE) among them, all issued by the Florida Board of Professional Engineers and open to check on the state’s public register, we hold every drawing, calculation and report to the standard the profession sets, in English or in Spanish, across Miami-Dade and Broward County.',
     rows: [
       { name: 'Civil engineering', mark: 'PE' },
-      { name: 'Structural engineering', mark: 'PE' },
+      { name: 'Structural engineering', mark: 'PE · FRSE' },
       { name: 'Electrical engineering', mark: 'PE' },
     ],
   },

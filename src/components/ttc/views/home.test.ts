@@ -246,16 +246,20 @@ describe('the owner’s vocabulary rules, over every string the home says (spec 
     // owner then chose: "cámbialo a Special Inspector Threshold Buildings".
     // So the structural line carries that credential, and "SE" and "FRSE" are
     // printed nowhere.
-    it(`${lang}: the Structural Engineers line carries the Special Inspector credential, and "SE" and "FRSE" are printed nowhere`, () => {
+    it(`${lang}: the structural row carries PE and FRSE, and "SE" is printed nowhere`, () => {
       const c = getContent(lang);
       // The owner, 2026-10-25, late: three disciplines, each with its PE —
       // a civil PE, a structural PE who is also a Special Inspector of
       // threshold buildings, and an electrical PE. No names, no counts.
-      // ...and, later that day, the Special Inspector tag was dropped at his
-      // request: the three rows carry "PE" and nothing else.
-      expect(c.home.credentials.rows.map((r) => r.mark)).toEqual(['PE', 'PE', 'PE']);
+      // ...and, the same night, the structural associate's PE turned out to
+      // carry the Board's recognition ("FL Board Recognized Structural
+      // Engineer", DBPR, effective 2024-02-13): the structural row carries
+      // FRSE beside its PE, and the paragraph names it in full. Still no
+      // "SE", a license Florida does not issue.
+      expect(c.home.credentials.rows.map((r) => r.mark)).toEqual(['PE', 'PE · FRSE', 'PE']);
       expect(c.home.credentials.body).toMatch(/\(PE\)/);
-      expect(JSON.stringify(c.home)).not.toMatch(/\bFRSE\b/);
+      expect(c.home.credentials.body).toMatch(lang === 'en' ? /Florida Board Recognized Structural Engineer \(FRSE\)/ : /Reconocido por la Junta de Florida \(FRSE\)/);
+      expect(JSON.stringify(c.home)).toMatch(/\bFRSE\b/);
       const texts = JSON.stringify(c.home);
       expect(texts).not.toMatch(/\bSE\b|\bS\.E\./);
       expect(texts).not.toMatch(/licensed structural engineer|ingenieros? estructurales? con licencia|florida SE|SE (?:license|licen)/i);
@@ -902,11 +906,11 @@ for (const lang of LANGS) {
       // (the owner, 2026-10-25: "eso es lógico").
       expect(rows).toEqual(c.home.credentials.rows.map((r) => ({ name: r.name, mark: r.mark })));
       expect(text(plate)).not.toContain(c.company.registry);
-      // Never "SE": a license Florida does not have; never "FRSE": the
-      // Board's recognition, which nothing public shows the associate holds.
+      // Never "SE": a license Florida does not have. FRSE, the Board's own
+      // recognition, is printed: the DBPR register shows it (2026-10-25).
       expect(found(wordsExact('SE', 'S\\.E\\.'), body)).toEqual([]);
       expect(found(/licensed structural engineers?|ingenieros estructurales con licencia/i, body)).toEqual([]);
-      expect(body).not.toContain('FRSE');
+      expect(body).toContain('FRSE');
     });
 
     it('names the electrical discipline in the hero’s eyebrow and the plate’s list, and nowhere else', () => {
