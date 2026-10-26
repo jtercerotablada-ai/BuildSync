@@ -4988,6 +4988,11 @@ a.mp-menu__mail {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--mp-6);
 }
+/* Five tiles since 2026-10-26 (the threshold building joined): the odd
+   last one runs the full row rather than leaving a hole beside it. */
+.mp-sits > .mp-sit:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
 .mp-sit {
   display: grid;
   background: var(--mp-card);
