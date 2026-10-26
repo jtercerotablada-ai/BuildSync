@@ -1481,16 +1481,16 @@ export const es: SiteContent = {
     chrome: {
       headerCta: 'Contáctenos',
       callLabel: 'Llamar {phone}',
-      footerTag: 'Ingeniería estructural para el Sur de Florida: Miami-Dade y Broward.',
+      footerTag: 'Ingeniería estructural en toda Florida.',
       barLabel: 'Contactar a la firma',
     },
     form: homeForm,
     hero: {
-      titleLines: ['Ingenieros', 'estructurales para', 'el Sur de Florida.'],
+      titleLines: ['Ingenieros', 'estructurales para', 'toda Florida.'],
       accentWord: 'Florida.',
-      sub: 'Con licencia en Florida. Inspeccionamos, evaluamos y revisamos la estructura de los edificios del Sur de Florida, en Miami-Dade y Broward.',
+      sub: 'Con licencia en Florida. Inspeccionamos, evaluamos y revisamos la estructura de edificios en todo el estado, para los propietarios, juntas y oficiales de construcción que deben actuar sobre lo que encontramos.',
       cta: 'Contáctenos',
-      counties: ['Miami-Dade', 'Broward'],
+      counties: ['En toda Florida'],
     },
     ribbon: {
       label: 'Lo que hacemos',
@@ -1510,12 +1510,11 @@ export const es: SiteContent = {
       label: 'Servicios',
       title: 'Seis servicios. Un mismo estándar.',
       accentWord: 'estándar.',
-      lede: 'Leemos los edificios que ya están en pie, seguimos los que se levantan y revisamos los diseños antes de que se emitan.',
+      lede: 'Leemos los edificios que ya están en pie, seguimos los que se levantan y revisamos los diseños de otros antes de que se emitan — en cualquier punto de Florida.',
       legend: {
         existing: { k: 'Edificios existentes', v: 'Inspección, evaluación y diseño de reparaciones para edificios ya en pie.' },
-        new: { k: 'Obra nueva', v: 'Inspecciones threshold durante la construcción y revisión por pares de un diseño.' },
+        new: { k: 'Obra nueva', v: 'Inspecciones threshold durante la construcción y la revisión independiente por pares de un diseño antes de emitirlo.' },
       },
-      tag: 'Fotografías ilustrativas',
       all: 'Todos los servicios',
       lines: {
         'structural-condition-assessments': 'Lo que hoy le ocurre al edificio y las reparaciones que necesita. Hallazgos que una junta puede leer y sobre los que puede actuar.',
@@ -1528,14 +1527,13 @@ export const es: SiteContent = {
     },
     statement: {
       lines: ['Inspeccionamos.', 'Evaluamos.', 'Revisamos.'],
-      dim: 'Edificios existentes, edificios en construcción y los diseños detrás de ellos, en Miami-Dade y Broward — y lo dejamos todo por escrito para que una junta, un propietario y un oficial de construcción puedan seguirlo.',
+      dim: 'Edificios existentes, edificios en construcción y los diseños detrás de ellos, en toda Florida — y lo dejamos todo por escrito para que una junta, un propietario y un oficial de construcción puedan seguirlo.',
       accentWord: 'todo',
     },
     types: {
       label: 'Tipos de edificio',
       title: 'De una vivienda unifamiliar a un edificio de mediana altura en concreto.',
       accentWord: 'mediana altura',
-      tag: 'Fotografías ilustrativas',
       region: 'Tipos de edificio que inspeccionamos',
       sixth: { title: 'Diseño de reparaciones para estructuras existentes' },
     },
@@ -1544,12 +1542,7 @@ export const es: SiteContent = {
       title: 'Con licencia del Estado de Florida.',
       accentWord: 'Florida.',
       body: 'Respaldamos con firmeza los principios de la licencia profesional de ingeniería y sostenemos nuestra práctica con los más altos estándares éticos. Con licencias de Ingeniería Profesional (PE) de nuestro equipo en ingeniería civil, estructural y eléctrica, todas emitidas por la Junta de Ingenieros Profesionales de Florida, y entre ellas un Ingeniero Estructural Reconocido por la Junta de Florida, llevamos ese estándar a edificios de todo el Estado de Florida.',
-      verify: { label: 'Verifique una licencia en el registro público de Florida' },
-      rows: [
-        { name: 'Ingeniería civil', mark: 'PE' },
-        { name: 'Ingeniería estructural', mark: 'PE · Ingeniero Estructural Reconocido' },
-        { name: 'Ingeniería eléctrica', mark: 'PE' },
-      ],
+      rows: [{ name: 'Ingeniería civil' }, { name: 'Ingeniería estructural' }, { name: 'Ingeniería eléctrica' }],
     },
     contact: {
       label: 'Contacto',
@@ -1560,6 +1553,7 @@ export const es: SiteContent = {
       whatsapp: 'WhatsApp',
       email: 'Correo',
       where: 'Dónde',
+      whereValue: 'En toda Florida',
     },
   },
 

@@ -238,8 +238,9 @@ describe('titles and descriptions: every page in the sitemap', () => {
 
   it('the home page keeps the approved tagline', () => {
     const titles = pages.map((p) => p.title);
-    expect(titles).toContain('Structural Engineering for South Florida');
-    expect(titles).toContain('Ingeniería estructural para el Sur de Florida');
+    // The owner, 2026-10-26: the home says the state, not South Florida.
+    expect(titles).toContain('Structural Engineering for Florida');
+    expect(titles).toContain('Ingeniería estructural para Florida');
   });
 
   // The name people still type, as a former name — never dropped to save room.

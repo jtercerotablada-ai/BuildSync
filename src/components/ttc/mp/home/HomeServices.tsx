@@ -39,8 +39,9 @@ import { Words } from './Words';
  *
  * The threshold card shows `frameCraneSky`, as on /services.
  *
- * The photographs are stock and are never captioned as the firm's work: the
- * tag in the head says so ("Illustrative photographs").
+ * The photographs are stock and are never captioned as the firm's work (the
+ * /credits page says so; the "Illustrative photographs" tag that stood in
+ * the head went on 2026-10-26 at the owner's word).
  *
  * MOTION (spec E8 to E12), by attribute (home-motion.css):
  *   `[data-fx="words"]`   the h2: each word rises out of its mask (`Words`)
@@ -74,9 +75,6 @@ export function HomeServices({ lang }: { lang: Lang }) {
           <div className="h-head__top">
             <Reveal fx="up">
               <p className="h-label">{h.label}</p>
-            </Reveal>
-            <Reveal fx="up" delay={0.1}>
-              <p className="h-tag">{h.tag}</p>
             </Reveal>
           </div>
           <Reveal as="h2" fx="words" id="h-svc-title" className="h-h2">

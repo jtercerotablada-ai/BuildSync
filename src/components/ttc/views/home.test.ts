@@ -169,7 +169,7 @@ describe('the owner’s vocabulary rules, over every string the home says (spec 
     const all = homeStrings(lang);
 
     it(`${lang}: reads the home object and what it borrows (not an empty list)`, () => {
-      expect(all.length).toBeGreaterThan(80);
+      expect(all.length).toBeGreaterThan(70);
       for (const e of all) expect(e.text.trim(), e.path).not.toBe('');
     });
 
@@ -254,11 +254,8 @@ describe('the owner’s vocabulary rules, over every string the home says (spec 
       // Engineer", DBPR, effective 2024-02-13): the structural row says so
       // beside its PE, in words (the owner: nobody says "FRSE"), and the
       // paragraph names it in full. Still no "SE", a license he does not hold.
-      expect(c.home.credentials.rows.map((r) => r.mark)).toEqual([
-        'PE',
-        lang === 'en' ? 'PE · Recognized Structural Engineer' : 'PE · Ingeniero Estructural Reconocido',
-        'PE',
-      ]);
+      // The rows carry no mark since 2026-10-26 ("quita todo lo amarillo").
+      expect(c.home.credentials.rows.every((r) => !('mark' in r))).toBe(true);
       expect(c.home.credentials.body).toMatch(/\(PE\)/);
       expect(c.home.credentials.body).toMatch(lang === 'en' ? /Florida Board Recognized Structural Engineer among them/ : /Reconocido por la Junta de Florida/);
       expect(JSON.stringify(c.home)).not.toMatch(/\bFRSE\b/);
@@ -497,13 +494,9 @@ describe('the Spanish mirror has the English home’s shape (spec item 9)', () =
   it('translates every string except names', () => {
     const NAMES = new Set([
       'home.hero.accentWord', // "Florida."
-      'home.hero.counties[0]',
-      'home.hero.counties[1]',
       'home.ribbon.types[1]', // "Townhouses", the word Miami uses
       'home.contact.whatsapp',
       'home.credentials.accentWord', // "Florida,"
-      'home.credentials.rows[0].mark', // "PE": credential marks
-      'home.credentials.rows[2].mark',
     ]);
     const english = new Map(entries(en, 'home').map((e) => [e.path, e.text]));
     const same = entries(es, 'home')
@@ -565,9 +558,9 @@ describe('the chrome the home changes, and the one name for its one action', () 
 
     it(`${lang}: the call button’s name has its number placed once, and the footer tagline names the place`, () => {
       expect(c.home.chrome.callLabel.split('{phone}')).toHaveLength(2);
+      // The owner, 2026-10-26: the home says the state, not the two counties.
       expect(c.home.chrome.footerTag).toMatch(/Florida/);
-      expect(c.home.chrome.footerTag).toMatch(/Miami-Dade/);
-      expect(c.home.chrome.footerTag).toMatch(/Broward/);
+      expect(c.home.chrome.footerTag).not.toMatch(/Miami-Dade|Broward/);
     });
 
     it(`${lang}: the pause switch says motion, not video, because it stops the ribbon too`, () => {
@@ -599,7 +592,7 @@ describe('the home’s search description says who and where, not recertificatio
 
     it(`${lang}: the description names the Professional Engineers and the place`, () => {
       expect(home.description).toMatch(lang === 'en' ? /\bProfessional Engineers\b/ : /\bIngenieros Profesionales\b/);
-      expect(home.description).toMatch(/\bSur de Florida\b|\bSouth Florida\b/);
+      expect(home.description).toMatch(/\bFlorida\b/);
     });
 
     it(`${lang}: the keywords are the four the spec lists, in this language`, () => {
@@ -901,11 +894,12 @@ for (const lang of LANGS) {
       expect(text(plate)).toContain(c.home.credentials.body);
       const rows = [...plate.matchAll(/<li class="h-cred__row"[^>]*>([\s\S]*?)<\/li>/g)].map((m) => ({
         name: text(m[1].match(/<span class="h-cred__name">([\s\S]*?)<\/span>/)![1]),
-        mark: text(m[1].match(/<span class="h-cred__tag">([\s\S]*?)<\/span>/)![1]),
       }));
       // Three rows and no more: the firm's own registration is not listed
-      // (the owner, 2026-10-25: "eso es lógico").
-      expect(rows).toEqual(c.home.credentials.rows.map((r) => ({ name: r.name, mark: r.mark })));
+      // (the owner, 2026-10-25: "eso es lógico"), and no gold tag beside a
+      // name (2026-10-26: "quita todo lo amarillo").
+      expect(rows).toEqual(c.home.credentials.rows.map((r) => ({ name: r.name })));
+      expect(plate).not.toContain('h-cred__tag');
       expect(text(plate)).not.toContain(c.company.registry);
       // Never "SE": a license Florida does not have; the Board's own
       // recognition is printed in words, never as "FRSE".
@@ -936,7 +930,7 @@ for (const lang of LANGS) {
       expect(contact).toContain(`href="${c.contact.phone!.href}"`);
       expect(contact).toContain(`href="mailto:${c.contact.email}"`);
       expect(text(contact)).toContain(c.contact.phone!.display);
-      expect(text(contact)).toContain(c.contact.serviceAreaLabel);
+      expect(text(contact)).toContain(c.home.contact.whereValue);
       // A different form for the home would be a different promise.
       expect(contact).toMatch(/<form\b/);
       expect(contact).not.toContain('?service=');
@@ -957,7 +951,7 @@ for (const lang of LANGS) {
       }
       const row = section(markup, 'contact').match(/<div class="h-contact__line h-contact__line--plain">[\s\S]*?<\/div>/);
       expect(row, 'the Where row').not.toBeNull();
-      expect(text(row![0])).toContain(c.contact.serviceAreaLabel);
+      expect(text(row![0])).toContain(c.home.contact.whereValue);
       expect(row![0]).not.toMatch(/<a\b|href=/);
     });
 

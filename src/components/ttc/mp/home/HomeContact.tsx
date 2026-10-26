@@ -56,7 +56,7 @@ export function HomeContact({ lang }: { lang: Lang }) {
     });
   }
   lines.push({ key: 'email', label: h.email, value: c.contact.email, href: `mailto:${c.contact.email}` });
-  lines.push({ key: 'where', label: h.where, value: c.contact.serviceAreaLabel });
+  lines.push({ key: 'where', label: h.where, value: h.whereValue });
 
   return (
     <section id="contact" className="h-plate h-contact mp-surface--graphite" aria-labelledby="h-contact-h">

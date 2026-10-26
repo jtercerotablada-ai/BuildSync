@@ -2,7 +2,6 @@ import React from 'react';
 import { getContent } from '@/lib/ttc/content';
 import type { Lang } from '@/lib/ttc/i18n';
 import { Reveal } from '../primitives';
-import { Arrow } from './glyphs';
 import { Words } from './Words';
 
 /**
@@ -39,16 +38,12 @@ import { Words } from './Words';
  * the left 0.12 s apart (E10), the heading's words rise (E8). A SERVER
  * COMPONENT.
  */
-/* The DBPR licence search, the one outside host the site links for licenses
-   (pages.test.ts). Here and not in site.ts: the home's strings carry no digit
-   and no ampersand (home.test.ts), and an address is the same in both
-   languages. */
-const DBPR_LICENSE_SEARCH = 'https://www.myfloridalicense.com/wl11.asp?mode=0&SID=&brd=&typ=';
-
+/* No link to the state's register any more: the owner had the line
+   "Check a license on Florida's public register" removed on 2026-10-26. */
 export function HomeCredentials({ lang }: { lang: Lang }) {
   const c = getContent(lang);
   const h = c.home.credentials;
-  const rows: readonly { name: string; mark: string }[] = h.rows;
+  const rows: readonly { name: string }[] = h.rows;
 
   return (
     <section id="credentials" className="h-plate h-cred mp-surface--graphite" aria-labelledby="h-cred-h">
@@ -64,23 +59,15 @@ export function HomeCredentials({ lang }: { lang: Lang }) {
           <Reveal as="p" fx="up" delay={0.25} className="h-lede h-cred__p">
             {h.body}
           </Reveal>
-          {/* The register the paragraph names, as the plate's one link: the
-              DBPR licence search, in a new tab like every outside link. */}
-          <Reveal fx="up" delay={0.35} className="h-cred__verify">
-            <a className="h-link" href={DBPR_LICENSE_SEARCH} target="_blank" rel="noopener noreferrer">
-              <span>{h.verify.label}</span>
-              <Arrow />
-            </a>
-          </Reveal>
         </div>
 
         <ul className="h-cred__list">
           {rows.map((row, i) => (
             <Reveal key={row.name} as="li" fx="left" delay={i * 0.12} className="h-cred__row">
+              {/* The name alone: the gold tag that stood beside it ("PE",
+                  "PE · Recognized Structural Engineer") went on 2026-10-26 at
+                  the owner's word ("quita todo lo amarillo"). */}
               <span className="h-cred__name">{row.name}</span>
-              {/* The credential, as a small mono tag in a thin gold ring.
-                  Not a heading, not a link. */}
-              <span className="h-cred__tag">{row.mark}</span>
             </Reveal>
           ))}
         </ul>

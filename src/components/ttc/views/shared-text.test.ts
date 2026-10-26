@@ -189,9 +189,9 @@ describe('who we work with: whole on the home page, short on the other two', () 
     // name (the law wants its numbers wherever it is advertised); the home
     // no longer names the contractor at all (the owner, 2026-10-25), and the
     // engineering numbers are printed on no page (the owner, 2026-10-24).
-    // The hub links to /about for them. The home's credentials plate links
-    // the register once, with no name and no number beside it: the way for
-    // a reader to check what the paragraph says is open to check (2026-10-26).
+    // The hub links to /about for them. (The home's credentials plate linked
+    // the register for a few hours on 2026-10-26; the owner had the line
+    // removed the same day.)
     it(`${lang}: the contractor's two license numbers are links to the DBPR search on /about, and no engineering number is printed`, () => {
       for (const html of [home, about, hub]) {
         for (const no of ['105256', '40285']) expect(text(html), no).not.toContain(no);
@@ -201,7 +201,7 @@ describe('who we work with: whole on the home page, short on the other two', () 
       for (const number of licenses) {
         expect(found.filter((t) => t === `${number} — ${verify}`), number).toHaveLength(1);
       }
-      expect(linked(home)).toEqual([text(esc(c.home.credentials.verify.label))]);
+      expect(linked(home)).toEqual([]);
       for (const number of licenses) expect(text(home)).not.toContain(number);
       expect(linked(hub)).toEqual([]);
       expect(hub).toContain(`href="${localePath(p.brief.link.href, lang)}"`);

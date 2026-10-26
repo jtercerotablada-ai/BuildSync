@@ -90,7 +90,6 @@ export function HomeTypes({ lang }: { lang: Lang }) {
           <Reveal as="p" fx="up" className="h-label">
             {h.label}
           </Reveal>
-          <p className="h-tag">{h.tag}</p>
         </div>
         <Reveal as="h2" fx="words" id="h-types-h" className="h-h2 h-h2--m h-types__h">
           <Words text={h.title} accent={h.accentWord} />

@@ -48,9 +48,9 @@ type Pages = 'home' | 'services' | 'existing' | 'work' | 'about' | 'contact' | '
 export const SEO: Record<Lang, Record<Pages, PageSeo>> = {
   en: {
     home: {
-      title: 'Structural Engineering for South Florida',
+      title: 'Structural Engineering for Florida',
       description:
-        'Professional Engineers in South Florida: structural inspection, assessment and repair design for existing buildings, threshold inspections and peer review.',
+        'Professional Engineers in Florida: structural inspection, assessment and repair design for existing buildings, threshold inspections and peer review.',
       keywords: ['structural engineer South Florida', 'structural engineer Miami', 'structural engineer Broward', 'Professional Engineer Miami', 'structural design Miami-Dade', 'structural engineering South Florida'],
     },
     services: {
@@ -100,9 +100,9 @@ export const SEO: Record<Lang, Record<Pages, PageSeo>> = {
   },
   es: {
     home: {
-      title: 'Ingeniería estructural para el Sur de Florida',
+      title: 'Ingeniería estructural para Florida',
       description:
-        'Ingenieros Profesionales en el Sur de Florida: inspección estructural, evaluación y reparación de edificios existentes, inspecciones threshold y revisión por pares.',
+        'Ingenieros Profesionales en Florida: inspección estructural, evaluación y reparación de edificios existentes, inspecciones threshold y revisión por pares.',
       keywords: ['ingeniero estructural Sur de Florida', 'ingeniero estructural Miami', 'ingeniero estructural Broward', 'Ingeniero Profesional Miami', 'diseño estructural Miami-Dade', 'ingeniería estructural Sur de Florida'],
     },
     services: {

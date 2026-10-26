@@ -2549,7 +2549,10 @@ export const home = {
   chrome: {
     headerCta: 'Get in touch',
     callLabel: 'Call {phone}',
-    footerTag: 'Structural engineering for South Florida: Miami-Dade and Broward.',
+    /* The owner, 2026-10-26: the firm works across Florida; only the two
+       county programs are Miami-Dade's and Broward's, and the home says the
+       state, not the counties (the counties stay on the program pages). */
+    footerTag: 'Structural engineering across Florida.',
     /* The name of the phone bar, said by the firm: the page's other bars say
        "Contact the engineer" (`reach.label`), a single person. */
     barLabel: 'Contact the firm',
@@ -2561,13 +2564,13 @@ export const home = {
        disciplines are named in the credentials plate (`home.credentials`);
        the eyebrow that also listed them over this title went on 2026-10-26,
        at his word. No "SE" (Florida has no such license). */
-    titleLines: ['Structural', 'engineers for', 'South Florida.'],
+    titleLines: ['Structural', 'engineers for', 'Florida.'],
     accentWord: 'Florida.',
-    sub: 'Licensed in Florida. We inspect, assess and review the structure of South Florida’s buildings, in Miami-Dade and Broward.',
+    sub: 'Licensed in Florida. We inspect, assess and review the structure of buildings across the state, for the owners, boards and building officials who have to act on what we find.',
     cta: 'Get in touch',
     /* The two counties in the hero bar, between the firm's name and the
        pause switch. */
-    counties: ['Miami-Dade', 'Broward'],
+    counties: ['Across Florida'],
   },
   ribbon: {
     label: 'What we inspect',
@@ -2588,12 +2591,11 @@ export const home = {
     label: 'Services',
     title: 'Six services. One standard.',
     accentWord: 'standard.',
-    lede: 'We read the buildings that stand, follow the ones going up, and check the designs before they are issued.',
+    lede: 'We read the buildings that stand, follow the ones going up, and check the designs of others before they are issued — anywhere in Florida.',
     legend: {
       existing: { k: 'Existing buildings', v: 'Inspection, assessment and repair design for buildings already standing.' },
-      new: { k: 'New construction', v: 'Threshold inspections during construction, and peer review of a design.' },
+      new: { k: 'New construction', v: 'Threshold inspections during construction, and the independent peer review of a design before it is issued.' },
     },
-    tag: 'Illustrative photographs',
     all: 'All services',
     lines: {
       'structural-condition-assessments': 'What a building is doing today, and the repairs it needs. Findings a board can read, and a repair scope it can act on.',
@@ -2609,14 +2611,13 @@ export const home = {
        entiendo" — the three conditions of the coast (hurricane wind, high
        water, salt air) gave way to the three verbs of the work. */
     lines: ['We inspect.', 'We assess.', 'We review.'],
-    dim: 'Existing buildings, buildings going up and the designs behind them, across Miami-Dade and Broward — and we write it all down so a board, an owner and a building official can follow.',
+    dim: 'Existing buildings, buildings going up and the designs behind them, across Florida — and we write it all down so a board, an owner and a building official can follow.',
     accentWord: 'all',
   },
   types: {
     label: 'Building types',
     title: 'From a single house to a mid-rise concrete frame.',
     accentWord: 'mid-rise',
-    tag: 'Illustrative photographs',
     /* The name of the band. */
     region: 'Building types we inspect',
     /* The first five cards are `typologies[0..4]`; the sixth is new: the
@@ -2654,15 +2655,10 @@ export const home = {
        county programs are Miami-Dade's and Broward's) and nothing about the
        languages. So: EMX's two sentences, with our facts. */
     body: 'We stand firmly behind the principles of engineering licensure, holding our practice to the highest ethical standards. With Professional Engineering (PE) licenses held by our team in civil, structural and electrical engineering, all issued by the Florida Board of Professional Engineers, and a Florida Board Recognized Structural Engineer among them, we bring that standard to buildings across the State of Florida.',
-    /* The register itself, one link under the paragraph: what the paragraph
-       says is open to check, the reader can check. The address is in
-       HomeCredentials (the home's strings carry no digit and no ampersand). */
-    verify: { label: 'Check a license on Florida’s public register' },
-    rows: [
-      { name: 'Civil engineering', mark: 'PE' },
-      { name: 'Structural engineering', mark: 'PE · Recognized Structural Engineer' },
-      { name: 'Electrical engineering', mark: 'PE' },
-    ],
+    /* Names alone: the gold marks beside them ("PE", "PE · Recognized
+       Structural Engineer") went on 2026-10-26 — the owner: "quita todo lo
+       amarillo". The paragraph says the licenses. */
+    rows: [{ name: 'Civil engineering' }, { name: 'Structural engineering' }, { name: 'Electrical engineering' }],
   },
   contact: {
     label: 'Contact',
@@ -2673,6 +2669,9 @@ export const home = {
     whatsapp: 'WhatsApp',
     email: 'Email',
     where: 'Where',
+    /* The home's own answer, not the shared service-area label (which names
+       the two counties): the firm works statewide. */
+    whereValue: 'Across Florida',
   },
 } as const;
 
