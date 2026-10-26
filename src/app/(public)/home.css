@@ -825,28 +825,16 @@ html:not(.js) .mp-home .h-rib__row--rev .h-rib__track {
   margin-top: clamp(24px, 3vw, 44px);
 }
 
-/* The grid: left column new buildings, right column existing buildings,
-   dropped. Each column opens with its legend. */
-.mp-home .h-svc__cols {
+/* The key: the two tracks, one line each, side by side over the grid (each
+   card carries its own track tag). */
+.mp-home .h-svc__key {
   display: grid;
   grid-template-columns: 1fr 1fr;
   column-gap: clamp(28px, 6vw, 120px);
-  align-items: start;
+  row-gap: 24px;
   margin-top: var(--h-head-gap);
 }
-.mp-home .h-svc__col {
-  --h-colgap: clamp(60px, 8.4vw, 150px);
-  display: flex;
-  flex-direction: column;
-  gap: var(--h-colgap);
-}
-.mp-home .h-svc__col[data-track='existing'] {
-  padding-top: clamp(90px, 15vw, 260px);
-}
-/* The legend sits close to the first card: the column's gap, less most of
-   itself. */
 .mp-home .h-svc__legend {
-  margin-bottom: calc(clamp(28px, 3vw, 48px) - var(--h-colgap));
   padding-top: 22px;
   border-top: 1px solid var(--h-hair);
 }
@@ -856,6 +844,28 @@ html:not(.js) .mp-home .h-rib__row--rev .h-rib__track {
   font-size: clamp(16px, 1.2vw, 19px);
   line-height: 1.5;
   color: var(--mp-snow-2);
+}
+
+/* The grid: the six cards in `home.order`, two to a row, the left one first
+   in the markup and on the screen. The right column is dropped by `--h-drop`
+   with a TRANSFORM, not by layout: the markup (and the keyboard) keep the
+   reading order, the rows keep their height, and the drop reads as a column
+   because every row holds one frame shape (HomeServices sets `--ar` per row).
+   The last right card hangs below the grid by the drop: the padding holds
+   the room for it. */
+.mp-home .h-svc__grid {
+  --h-drop: clamp(90px, 15vw, 260px);
+  --h-colgap: clamp(60px, 8.4vw, 150px);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: clamp(28px, 6vw, 120px);
+  row-gap: var(--h-colgap);
+  align-items: start;
+  margin-top: clamp(36px, 4vw, 64px);
+  padding-bottom: var(--h-drop);
+}
+.mp-home .h-svc__grid > .h-svc:nth-child(even) {
+  transform: translateY(var(--h-drop));
 }
 
 .mp-home .h-card {
@@ -937,32 +947,24 @@ html:not(.js) .mp-home .h-rib__row--rev .h-rib__track {
   }
 }
 
-/* Under 900 px one column, in the ORDER OF THE MARKUP: the columns dissolve
-   (`display: contents`), so the page reads as the legend of the new buildings
-   and its four cards, then the legend of the existing buildings and its four
-   cards, each card still carrying its track tag. (The cards used to be moved
-   back into the alternating `home.order` with `order: var(--o)`, which sent
-   the keyboard, and a screen reader, from the first card to the third and back
-   up to the second: WCAG 1.3.2 and 2.4.3. The alternation lives in the
-   ribbon, which is in `home.order`.) The container's gap is the space between
-   cards; a legend pulls itself in by margin, so it sits close to its first
-   card. */
+/* Phones: the key stacks, the grid is one column in the order of the markup
+   (`home.order`), and the right column's drop is off. (An earlier version
+   pulled the cards back into an alternating order with `order: var(--o)`,
+   which sent the keyboard, and a screen reader, from the first card to the
+   third and back up to the second: WCAG 1.3.2 and 2.4.3. Now the markup IS
+   the order, on every width.) */
 @media (max-width: 899px) {
-  .mp-home .h-svc__cols {
-    --h-gap-phone: clamp(52px, 12vw, 80px);
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: var(--h-gap-phone);
+  .mp-home .h-svc__key {
+    grid-template-columns: 1fr;
+    row-gap: 18px;
   }
-  .mp-home .h-svc__col {
-    display: contents;
+  .mp-home .h-svc__grid {
+    grid-template-columns: 1fr;
+    row-gap: clamp(52px, 12vw, 80px);
+    padding-bottom: 0;
   }
-  .mp-home .h-svc__legend {
-    margin-bottom: calc(22px - var(--h-gap-phone));
-  }
-  .mp-home .h-svc__col[data-track='existing'] .h-svc__legend {
-    margin-top: clamp(12px, 4vw, 32px);
+  .mp-home .h-svc__grid > .h-svc:nth-child(even) {
+    transform: none;
   }
 }
 

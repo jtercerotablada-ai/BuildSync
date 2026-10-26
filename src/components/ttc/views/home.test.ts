@@ -339,13 +339,15 @@ describe('the owner’s vocabulary rules, over every string the home says (spec 
 });
 
 describe('the order of the six services (spec item 4, data part)', () => {
+  // The owner's order (2026-10-26): the two county programs first, then the
+  // rest by the sales he expects of them.
   const ORDER = [
-    'structural-condition-assessments',
-    'threshold-inspections',
     'building-recertification',
-    'peer-review',
     'broward-bsip',
+    'structural-condition-assessments',
     'milestone-inspections',
+    'threshold-inspections',
+    'peer-review',
   ];
   const PROGRAMS = ['building-recertification', 'broward-bsip'];
 
@@ -359,22 +361,22 @@ describe('the order of the six services (spec item 4, data part)', () => {
       expect([...order].sort()).toEqual(c.services.map((s) => s.slug).sort());
     });
 
-    it(`${lang}: structural assessments first, the order as decided`, () => {
+    it(`${lang}: recertification first, BSIP second, the order as decided`, () => {
       expect(order).toEqual(ORDER);
     });
 
-    // Judge 1's blocker: a home that opens with the two county programs is a
-    // recertification page. They are 3rd and 5th, in the middle of the six.
-    it(`${lang}: the first two are not recertification or BSIP; they are the 3rd and the 5th`, () => {
-      expect(PROGRAMS).not.toContain(order[0]);
-      expect(PROGRAMS).not.toContain(order[1]);
-      expect(order.indexOf('building-recertification')).toBe(2);
-      expect(order.indexOf('broward-bsip')).toBe(4);
+    // Judge 1's blocker of 2026-10-24 ("a home that opens with the two county
+    // programs is a recertification page") was overruled by the owner on
+    // 2026-10-26: "reordena de primero recertification y segundo BSIP". The
+    // programs open the list; the words of the cards are still the same
+    // weight as the others (the vocabulary rules above).
+    it(`${lang}: recertification and BSIP are the 1st and the 2nd`, () => {
+      expect(order.slice(0, 2)).toEqual(PROGRAMS);
     });
 
-    it(`${lang}: new-building and existing-building services alternate, new first`, () => {
+    it(`${lang}: the four existing-building services, then the two of new construction`, () => {
       const track = (slug: string) => c.services.find((s) => s.slug === slug)!.track;
-      expect(order.map(track)).toEqual(['existing', 'new', 'existing', 'new', 'existing', 'existing']);
+      expect(order.map(track)).toEqual(['existing', 'existing', 'existing', 'existing', 'new', 'new']);
     });
   }
 
@@ -795,17 +797,14 @@ for (const lang of LANGS) {
       }
     });
 
-    it('puts them in home.order: the first two are not the county programs, which are 3rd and 5th', () => {
+    it('puts them in home.order, in the markup too: recertification first, BSIP second', () => {
       const byPlace = [...articles].sort((a, b) => place(a) - place(b)).map((a) => a.slug);
       expect(byPlace).toEqual([...c.home.order]);
-      expect(byPlace.indexOf('building-recertification')).toBe(2);
-      expect(byPlace.indexOf('broward-bsip')).toBe(4);
-      // Neither program opens or closes the list.
-      for (const slug of ['building-recertification', 'broward-bsip']) {
-        const i = byPlace.indexOf(slug);
-        expect(i, `${slug}: services before it`).toBeGreaterThanOrEqual(2);
-        expect(byPlace.length - 1 - i, `${slug}: services after it`).toBeGreaterThanOrEqual(1);
-      }
+      // The markup IS the order (one grid, no column split, no `order:`), so
+      // the keyboard and a phone read the cards the way the owner listed them.
+      expect(articles.map((a) => a.slug)).toEqual([...c.home.order]);
+      expect(byPlace.indexOf('building-recertification')).toBe(0);
+      expect(byPlace.indexOf('broward-bsip')).toBe(1);
       // The ribbon runs the same six, in the same order.
       const ribbon = [...ribbonA.matchAll(/href="[^"]*\/services\/([a-z-]+)"/g)].map((m) => m[1]);
       expect(ribbon).toEqual([...c.home.order]);
@@ -984,13 +983,16 @@ for (const lang of LANGS) {
       expect(lines).toBeGreaterThan(form);
     });
 
-    it('services: each track in turn, the cards of one track in home.order (the phone shows them that way)', () => {
-      const cards = [...section(markup, 'services').matchAll(/<article\b[\s\S]*?href="[^"]*\/services\/([a-z-]+)"/g)].map((m) => m[1]);
-      const track = (slug: string) => c.services.find((s) => s.slug === slug)!.track;
-      expect(cards).toEqual([
-        ...c.home.order.filter((slug) => track(slug) === 'new'),
-        ...c.home.order.filter((slug) => track(slug) === 'existing'),
-      ]);
+    it('services: the key (existing, then new), then the six cards in home.order (the phone shows them that way)', () => {
+      const services = section(markup, 'services');
+      const cards = [...services.matchAll(/<article\b[\s\S]*?href="[^"]*\/services\/([a-z-]+)"/g)].map((m) => m[1]);
+      expect(cards).toEqual([...c.home.order]);
+      // The key comes before the first card, existing buildings first.
+      const key = services.match(/<div class="h-svc__key">[\s\S]*?<div class="h-svc__grid">/)?.[0] ?? '';
+      const existing = key.indexOf(esc(c.home.services.legend.existing.k));
+      expect(existing).toBeGreaterThan(-1);
+      expect(key.indexOf(esc(c.home.services.legend.new.k))).toBeGreaterThan(existing);
+      expect(services.indexOf('h-svc__key')).toBeLessThan(services.indexOf('<article'));
     });
   });
 

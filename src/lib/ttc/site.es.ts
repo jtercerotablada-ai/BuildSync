@@ -1471,12 +1471,12 @@ export const es: SiteContent = {
      "milestone" beside "hitos" (the law's name), Townhouses. */
   home: {
     order: [
-      'structural-condition-assessments',
-      'threshold-inspections',
       'building-recertification',
-      'peer-review',
       'broward-bsip',
+      'structural-condition-assessments',
       'milestone-inspections',
+      'threshold-inspections',
+      'peer-review',
     ],
     chrome: {
       headerCta: 'Contáctenos',

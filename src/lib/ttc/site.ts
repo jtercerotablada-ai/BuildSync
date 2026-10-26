@@ -2520,16 +2520,21 @@ export const typologies: Typology[] = [
    ═══════════════════════════════════════════════════════════════════════════ */
 
 export const home = {
-  /* The order of the eight services on the home, in the ribbon and in the
-     grid: new and existing alternate, Reinforced Concrete first, the two
-     county programs 4th and 6th. */
+  /* The order of the six services on the home, in the ribbon, the grid and
+     the home form's list — the owner's (2026-10-26): Building Recertification
+     first, BSIP second ("de primero recertification y segundo BSIP"), then
+     the rest "en orden de lo que crees que puede tener más ventas":
+     assessments and repair design (the work every inspection leads to),
+     milestone inspections (the boards' own word for the same need),
+     threshold inspections, peer review. This replaced the judges' rule of
+     2026-10-24 that no program opens the home. */
   order: [
-    'structural-condition-assessments',
-    'threshold-inspections',
     'building-recertification',
-    'peer-review',
     'broward-bsip',
+    'structural-condition-assessments',
     'milestone-inspections',
+    'threshold-inspections',
+    'peer-review',
   ],
   /* The chrome on the home alone (header, phone menu, footer). `callLabel`
      is the name of the phone button: `{phone}` is `contact.phone.display`. */

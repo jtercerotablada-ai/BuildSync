@@ -13,21 +13,22 @@ import { Words } from './Words';
  * does: each card is one photograph, a track tag, the service's title and one
  * plain line. A SERVER component.
  *
- * THE ORDER IS `home.order`, ALTERNATING new / existing, and nothing is a
- * lead: Miami-Dade Building Recertification and Broward BSIP are two cards of
- * eight, the same component, the same title element, the same size class, 4th
- * and 6th in the sequence. (views/home.test.ts holds this.)
+ * THE ORDER IS `home.order` — the owner's, 2026-10-26: Building
+ * Recertification first, BSIP second ("de primero recertification y segundo
+ * BSIP"), then the rest by the sales he expects of them: assessments and
+ * repair design, milestone inspections, threshold inspections, peer review.
+ * The two programs are still two cards of six, the same component, the same
+ * title element, the same size class (views/home.test.ts holds the order).
  *
- * TWO COLUMNS ON A DESKTOP, ONE ON A PHONE. The left column is the four
- * new-building services, the right column the four existing-building ones,
- * dropped by `clamp(90px, 15vw, 260px)`. Each column opens with its own
- * legend (what the track is, in one line), so the dropped column carries its
- * legend down with it. Under 900 px the columns dissolve (`display: contents`)
- * and the page reads as the new-buildings legend and its four cards, then the
- * existing-buildings legend and its four, each card carrying its track tag:
- * the order of the markup, so the keyboard and a screen reader go the way the
- * eye does. `--o` on each card is its place in `home.order` (the ribbon runs
- * in that order; nothing in the stylesheets orders by it).
+ * ONE GRID, TWO COLUMNS ON A DESKTOP, ONE ON A PHONE. The cards are in the
+ * markup in `home.order`, two to a row, the left one first; the right column
+ * is dropped by `clamp(90px, 15vw, 260px)` with a transform (home.css), so
+ * the markup, the keyboard and a screen reader keep the order the eye reads
+ * (left, right, left…) and the rows keep their height. Over the grid, a key:
+ * the two tracks in one line each; every card carries its own track tag.
+ * Under 900 px the grid is one column, in the same order, no drop. `--o` on
+ * each card is its place in `home.order` (the ribbon runs in that order;
+ * nothing in the stylesheets orders by it).
  *
  * THE LINK IS THE TITLE, AND THE WHOLE CARD IS THE TARGET — the pattern of
  * Typologies.tsx: the `<a>` holds the title alone (link text well under 120
@@ -43,7 +44,7 @@ import { Words } from './Words';
  *
  * MOTION (spec E8 to E12), by attribute (home-motion.css):
  *   `[data-fx="words"]`   the h2: each word rises out of its mask (`Words`)
- *   `[data-fx="left"]`    each column's legend slides in from the left (E10)
+ *   `[data-fx="left"]`    each legend of the key slides in from the left (E10)
  *   `[data-fx="img"]`     each photograph: clip-path reveal on `.h-ph__in`,
  *                         settle on its image (E12)
  * The head's label, tag, lede and link are wrapped in plain `Reveal`s, the
@@ -59,14 +60,8 @@ export function HomeServices({ lang }: { lang: Lang }) {
     if (!s) throw new Error(`home.order: no service "${slug}"`);
     return { s, i, photo: imagery.services[slug], line: (h.lines as Record<string, string>)[slug] };
   });
-  const columns = [
-    { track: 'new' as const, legend: h.legend.new, cards: cards.filter((x) => x.s.track === 'new') },
-    {
-      track: 'existing' as const,
-      legend: h.legend.existing,
-      cards: cards.filter((x) => x.s.track === 'existing'),
-    },
-  ];
+  /* The key over the grid: existing buildings, then new construction. */
+  const legends = [h.legend.existing, h.legend.new];
 
   return (
     <section
@@ -101,58 +96,59 @@ export function HomeServices({ lang }: { lang: Lang }) {
           </div>
         </header>
 
-        <div className="h-svc__cols">
-          {columns.map((col) => (
-            <div key={col.track} className="h-svc__col" data-track={col.track}>
-              <Reveal
-                fx="left"
-                delay={col.track === 'new' ? 0 : 0.2}
-                className="h-svc__legend"
-                style={{ '--o': 0 } as React.CSSProperties}
-              >
-                <p className="h-track">
-                  <Diamond />
-                  {col.legend.k}
-                </p>
-                <p className="h-svc__legend-v">{col.legend.v}</p>
-              </Reveal>
-
-              {col.cards.map(({ s, i, photo, line }, k) => {
-                /* 3/2 and 4/5 alternate down each column, and the two columns
-                   start on opposite ones, so a row of the grid is never two
-                   frames of one shape. */
-                const tall = col.track === 'new' ? k % 2 === 1 : k % 2 === 0;
-                return (
-                  <article
-                    key={s.slug}
-                    className="h-card h-svc"
-                    style={{ '--ar': tall ? '4 / 5' : '3 / 2', '--o': i + 1 } as React.CSSProperties}
-                  >
-                    <Reveal fx="img" className="h-ph">
-                      <div className="h-ph__in">
-                        <Img photo={photo} sizes="(min-width: 900px) 44vw, 92vw" />
-                      </div>
-                    </Reveal>
-                    <div className="h-card__meta">
-                      <p className="h-track">
-                        <Diamond />
-                        {col.legend.k}
-                      </p>
-                      <h3 className="h-card__title">
-                        <Link className="h-card__link" href={l(`/services/${s.slug}`)}>
-                          {s.title}
-                        </Link>
-                      </h3>
-                      <p className="h-card__line">{line}</p>
-                      <span className="h-ring" aria-hidden="true">
-                        <Arrow up />
-                      </span>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
+        <div className="h-svc__key">
+          {legends.map((g, k) => (
+            <Reveal
+              key={g.k}
+              fx="left"
+              delay={k * 0.15}
+              className="h-svc__legend"
+              style={{ '--o': 0 } as React.CSSProperties}
+            >
+              <p className="h-track">
+                <Diamond />
+                {g.k}
+              </p>
+              <p className="h-svc__legend-v">{g.v}</p>
+            </Reveal>
           ))}
+        </div>
+
+        <div className="h-svc__grid">
+          {cards.map(({ s, i, photo, line }) => {
+            /* One frame shape per row — 3/2, then 4/5, then 3/2 — so the two
+               columns stay in step and the dropped right column keeps its
+               spacing (home.css). */
+            const tall = Math.floor(i / 2) % 2 === 1;
+            return (
+              <article
+                key={s.slug}
+                className="h-card h-svc"
+                style={{ '--ar': tall ? '4 / 5' : '3 / 2', '--o': i + 1 } as React.CSSProperties}
+              >
+                <Reveal fx="img" className="h-ph">
+                  <div className="h-ph__in">
+                    <Img photo={photo} sizes="(min-width: 900px) 44vw, 92vw" />
+                  </div>
+                </Reveal>
+                <div className="h-card__meta">
+                  <p className="h-track">
+                    <Diamond />
+                    {(h.legend as Record<string, { k: string; v: string }>)[s.track].k}
+                  </p>
+                  <h3 className="h-card__title">
+                    <Link className="h-card__link" href={l(`/services/${s.slug}`)}>
+                      {s.title}
+                    </Link>
+                  </h3>
+                  <p className="h-card__line">{line}</p>
+                  <span className="h-ring" aria-hidden="true">
+                    <Arrow up />
+                  </span>
+                </div>
+              </article>
+            );
+          })}
         </div>
       </div>
     </section>
