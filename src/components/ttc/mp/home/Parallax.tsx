@@ -27,7 +27,7 @@ const WHEN = '(min-width: 900px) and (pointer: fine) and (prefers-reduced-motion
 
 export function Parallax() {
   useEffect(() => {
-    const boxes = Array.from(document.querySelectorAll<HTMLElement>('.mp-home [data-parallax]'));
+    const boxes = Array.from(document.querySelectorAll<HTMLElement>('.mp-plates [data-parallax]'));
     if (boxes.length === 0) return;
     const mq = window.matchMedia(WHEN);
 

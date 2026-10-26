@@ -1742,17 +1742,20 @@ export const es: SiteContent = {
      short phrase (it does not wrap), and is never the two counties. */
   aboutPage: {
     eyebrow: 'Sobre la firma',
-    titleLines: ['Tercero Tablada Civil and Structural', 'Engineering Inc., en el Sur de Florida.'],
-    accentWord: 'Sur de Florida.',
-    sub: 'Construida alrededor de un solo equipo responsable. Tercero Tablada Civil and Structural Engineering Inc. inspecciona y evalúa los edificios que ya están en pie, entre ellos los edificios threshold, y revisa los diseños de otros, en todo el estado de Florida.',
+    titleLines: ['Tercero Tablada Civil and Structural', 'Engineering Inc., en toda Florida.'],
+    accentWord: 'toda Florida.',
+    sub: 'Construida alrededor de un solo equipo responsable. Tercero Tablada Civil and Structural Engineering Inc. inspecciona y evalúa los edificios que ya están en pie, entre ellos los edificios threshold, y revisa los diseños de otros, en toda Florida.',
     approach: {
       eyebrow: 'Enfoque',
       title: 'Revisado línea por línea, antes de salir.',
       body: [
         'Por esta firma pasan dos tipos de trabajo, y cada uno enriquece al otro. Leer los diseños de otros enseña qué falla sobre el papel; inspeccionar edificios que llevan décadas en pie enseña qué buscar la próxima vez.',
         'En edificios existentes el trabajo empieza en campo: el edificio se revisa en sitio antes de analizarse, y nada se concluye a partir de un plano que no se haya confirmado allí en persona.',
+        'Cada informe sale de esta oficina con el nombre de la firma, escrito para que una junta, un propietario y un funcionario de construcción puedan seguir el razonamiento sin llamarnos, y queda archivado para que el siguiente ciclo empiece por lo que encontró el anterior.',
       ],
     },
+    forYouTitle: 'Una sola firma, responsable desde la primera llamada hasta el informe presentado.',
+    forYouLede: 'Las mismas tres cosas valen para una recertificación, una evaluación o una revisión, y para cada miembro del equipo con el que trate por el camino.',
     principles: {
       eyebrow: 'Principios',
       items: [
@@ -1795,15 +1798,20 @@ export const es: SiteContent = {
 
   servicesPage: {
     eyebrow: 'Servicios',
-    titleLines: ['Servicios de ingeniería estructural', 'en Miami-Dade y Broward.'],
-    accentWord: 'Servicios',
+    titleLines: ['Seis servicios para', 'los edificios de Florida.'],
+    accentWord: 'Florida.',
     /* Existing buildings first, as in English: the page opens with them.
        "Ocho" follows the `services` array (four and four). No "how to read
        this page" text and no facts panel (see the English). Keep "servicios
        de ingeniería estructural" whole: it is the only place outside the H1
        that says "ingeniería" (seo.test.ts). */
-    sub: 'Organizados por lo que usted necesita, no por lo que hacemos. Seis servicios de ingeniería estructural, para edificios que ya están en pie y para los diseños de los nuevos. La propuesta es gratis.',
+    sub: 'Organizados por lo que usted necesita, no por lo que hacemos. Seis servicios de ingeniería, para edificios que ya están en pie y para los diseños de los nuevos. La propuesta es gratis.',
     cardMore: 'Detalles',
+    grid: {
+      label: 'Servicios',
+      title: 'Elija el servicio que su edificio necesita.',
+      accentWord: 'necesita.',
+    },
     tracks: {
       existing: {
         id: 'existing',

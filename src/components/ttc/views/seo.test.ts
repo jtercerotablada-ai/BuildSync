@@ -561,7 +561,9 @@ describe('H1: the subject and the place, where a slogan used to be', () => {
       '/projects': 'La estructura detrás del proyecto.',
     },
   };
-  const PLACE = /Miami-Dade (and|y) Broward|South Florida|Sur de Florida/;
+  // "Florida" alone since 2026-10-26: the home and /services speak for the
+  // whole state (the owner); the county programs keep their counties.
+  const PLACE = /Miami-Dade (and|y) Broward|South Florida|Sur de Florida|Florida/;
   /* /projects names NO place, in its H1 or in its title. For half a day both
      said "…in South Florida", and the second report listed /projects and the
      home page as competing for those two words: the home page is the one

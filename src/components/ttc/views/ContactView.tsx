@@ -61,7 +61,7 @@ export function ContactView({ lang, presetService }: { lang: Lang; presetService
   const navLabel = navLabelOf(c, '/contact');
 
   return (
-    <>
+    <div className="mp-plates mp-dark">
       <JsonLd data={breadcrumbLd(lang, [{ name: c.ui.home, path: '/' }, { name: navLabel, path: '/contact' }])} />
 
       <PageHero
@@ -125,6 +125,6 @@ export function ContactView({ lang, presetService }: { lang: Lang; presetService
           </ul>
         </div>
       </section>
-    </>
+    </div>
   );
 }

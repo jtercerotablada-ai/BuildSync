@@ -10,8 +10,7 @@ import { COST_PATH } from '@/lib/ttc/cost-path';
 import { guidePath } from '@/lib/ttc/guides';
 import { getGuides, guideLabels } from '@/lib/ttc/guide-content';
 import { PageHero } from '@/components/ttc/mp/PageHero';
-import { ContactCTA } from '@/components/ttc/mp/ContactCTA';
-import { EngineerCredential } from '@/components/ttc/mp/EngineerCredential';
+import { HomeContact } from '@/components/ttc/mp/home/HomeContact';
 import { JUMP_ID, JumpLinks } from '@/components/ttc/mp/JumpLinks';
 import { ReachRow } from '@/components/ttc/mp/ReachRow';
 import { Dated, Outbound, Source } from '@/components/ttc/mp/Outbound';
@@ -298,10 +297,8 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
           {cta}
         </ButtonLink>
       </div>
-      {/* Who answers: the name and the license number; how to verify them
-          is in the hero's copy of this block, and the same two lines twice
-          were a repeated paragraph. */}
-      {program ? <EngineerCredential lang={lang} brief /> : null}
+      {/* No engineer's name here or in the hero since 2026-10-26 (the owner:
+          "no pongas mi nombre, somos empresa"): the firm answers. */}
     </div>
   );
   const whenList = (
@@ -423,7 +420,7 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
   const notesOnConcrete = stepsOnPaper || leanFaq;
 
   return (
-    <>
+    <div className="mp-plates mp-dark">
       <JsonLd data={serviceLd(lang, service)} />
       {pageLd ? <JsonLd data={pageLd} /> : null}
       {faqLd ? <JsonLd data={faqLd} /> : null}
@@ -465,7 +462,6 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
         }
         photo={imagery.services[service.slug]}
       >
-        {program ? <EngineerCredential lang={lang} /> : null}
         {program ? <ReachRow c={c} /> : null}
       </PageHero>
 
@@ -860,8 +856,8 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
         </section>
       </div>
 
-      <ContactCTA service={service.slug} notice={notice} />
-    </>
+      <HomeContact closing lang={lang} presetService={service.slug} notice={notice} />
+    </div>
   );
 }
 

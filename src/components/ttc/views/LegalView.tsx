@@ -28,7 +28,7 @@ export function LegalView({ lang, kind }: { lang: Lang; kind: 'privacy' | 'terms
   const c = getContent(lang);
   const doc = c.legal[kind];
   return (
-    <>
+    <div className="mp-plates mp-dark">
       <PageHero
         eyebrow={c.ui.legalPages.legal}
         crumbs={[{ href: '/', label: c.ui.home }, { label: doc.title }]}
@@ -56,6 +56,6 @@ export function LegalView({ lang, kind }: { lang: Lang; kind: 'privacy' | 'terms
           },
         ]}
       />
-    </>
+    </div>
   );
 }

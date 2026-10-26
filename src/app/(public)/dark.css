@@ -1,0 +1,724 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   THE INNER PAGES IN THE HOME'S LANGUAGE
+   ──────────────────────────────────────────────────────────────────────────
+   Imported by PublicShell right after mp.css. Every rule here is scoped
+   under `.mp-dark`, the wrapper each redesigned view puts round its page;
+   the calculators under /resources carry no wrapper and keep mp.css's paper
+   pages as they are.
+
+   The owner, 2026-10-26: "quiero que trabajes en todas las demás páginas
+   menos en las calculadoras, y las rediseñes como me gusta a mí; mi estándar
+   es ttcivilstructural.com" — the home. So this file carries the home's
+   plate language (home.css, home-lower.css) onto the pages mp.css lays out:
+
+     · graphite plates, charcoal for a lifted one; snow type, the two greys
+       for secondary and tertiary text; gold only as ornament (the one italic
+       word of a headline, hairlines, rings, focus) — never a gold field
+       larger than a button, never gold body text;
+     · the large sans headline, 500, tight, with its one italic gold word;
+     · the mono label after a short gold hairline — no numeral (the home's
+       sections carry none);
+     · hairline rows; photographs in black and white;
+     · the snow pill button with its arrow in a graphite ring, gold on
+       hover; the quiet mono link with its gold arrow and growing hairline.
+
+   The markup and mp.css's layout rules stay as they are: this remaps the
+   surface tokens and restyles the furniture, so every test that reads the
+   markup still holds and a page can be returned to paper by removing its
+   wrapper. The tokens are mp.css's (00); the dark-surface block mp.css
+   gives .mp-surface--graphite is set once here, on the wrapper, and every
+   component that reads --mp-ink-* / --mp-line* is right without knowing.
+
+     01  Canvas and tokens
+     02  Header, stuck on a dark page
+     03  Plates and rhythm
+     04  Labels (the section furniture)
+     05  Headlines and ledes
+     06  Buttons and the quiet link
+     07  The page hero
+     08  The closing band
+     09  Rows, cards, folds, questions
+     10  Photographs
+     11  The form in the dark skin
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ═══ 01 · CANVAS AND TOKENS ══════════════════════════════════════════════ */
+
+/* The canvas is black under a dark page: overscroll and the space under a
+   short page never show paper. `:root:has()` outweighs mp.css's
+   `html:has(.mp)` whatever the load order (the home does the same). */
+:root:has(.mp-dark) {
+  background: #0b0c0d;
+}
+
+.mp-dark {
+  /* The hairlines, the ease, the black-and-white and the plate rhythm are
+     home.css's `.mp-plates` tokens; the wrapper carries both classes. */
+
+  /* mp.css's two light surfaces become the two dark ones: wherever a rule
+     paints `var(--mp-paper)` it now paints graphite, and concrete is the
+     lifted charcoal. A white card is a lifted plate. */
+  --mp-paper: var(--mp-graphite);
+  --mp-concrete: var(--mp-charcoal);
+  --mp-card: #141618;
+
+  /* The dark-surface token block (mp.css 01), once, for the whole page. */
+  --mp-line: var(--mp-line-dark);
+  --mp-line-soft: var(--mp-line-dark-soft);
+  --mp-line-strong: rgba(246, 244, 239, 0.32);
+  --mp-line-input: rgba(246, 244, 239, 0.5);
+  --mp-ink: var(--mp-snow);
+  --mp-ink-2: var(--mp-snow-2);
+  --mp-ink-3: var(--mp-snow-2);
+  --mp-ink-faint: var(--mp-snow-3);
+  --mp-gold-ink: var(--mp-gold);
+  /* Form errors for a dark surface (the home's): the paper reds are 2:1 on
+     black. */
+  --mp-error: #ff7a68;
+  --mp-error-ink: #ff9a8a;
+
+  background: var(--mp-graphite);
+  color: var(--mp-snow);
+}
+
+/* ═══ 02 · HEADER, STUCK ON A DARK PAGE ═══════════════════════════════════ */
+
+/* mp.css gives the header a paper backing once the dark hero has scrolled
+   away (`.is-stuck`). On a dark page the backing is graphite, the mark the
+   white one, the button the outline, the rings gold — the overlay state's
+   colours on an opaque bar. */
+body:has(.mp-dark) .mp-header.is-stuck:not(.is-menu-open) {
+  --hdr-bg: var(--mp-graphite);
+  --hdr-fg: var(--mp-snow);
+  --hdr-line: rgba(246, 244, 239, 0.12);
+  --hdr-border: rgba(246, 244, 239, 0.34);
+  --hdr-btn-bg: transparent;
+  --hdr-btn-fg: var(--mp-snow);
+  --hdr-btn-line: rgba(246, 244, 239, 0.4);
+  --hdr-mark-dark: none;
+  --hdr-mark-light: block;
+  --mp-gold-ink: var(--mp-gold);
+}
+
+/* ═══ 03 · PLATES AND RHYTHM ══════════════════════════════════════════════ */
+
+.mp-dark .mp-section {
+  padding-block: var(--h-plate-y);
+}
+/* Two plates of one surface in a row: mp.css drops the second's top padding
+   and opens it on a hairline. The hairline is right; the drop left the
+   second plate's label tight under the rule, so it keeps most of the
+   rhythm. */
+.mp-dark :is(.mp-surface--paper + .mp-surface--paper, .mp-surface--concrete + .mp-surface--concrete) {
+  padding-block-start: 0;
+}
+.mp-dark :is(.mp-surface--paper + .mp-surface--paper, .mp-surface--concrete + .mp-surface--concrete)::before {
+  margin-block-end: calc(var(--h-plate-y) * 0.7);
+  background: var(--h-hair);
+}
+
+/* ═══ 04 · LABELS ═════════════════════════════════════════════════════════ */
+
+/* The home's label: a short gold hairline, then the word in mono caps. The
+   section index ("01") is not printed — the home's sections carry none —
+   and the eyebrow's own short rule grows to the same 34px. */
+.mp-dark .mp-sechead,
+.mp-dark .mp-eyebrow,
+.mp-dark .mp-related__label,
+.mp-dark .mp-contact__kicker,
+.mp-dark .mp-callout__label,
+.mp-dark .mp-packet__label {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-family: var(--mp-mono);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.5;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--mp-snow-2);
+}
+.mp-dark .mp-sechead {
+  margin-block-end: clamp(28px, 3.6vw, 52px);
+}
+.mp-dark .mp-sechead__num {
+  display: none;
+}
+.mp-dark .mp-sechead::before,
+.mp-dark .mp-eyebrow::before {
+  content: '';
+  flex: none;
+  width: 34px;
+  height: 1px;
+  background: var(--mp-gold);
+}
+/* The lesser labels keep no rule: a word over a block, in the label type. */
+.mp-dark :is(.mp-related__label, .mp-contact__kicker, .mp-callout__label, .mp-packet__label) {
+  color: var(--mp-snow-3);
+}
+/* The small index inside a row ("01" before a scope item): mono, gold. Only
+   the plain pillars carry a numeral in their <b>; in the strips and rails
+   the <b> is the row's title. */
+.mp-dark .mp-secnum,
+.mp-dark .mp-pillars--plain b,
+.mp-dark .mp-step__n {
+  font-family: var(--mp-mono);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.14em;
+  color: var(--mp-gold);
+}
+.mp-dark .mp-pillars:not(.mp-pillars--plain) b {
+  font-size: clamp(17px, 1.25vw, 20px);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--mp-snow);
+}
+
+/* ═══ 05 · HEADLINES AND LEDES ════════════════════════════════════════════ */
+
+/* One family of sizes, the home's: 500, tight, 0.93–0.98 leading. The
+   hero's H1 is the largest; a section headline under its label is next; a
+   headline beside its text (the split layouts) is a step smaller, since it
+   lives in half the width; the column titles are the small step. */
+.mp-dark .mp-phero__title {
+  margin-block-start: clamp(14px, 1.6vw, 26px);
+  font-size: clamp(40px, 6.2vw, 108px);
+  font-weight: 500;
+  line-height: 0.93;
+  letter-spacing: -0.05em;
+}
+.mp-dark .mp-intro__title,
+.mp-dark .mp-close__title {
+  font-size: clamp(34px, 4.6vw, 80px);
+  font-weight: 500;
+  line-height: 0.96;
+  letter-spacing: -0.045em;
+}
+.mp-dark .mp-split__title,
+.mp-dark .mp-contact__rail-title,
+.mp-dark .mp-headlink__title {
+  font-size: clamp(30px, 3.3vw, 56px);
+  font-weight: 500;
+  line-height: 0.98;
+  letter-spacing: -0.04em;
+}
+.mp-dark .mp-h3,
+.mp-dark .mp-cols2__title,
+.mp-dark .mp-cols3__title,
+.mp-dark .mp-juris__title,
+.mp-dark .mp-compare__title {
+  font-size: clamp(22px, 1.9vw, 30px);
+  font-weight: 500;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+}
+/* The italic gold word of a headline, drawn as the home draws it. */
+.mp-dark :is(h1, h2) .mp-serif {
+  color: var(--mp-gold);
+  font-size: 1.1em;
+  line-height: 0.8;
+  letter-spacing: -0.02em;
+  padding-inline-end: 0.04em;
+}
+/* The intro block under a label: the headline takes the width it needs, the
+   lede sits at reading size under it. */
+.mp-dark .mp-intro {
+  max-width: none;
+  gap: clamp(20px, 2.4vw, 36px);
+  margin-block-end: clamp(36px, 5vw, 80px);
+}
+.mp-dark .mp-intro__title {
+  max-width: 16ch;
+}
+.mp-dark .mp-intro__lede,
+.mp-dark .mp-split__lede,
+.mp-dark .mp-phero__sub,
+.mp-dark .mp-close__body,
+.mp-dark .mp-lead,
+.mp-dark .mp-headlink__text {
+  max-width: 40ch;
+  font-size: clamp(17px, 1.35vw, 21px);
+  line-height: 1.55;
+  color: var(--mp-snow-2);
+}
+.mp-dark .mp-prose,
+.mp-dark .mp-body {
+  font-size: clamp(16px, 1.2vw, 19px);
+  line-height: 1.55;
+  color: var(--mp-snow-2);
+}
+.mp-dark .mp-note {
+  color: var(--mp-snow-3);
+}
+
+/* ═══ 06 · BUTTONS AND THE QUIET LINK ═════════════════════════════════════ */
+
+/* The home's one button: a snow pill, the arrow in a graphite ring at its
+   end; gold on hover and focus, the arrow turning up-right. The line
+   variant is the same pill with a hairline and a ringed arrow. The gold
+   underline sweep of the paper button is gone. */
+.mp-dark .mp-btn {
+  --btn-bg: var(--mp-snow);
+  --btn-fg: var(--mp-graphite);
+  --btn-line: var(--mp-snow);
+  gap: 12px;
+  min-height: 50px;
+  padding: 0 7px 0 24px;
+  border-radius: 999px;
+  font-size: 15px;
+  letter-spacing: -0.005em;
+  overflow: visible;
+  transition: background 0.5s var(--h-ease), color 0.5s var(--h-ease), border-color 0.5s var(--h-ease);
+}
+.mp-dark .mp-btn::after {
+  display: none;
+}
+.mp-dark .mp-btn__arrow {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--mp-graphite);
+  color: var(--mp-snow);
+  font-size: 15px;
+  line-height: 1;
+  transition: transform 0.6s var(--h-ease), background 0.5s var(--h-ease), border-color 0.5s var(--h-ease), color 0.5s var(--h-ease);
+}
+.mp-dark .mp-btn--line {
+  --btn-bg: transparent;
+  --btn-fg: var(--mp-snow);
+  --btn-line: rgba(246, 244, 239, 0.34);
+}
+.mp-dark .mp-btn--line .mp-btn__arrow {
+  background: transparent;
+  border: 1px solid var(--h-hair);
+  color: var(--mp-snow);
+}
+.mp-dark .mp-btn:focus-visible {
+  --btn-bg: var(--mp-gold);
+  --btn-fg: var(--mp-graphite);
+  --btn-line: var(--mp-gold);
+}
+.mp-dark .mp-btn:focus-visible .mp-btn__arrow {
+  transform: translateX(3px) rotate(-45deg);
+}
+@media (hover: hover) and (pointer: fine) {
+  .mp-dark .mp-btn--solid:hover {
+    --btn-bg: var(--mp-gold);
+    --btn-fg: var(--mp-graphite);
+    --btn-line: var(--mp-gold);
+  }
+  .mp-dark .mp-btn--line:hover {
+    --btn-line: var(--mp-snow);
+  }
+  .mp-dark .mp-btn--line:hover .mp-btn__arrow {
+    border-color: var(--mp-gold);
+    color: var(--mp-gold);
+  }
+  .mp-dark .mp-btn:hover .mp-btn__arrow {
+    transform: translateX(3px) rotate(-45deg);
+  }
+}
+.mp-dark .mp-cta-row {
+  gap: 14px 18px;
+  align-items: center;
+}
+
+/* The quiet link: mono caps, a gold arrow, a gold hairline that grows from
+   the left on hover. */
+.mp-dark .mp-link {
+  gap: 12px;
+  padding: 10px 0;
+  border-block-end: 0;
+  font-family: var(--mp-mono);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.5;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--mp-snow);
+}
+.mp-dark .mp-link::before {
+  inset: -6px 0;
+}
+.mp-dark .mp-link::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 4px;
+  height: 1px;
+  background: var(--mp-gold);
+  transform: scaleX(0.18);
+  transform-origin: left;
+  transition: transform 0.6s var(--h-ease);
+}
+.mp-dark .mp-link i {
+  color: var(--mp-gold);
+  transition: transform 0.5s var(--h-ease);
+}
+.mp-dark .mp-link:focus-visible::after {
+  transform: scaleX(1);
+}
+@media (hover: hover) and (pointer: fine) {
+  .mp-dark .mp-link:hover {
+    color: var(--mp-snow);
+  }
+  .mp-dark .mp-link:hover::after {
+    transform: scaleX(1);
+  }
+  .mp-dark .mp-link:hover i {
+    transform: translateX(4px);
+  }
+}
+
+/* ═══ 07 · THE PAGE HERO ══════════════════════════════════════════════════ */
+
+/* Taller, as the home opens: most of a screen, the copy at its foot. The
+   photograph keeps mp.css's film and scrim. */
+.mp-dark .mp-phero:has(.mp-phero__photo) {
+  min-height: clamp(620px, 78svh, 860px);
+}
+.mp-dark .mp-phero {
+  padding-block-end: clamp(44px, 5vw, 80px);
+}
+/* The column takes its grid track; the headline's own measure is in its
+   own em (a measure on the column, in body ems, squeezed the title into a
+   few words a line and clipped it). */
+.mp-dark .mp-phero__main {
+  max-width: none;
+}
+.mp-dark .mp-phero__title {
+  max-width: 22ch;
+}
+.mp-dark .mp-phero__sub {
+  margin-block-start: clamp(22px, 2.6vw, 40px);
+  max-width: 44ch;
+}
+.mp-dark .mp-phero__action {
+  margin-block-start: clamp(26px, 3vw, 44px);
+}
+/* The facts beside the title: a hairline, the mono label, the value at
+   reading size. */
+.mp-dark .mp-phero__facts {
+  border-block-start: 1px solid var(--h-hair);
+}
+.mp-dark .mp-phero__fact dt {
+  font-family: var(--mp-mono);
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  color: var(--mp-snow-3);
+}
+.mp-dark .mp-phero__fact dd {
+  font-size: clamp(16px, 1.2vw, 19px);
+  line-height: 1.5;
+}
+.mp-dark .mp-breadcrumbs {
+  font-family: var(--mp-mono);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* ═══ 08 · THE CLOSING BAND ═══════════════════════════════════════════════ */
+
+/* The home's contact plate, without the form: label, the large headline,
+   the sentence, then the pill and the quiet link on one row. One column at
+   every width — at the home's size the headline needs the whole shell. */
+.mp-dark .mp-close {
+  padding-block: clamp(80px, 11vw, 190px) clamp(70px, 9vw, 150px);
+}
+.mp-dark .mp-close__inner {
+  grid-template-columns: minmax(0, 1fr);
+  gap: clamp(32px, 4vw, 56px);
+  align-items: start;
+}
+.mp-dark .mp-close__eyebrow {
+  margin-block-end: clamp(16px, 2vw, 32px);
+}
+.mp-dark .mp-close__title {
+  max-width: 14ch;
+  color: #fff;
+}
+.mp-dark .mp-close__body {
+  margin-block-start: clamp(24px, 3vw, 44px);
+  max-width: 44ch;
+}
+.mp-dark .mp-close__act .mp-cta-row {
+  column-gap: clamp(20px, 2.4vw, 36px);
+}
+
+/* ═══ 09 · ROWS, CARDS, FOLDS, QUESTIONS ══════════════════════════════════ */
+
+/* A lifted card on a plate: charcoal, a hairline, no shadow. */
+.mp-dark :is(.mp-sit, .mp-juris__card, .mp-callout, .mp-stepcard, .mp-guide__card, .mp-cred, .mp-partner__card) {
+  background: var(--mp-card);
+  border: 1px solid var(--h-hair-2);
+  box-shadow: none;
+}
+.mp-dark .mp-callout {
+  border-inline-start: 1px solid var(--mp-gold);
+}
+/* Rows (scope items, pillars, offices, the packet's parts): hairlines on
+   black, the row's text in the reading grey, its title in snow. */
+.mp-dark :is(.mp-speclist li, .mp-pillars li, .mp-notes li, .mp-duties li, .mp-offices__row, .mp-packet__list > div, .mp-timing > div, .mp-faq__item, .mp-more a) {
+  border-color: var(--h-hair);
+}
+.mp-dark .mp-speclist li,
+.mp-dark .mp-pillars li span,
+.mp-dark .mp-notes li,
+.mp-dark .mp-duties li {
+  color: var(--mp-snow-2);
+}
+/* A fold's summary line and a question: snow, the plus in gold. */
+.mp-dark :is(.mp-disclose > summary, .mp-faq__q) {
+  color: var(--mp-snow);
+}
+.mp-dark .mp-faq__icon {
+  color: var(--mp-gold);
+}
+/* Related services: three hairline cells, the "Explore" in the quiet
+   link's type. */
+.mp-dark .mp-more a {
+  background: transparent;
+}
+.mp-dark .mp-more__go {
+  font-family: var(--mp-mono);
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--mp-snow-2);
+}
+.mp-dark .mp-more__go i {
+  color: var(--mp-gold);
+}
+
+/* ═══ 10 · PHOTOGRAPHS ════════════════════════════════════════════════════ */
+
+/* Every photograph on a plate is black and white, as on the home; the hero's
+   keeps mp.css's own film. Marks and logos are not photographs. */
+.mp-dark .mp-section img:not([src*='logo']):not([src*='mark']) {
+  filter: var(--h-bw);
+}
+
+/* ═══ 11 · THE FORM IN THE DARK SKIN ══════════════════════════════════════ */
+
+/* The home's skin on the contact form (home-lower.css 06), the parts that
+   are not already answered by the tokens: dark controls, mono labels,
+   larger input type, a real gold ring on focus. */
+.mp-dark .mp-form {
+  color-scheme: dark;
+}
+.mp-dark .mp-field__label,
+.mp-dark .mp-field__opt {
+  font-family: var(--mp-mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  color: var(--mp-snow-3);
+}
+.mp-dark .mp-field__input {
+  color: var(--mp-snow);
+  font-size: clamp(18px, 1.5vw, 24px);
+  letter-spacing: -0.015em;
+}
+.mp-dark .mp-field__textarea {
+  font-size: clamp(17px, 1.3vw, 20px);
+  line-height: 1.5;
+}
+.mp-dark .mp-field__input:focus {
+  border-color: var(--mp-gold);
+}
+.mp-dark .mp-field__input:focus-visible,
+.mp-dark .mp-files__native:focus-visible {
+  outline: 2px solid var(--mp-gold);
+  outline-offset: 6px;
+}
+.mp-dark .mp-field__select option {
+  background: var(--mp-graphite);
+  color: var(--mp-snow);
+}
+.mp-dark .mp-files__hint {
+  color: var(--mp-snow-2);
+}
+.mp-dark .mp-form__success {
+  border-color: var(--h-hair);
+}
+
+/* ═══ 12 · THE HOME'S PLATES ON AN INNER PAGE ═════════════════════════════ */
+
+/* A plate's content lines up with the page's shell and the header (the
+   home's own plates run wider, to 2200px). */
+.mp-dark {
+  --h-max: var(--mp-w);
+  --h-pad: var(--mp-pad);
+}
+/* Two ledes open the services plate, side by side while they fit. */
+.mp-dark .h-head__foot--two {
+  justify-content: flex-start;
+  align-items: flex-start;
+  gap: 24px clamp(40px, 6vw, 100px);
+}
+
+/* The services card's foot (ServiceCard): the first step, the link to the
+   form and the fold, ABOVE the title's cover layer so they can be pressed. */
+.mp-dark .h-svc__foot {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 4px;
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--h-hair-2);
+}
+.mp-dark .h-svc__step {
+  margin: 0 0 8px;
+  max-width: 36ch;
+  font-size: clamp(15px, 1.1vw, 17px);
+  line-height: 1.5;
+  color: var(--mp-snow-3);
+}
+.mp-dark .h-svc__foot .h-link {
+  justify-self: start;
+}
+
+/* A fold: a mono line with a gold plus that turns to a cross, the three
+   answers as hairline rows under it. */
+.mp-dark .h-fold__sum {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  list-style: none;
+  cursor: pointer;
+  font-family: var(--mp-mono);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.5;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--mp-snow-2);
+  transition: color 0.4s var(--h-ease);
+}
+.mp-dark .h-fold__sum::-webkit-details-marker {
+  display: none;
+}
+.mp-dark .h-fold__plus {
+  position: relative;
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+.mp-dark .h-fold__plus::before,
+.mp-dark .h-fold__plus::after {
+  content: '';
+  position: absolute;
+  inset: 50% auto auto 50%;
+  width: 14px;
+  height: 1px;
+  background: var(--mp-gold);
+  transform: translate(-50%, -50%);
+  transition: transform 0.4s var(--h-ease);
+}
+.mp-dark .h-fold__plus::after {
+  transform: translate(-50%, -50%) rotate(90deg);
+}
+.mp-dark .h-fold[open] .h-fold__plus::before {
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+.mp-dark .h-fold[open] .h-fold__plus::after {
+  transform: translate(-50%, -50%) rotate(-45deg);
+}
+.mp-dark .h-fold__sum:focus-visible {
+  outline: 2px solid var(--mp-gold);
+  outline-offset: 4px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .mp-dark .h-fold__sum:hover {
+    color: var(--mp-snow);
+  }
+}
+.mp-dark .h-fold__qa {
+  margin: 6px 0 0;
+  border-top: 1px solid var(--h-hair-2);
+}
+.mp-dark .h-fold__qa > div {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--h-hair-2);
+}
+.mp-dark .h-fold__qa dt {
+  margin: 0 0 6px;
+  font-family: var(--mp-mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--mp-snow-3);
+}
+.mp-dark .h-fold__qa dd {
+  margin: 0;
+  max-width: 40ch;
+  font-size: clamp(15px, 1.1vw, 17px);
+  line-height: 1.5;
+  color: var(--mp-snow-2);
+}
+
+/* The building types on /services: the home's cards, three to a row, the
+   photograph at 4/5, a line under each name. */
+.mp-dark .h-tgrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(40px, 5vw, 80px) clamp(24px, 3vw, 48px);
+  margin: var(--h-head-gap) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.mp-dark .h-type {
+  position: relative;
+}
+.mp-dark .h-type__title {
+  font-size: clamp(22px, 2vw, 34px);
+  line-height: 1.06;
+  letter-spacing: -0.035em;
+}
+.mp-dark .h-plate .mp-note {
+  margin-top: clamp(36px, 4.5vw, 64px);
+}
+@media (max-width: 899px) {
+  .mp-dark .h-tgrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 560px) {
+  .mp-dark .h-tgrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* The five steps (HowWeWork): hairline columns, the number in gold mono, the
+   step's name at the small headline step. */
+.mp-dark .mp-stepcard__n {
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  color: var(--mp-gold);
+}
+.mp-dark .mp-stepcard__title {
+  font-size: clamp(20px, 1.6vw, 26px);
+  letter-spacing: -0.03em;
+  color: var(--mp-snow);
+}
+.mp-dark .mp-stepcard__do,
+.mp-dark .mp-stepcard__get {
+  font-size: clamp(15px, 1.1vw, 17px);
+  line-height: 1.55;
+  color: var(--mp-snow-2);
+}
+.mp-dark .mp-stepcard__k {
+  font-family: var(--mp-mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--mp-snow-3);
+}

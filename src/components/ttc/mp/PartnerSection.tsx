@@ -59,7 +59,6 @@ export function PartnerSection({
   const c = getContent(lang);
   const p = c.partner;
   const firm = c.company;
-  const e = c.leadership;
   const build = p.construction;
   const short = variant === 'about' ? p.about : p.brief;
   /* One row per registration, the firm's own first and then the
@@ -71,7 +70,6 @@ export function PartnerSection({
     variant === 'about'
       ? [
           { who: firm.name, label: p.engineering.registryLabel, value: p.engineering.registered },
-          { who: e.name, label: p.engineering.licenseLabel, value: p.engineering.licensed },
           ...build.licenses.map((lic) => ({
             who: build.name,
             label: lic.label,

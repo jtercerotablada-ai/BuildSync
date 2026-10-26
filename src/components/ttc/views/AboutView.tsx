@@ -1,11 +1,10 @@
 import React from 'react';
 import { getContent, navLabelOf } from '@/lib/ttc/content';
-import { company, imagery } from '@/lib/ttc/site';
-import { localePath, type Lang } from '@/lib/ttc/i18n';
+import { imagery } from '@/lib/ttc/site';
+import type { Lang } from '@/lib/ttc/i18n';
 import { PageHero } from '@/components/ttc/mp/PageHero';
 import { PartnerSection } from '@/components/ttc/mp/PartnerSection';
-import { TeamGrid } from '@/components/ttc/mp/TeamGrid';
-import { ContactCTA } from '@/components/ttc/mp/ContactCTA';
+import { HomeContact } from '@/components/ttc/mp/home/HomeContact';
 import { SectionHeading, Reveal } from '@/components/ttc/mp/primitives';
 import { accentLines } from '@/components/ttc/mp/text';
 import { breadcrumbLd, JsonLd } from './meta';
@@ -35,33 +34,13 @@ import { breadcrumbLd, JsonLd } from './meta';
 export function AboutView({ lang }: { lang: Lang }) {
   const c = getContent(lang);
   const p = c.aboutPage;
-  const e = c.leadership;
   const navLabel = navLabelOf(c, '/about');
-
-  const personLd = {
-    '@context': 'https://schema.org',
-    '@type': 'Person',
-    '@id': `${company.url}/about#engineer`,
-    name: 'Juan Tercero',
-    honorificSuffix: 'PE., M.Sc.',
-    jobTitle: e.role,
-    description: e.bio[0],
-    url: `${company.url}${localePath('/about#engineer', lang)}`,
-    worksFor: { '@id': `${company.url}/#organization` },
-    image: `${company.url}${e.portrait.src}`,
-    hasCredential: [
-      { '@type': 'EducationalOccupationalCredential', credentialCategory: 'license', name: 'Professional Engineer (P.E.), State of Florida', ...(e.license ? { identifier: e.license.number, url: e.license.url } : {}) },
-      { '@type': 'EducationalOccupationalCredential', credentialCategory: 'degree', name: 'Master in Construction Project Management' },
-      { '@type': 'EducationalOccupationalCredential', credentialCategory: 'degree', name: 'Civil Engineer' },
-    ],
-    knowsAbout: e.focus,
-    ...(e.linkedin ? { sameAs: [e.linkedin] } : {}),
-  };
+  // No Person schema and no team since 2026-10-26 (the owner: "no pongas mi
+  // nombre, somos empresa"): the page is the firm's.
 
   return (
-    <>
+    <div className="mp-plates mp-dark">
       <JsonLd data={breadcrumbLd(lang, [{ name: c.ui.home, path: '/' }, { name: navLabel, path: '/about' }])} />
-      <JsonLd data={personLd} />
 
       <PageHero
         eyebrow={p.eyebrow}
@@ -71,11 +50,9 @@ export function AboutView({ lang }: { lang: Lang }) {
         photo={imagery.pages.about}
       />
 
-      <TeamGrid n="01" lang={lang} />
-
-      <section className="mp-section mp-surface--concrete mp-about-how" aria-labelledby="mp-about-how-title">
+      <section className="mp-section mp-surface--paper mp-about-how" aria-labelledby="mp-about-how-title">
         <div className="mp-shell">
-          <SectionHeading n="02" label={p.approach.eyebrow} />
+          <SectionHeading n="01" label={p.approach.eyebrow} />
           <div className="mp-split">
             <Reveal>
               <h2 id="mp-about-how-title" className="mp-split__title">
@@ -108,11 +85,39 @@ export function AboutView({ lang }: { lang: Lang }) {
           one list, the contractor's numbers still links to the state's
           search. The block with the two cards is the home page's. Paper, so
           it does not sit concrete on concrete after section 02. */}
+      {/* What working with the firm means: the three rows that stood under
+          the team grid (leadership.forYou), in the firm's voice. */}
+      <section className="mp-section mp-surface--concrete" aria-labelledby="mp-about-for-title">
+        <div className="mp-shell">
+          <SectionHeading n="02" label={c.ui.engineer.forYou} />
+          <div className="mp-intro">
+            <Reveal>
+              <h2 id="mp-about-for-title" className="mp-intro__title">
+                {p.forYouTitle}
+              </h2>
+            </Reveal>
+            <Reveal delay={0.05}>
+              <p className="mp-intro__lede">{p.forYouLede}</p>
+            </Reveal>
+          </div>
+          <Reveal delay={0.06}>
+            <ul className="mp-pillars mp-pillars--strip">
+              {c.leadership.forYou.map((row) => (
+                <li key={row.k}>
+                  <b>{row.k}</b>
+                  <span>{row.v}</span>
+                </li>
+              ))}
+            </ul>
+          </Reveal>
+        </div>
+      </section>
+
       <PartnerSection n="03" lang={lang} variant="about" surface="paper" />
 
       {/* The default secondary ("Meet the Team" → /about#team) would point
           back up this same page. */}
-      <ContactCTA secondary={{ href: '/services', label: c.ui.seeAllServices }} notice={false} />
-    </>
+      <HomeContact closing lang={lang} notice={false} />
+    </div>
   );
 }

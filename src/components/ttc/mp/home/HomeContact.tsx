@@ -3,7 +3,7 @@ import { getContent } from '@/lib/ttc/content';
 import type { Lang } from '@/lib/ttc/i18n';
 import { ContactForm } from '../ContactForm';
 import { Reveal } from '../primitives';
-import { whatsappHomeHref } from '../ReachRow';
+import { whatsappHomeHref, whatsappHref } from '../ReachRow';
 import { Arrow } from './glyphs';
 import { Words } from './Words';
 
@@ -38,10 +38,30 @@ import { Words } from './Words';
  *
  * A SERVER COMPONENT wrapping one client island (the form).
  */
-export function HomeContact({ lang }: { lang: Lang }) {
+export function HomeContact({
+  lang,
+  presetService,
+  notice,
+  closing = false,
+}: {
+  lang: Lang;
+  /** On an inner page: the plate closes the page and carries `mp-close`,
+      the name the band it replaced had (the tests cut the closing band
+      out of a page by it). */
+  closing?: boolean;
+  /** On an inner page (2026-10-26, the owner: "en todas las páginas pon el
+      Get in touch con el formulario"): the service the page is about, so
+      the form sends it without a select. Absent on the home. */
+  presetService?: string;
+  /** Whether the page's reader holds a county notice (site.ts
+      `holdsNotice`): the WhatsApp line then opens the chat with the notice.
+      Absent on the home, whose line names no notice and no proposal. */
+  notice?: boolean;
+}) {
   const c = getContent(lang);
   const h = c.home.contact;
-  const wa = whatsappHomeHref(c);
+  const wa = notice === undefined ? whatsappHomeHref(c) : whatsappHref(c, !notice);
+  const waText = notice ? c.reach.whatsappNotice : c.reach.whatsappPlain;
 
   const lines: { key: string; label: string; value: string; href?: string; external?: boolean }[] = [];
   /* No Call line (the owner, 2026-10-26: "no quiero ver Call"): WhatsApp,
@@ -50,7 +70,7 @@ export function HomeContact({ lang }: { lang: Lang }) {
     lines.push({
       key: 'whatsapp',
       label: h.whatsapp,
-      value: c.reach.whatsappPlain,
+      value: waText,
       href: wa,
       external: true,
     });
@@ -59,7 +79,7 @@ export function HomeContact({ lang }: { lang: Lang }) {
   lines.push({ key: 'where', label: h.where, value: h.whereValue });
 
   return (
-    <section id="contact" className="h-plate h-contact mp-surface--graphite" aria-labelledby="h-contact-h">
+    <section className={`h-plate h-contact mp-surface--graphite${closing ? ' mp-close' : ''}`} id="contact" aria-labelledby="h-contact-h">
       <div className="h-wrap">
         <Reveal as="p" fx="up" className="h-label">
           {h.label}
@@ -73,7 +93,7 @@ export function HomeContact({ lang }: { lang: Lang }) {
 
         <div className="h-contact__grid">
           <Reveal fx="up" className="h-contact__form">
-            <ContactForm variant="home" />
+            <ContactForm variant="home" presetService={presetService} />
           </Reveal>
 
           {/* The lines fade up (E9), 0.2 s after the form. */}

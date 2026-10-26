@@ -8,6 +8,15 @@ import { OG_IMAGE, brandedTitle } from '@/components/ttc/views/meta';
 import { ADS } from '@/lib/ttc/ads';
 import { absoluteUrl, company } from '@/lib/ttc/site';
 import '@/app/(public)/mp.css';
+/* The home's plate language (home.css, home-lower.css, home-motion.css,
+   scoped under `.mp-plates`) and the inner pages' dark skin (dark.css,
+   under `.mp-dark`), 2026-10-26: the redesigned views wrap their page in
+   `mp-plates mp-dark`; the home in `mp-home mp-plates`; the calculators in
+   neither, and keep the paper pages. After mp.css, so they win ties. */
+import '@/app/(public)/home.css';
+import '@/app/(public)/home-lower.css';
+import '@/app/(public)/home-motion.css';
+import '@/app/(public)/dark.css';
 
 /* ── The public site's shell ──────────────────────────────────────────────
    Fonts, the stylesheet, structured data, smooth scroll and the chrome — and

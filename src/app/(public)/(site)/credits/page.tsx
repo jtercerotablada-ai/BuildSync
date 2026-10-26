@@ -47,7 +47,7 @@ export const metadata: Metadata = {
  */
 export default function CreditsPage() {
   return (
-    <>
+    <div className="mp-plates mp-dark">
       <PageHero
         eyebrow={ui.legalPages.legal}
         crumbs={[{ href: '/', label: ui.home }, { label: TITLE }]}
@@ -108,6 +108,6 @@ export default function CreditsPage() {
           },
         ]}
       />
-    </>
+    </div>
   );
 }

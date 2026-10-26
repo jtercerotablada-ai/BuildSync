@@ -37,7 +37,7 @@ export function NotFoundView({ lang }: { lang: Lang }) {
   const l = (href: string) => localePath(href, lang);
 
   return (
-    <>
+    <div className="mp-plates mp-dark">
       <PageHero eyebrow={t.eyebrow} titleLines={[t.title]} sub={t.sub} />
 
       <section className="mp-section mp-surface--paper">
@@ -58,7 +58,7 @@ export function NotFoundView({ lang }: { lang: Lang }) {
           </p>
         </div>
       </section>
-    </>
+    </div>
   );
 }
 

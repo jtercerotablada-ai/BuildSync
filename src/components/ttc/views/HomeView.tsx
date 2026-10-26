@@ -8,9 +8,9 @@ import { HomeServices } from '@/components/ttc/mp/home/HomeServices';
 import { HomeStatement } from '@/components/ttc/mp/home/HomeStatement';
 import { HomeTypes } from '@/components/ttc/mp/home/HomeTypes';
 import { Parallax } from '@/components/ttc/mp/home/Parallax';
-import '@/app/(public)/home.css';
-import '@/app/(public)/home-lower.css';
-import '@/app/(public)/home-motion.css';
+/* home.css, home-lower.css and home-motion.css are PublicShell's now
+   (2026-10-26): their plate language is shared with the redesigned inner
+   pages under `.mp-plates`; `.mp-home` stays the home's own hook. */
 import { HomeAddress } from './meta';
 
 /**
@@ -59,7 +59,7 @@ import { HomeAddress } from './meta';
  */
 export function HomeView({ lang }: { lang: Lang }) {
   return (
-    <div className="mp-home" data-lang={lang}>
+    <div className="mp-home mp-plates" data-lang={lang}>
       <HomeAddress lang={lang} />
       <Parallax />
       <HomeHero lang={lang} />

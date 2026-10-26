@@ -4,7 +4,7 @@ import { absoluteUrl, imagery } from '@/lib/ttc/site';
 import { localePath, type Lang } from '@/lib/ttc/i18n';
 import { COST_PATH, costPage } from '@/lib/ttc/cost-page';
 import { PageHero } from '@/components/ttc/mp/PageHero';
-import { ContactCTA } from '@/components/ttc/mp/ContactCTA';
+import { HomeContact } from '@/components/ttc/mp/home/HomeContact';
 import { Reveal, SectionHeading, TextLink } from '@/components/ttc/mp/primitives';
 import { accentLines, keepHyphens } from '@/components/ttc/mp/text';
 import { breadcrumbLd, JsonLd } from './meta';
@@ -86,7 +86,7 @@ export function CostView({ lang }: { lang: Lang }) {
   };
 
   return (
-    <>
+    <div className="mp-plates mp-dark">
       <JsonLd data={ld} />
       <JsonLd
         data={breadcrumbLd(lang, [
@@ -275,7 +275,7 @@ export function CostView({ lang }: { lang: Lang }) {
         </div>
       </section>
 
-      <ContactCTA />
-    </>
+      <HomeContact closing lang={lang} />
+    </div>
   );
 }

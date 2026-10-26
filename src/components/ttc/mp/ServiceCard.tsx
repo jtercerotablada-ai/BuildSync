@@ -6,18 +6,16 @@ import { imagery, type Service } from '@/lib/ttc/site';
 import type { SiteContent } from '@/lib/ttc/content';
 import { Img } from './media';
 import { Reveal } from './primitives';
+import { Arrow, Diamond } from './home/glyphs';
 import { useContent, useL } from './lang';
 
 type Svc = SiteContent['services'][number] | Service;
 
 /**
- * "Details" stays where it was pressed. While one row is open the two
- * columns stop sharing row heights (mp.css, `.mp-tracks:has(...)`), so a
- * row whose rows above had been stretched by the column beside it moves up
- * when it opens — the last rows of New projects, 121px at 1440 in English
- * and 218px in Spanish (2026-10-20) — and back down when it closes. The
- * page scrolls by what the control moved, in the same task, before anything
- * is painted. A keyboard Enter or Space on a summary is a click too.
+ * "Details" stays where it was pressed: the page scrolls by what the control
+ * moved, in the same task, before anything is painted (a card that opens
+ * above the fold would otherwise push its own summary down the screen). A
+ * keyboard Enter or Space on a summary is a click too.
  */
 function keepInPlace(e: React.MouseEvent<HTMLElement>) {
   const summary = e.currentTarget;
@@ -31,34 +29,28 @@ function keepInPlace(e: React.MouseEvent<HTMLElement>) {
 }
 
 /**
- * One service as a row of the /services index: a small photograph, the name
- * (the link to the service's page), one line on what it is, the first step
- * in the client's terms and the link that takes it. The service's page
- * carries the full lists; this row is how a reader finds the right one.
+ * One service on /services, as THE HOME'S CARD (HomeServices.tsx; the owner,
+ * 2026-10-26: "esas imágenes del services horrible… tiene que ser claro,
+ * lindo", the home being his standard): the photograph at 3/2, the track
+ * tag, the service's name as the link, one line, the ring. The small
+ * thumbnail row it replaces (a 9rem picture beside four lines of small
+ * print) is gone.
  *
- * ONE LINK PER ACTION. The row used to end in a "See This Service" link
- * under a title that already opened the same page, on all eight cards. The
- * title is the only way to the page now, and the row's other link is the
- * step: the proposal form with this service preselected.
+ * Under the home's card, what the home's card does not need: the first step
+ * in the reader's terms (`service.card.next`), the quiet link that takes it
+ * (the proposal form with this service preselected; a county program's own
+ * label names the notice) and the fold with the three other answers — when
+ * you need it, what is included, what you receive — closed by default and
+ * still in the server HTML (each card line is printed on /services once,
+ * shared-text.test.ts, and a crawler reads them).
  *
- * THE THREE OTHER ANSWERS ARE IN A <details>. "When you need it", "What's
- * included" and "What you receive" were four ruled rows of small print on
- * every card, half of each card's height. They are one tap away, closed by
- * default, and still in the server HTML: each card line is printed on
- * /services once (shared-text.test.ts), and a crawler reads them.
- *
- * EVERY LINE ON THE ROW IS THE ROW'S OWN. The summary and `service.card`
- * (site.ts) are written for this page and printed nowhere else; the
- * service's page has its own first line (`heroSub`) and its own lists. The
- * row is rendered on /services only — /existing-buildings has its own card
- * (SituationCard), which shares the base `.mp-svc` frame.
- *
- * THE PHOTOGRAPH IS NOT A LINK OF ITS OWN. The title's link reaches over it
- * (its `::after`, mp.css `.mp-svc__title a::after`): a click on
- * the picture still opens the page, and the page is linked by its name. The
- * arrow after the title is CSS, so the heading's text stays the name.
+ * THE LINK IS THE TITLE AND THE WHOLE CARD IS THE TARGET: the title's `<a>`
+ * stretches its `::after` over the card (home.css, `.h-card__link::after`).
+ * The foot sits ABOVE that layer (dark.css, `.h-svc__foot`), so its own
+ * link and the fold's summary can be pressed; nothing else in the card is a
+ * link, and the photograph is `aria-hidden` with its alt in the catalogue.
  */
-export function ServiceCard({ service, index }: { service: Svc; index?: number }) {
+export function ServiceCard({ service, track }: { service: Svc; index?: number; track: string }) {
   const c = useContent();
   const l = useL();
   const u = c.ui;
@@ -67,43 +59,58 @@ export function ServiceCard({ service, index }: { service: Svc; index?: number }
   const contactHref = l(`/contact?service=${service.slug}`);
 
   return (
-    <Reveal as="div" delay={((index ?? 0) % 4) * 0.05} className="mp-svc mp-svc--row">
-      <div className="mp-svc__media">
-        {/* A thumbnail: 9rem wide, 6rem on a phone and in the narrower
-            two-column widths (mp.css). The smallest rendition in the srcset
-            is 900w, so even a retina screen no longer pulls the 2000w
-            master that "50vw" asked for. */}
-        <Img photo={imagery.services[service.slug]} sizes="(max-width: 720px) 96px, 144px" />
-      </div>
-      <div className="mp-svc__body">
-        <h3 className="mp-svc__title">
-          <Link href={href}>{service.title}</Link>
+    <article className="h-card h-svc" style={{ '--ar': '3 / 2' } as React.CSSProperties}>
+      <Reveal fx="img" className="h-ph">
+        <div className="h-ph__in">
+          <Img photo={imagery.services[service.slug]} sizes="(min-width: 900px) 44vw, 92vw" />
+        </div>
+      </Reveal>
+      <div className="h-card__meta">
+        <p className="h-track">
+          <Diamond />
+          {track}
+        </p>
+        <h3 className="h-card__title">
+          <Link className="h-card__link" href={href}>
+            {service.title}
+          </Link>
         </h3>
-        <p className="mp-svc__summary">{service.summary}</p>
+        <p className="h-card__line">{service.summary}</p>
+        <span className="h-ring" aria-hidden="true">
+          <Arrow up />
+        </span>
+      </div>
+
+      <div className="h-svc__foot">
         {/* The first step, in the reader's terms ("a photo from your phone
             will do"), right above the link that takes it. */}
-        <p className="mp-svc__step">{service.card.next}</p>
+        <p className="h-svc__step">{service.card.next}</p>
         {/* A county program's own label already names what to send and
             where ("Send the Miami-Dade Notice"). The generic one repeats on
-            six rows, so it carries a hidden suffix that names the service
+            four cards, so it carries a hidden suffix that names the service
             in a screen reader's list of links. */}
-        <Link href={contactHref} className="mp-link mp-svc__next">
-          {service.program ? (
-            service.program.cta
-          ) : (
-            <>
-              {u.requestProposal}
-              <span className="mp-sr-only">: {service.title}</span>
-            </>
-          )}{' '}
-          <i aria-hidden="true">→</i>
+        <Link href={contactHref} className="h-link">
+          <span>
+            {service.program ? (
+              service.program.cta
+            ) : (
+              <>
+                {u.requestProposal}
+                <span className="mp-sr-only">: {service.title}</span>
+              </>
+            )}
+          </span>
+          <Arrow />
         </Link>
-        <details className="mp-svc__more">
-          <summary className="mp-svc__toggle" onClick={keepInPlace}>
-            {c.servicesPage.cardMore}
-            <span className="mp-sr-only">: {service.title}</span>
+        <details className="h-fold">
+          <summary className="h-fold__sum" onClick={keepInPlace}>
+            <span>
+              {c.servicesPage.cardMore}
+              <span className="mp-sr-only">: {service.title}</span>
+            </span>
+            <span className="h-fold__plus" aria-hidden="true" />
           </summary>
-          <dl className="mp-svc__qa">
+          <dl className="h-fold__qa">
             <div>
               <dt>{u.whenYouNeedIt}</dt>
               <dd>{service.card.when}</dd>
@@ -112,7 +119,7 @@ export function ServiceCard({ service, index }: { service: Svc; index?: number }
               <dt>{u.whatsIncluded}</dt>
               {/* A no-break space before each dot, so a line never opens
                   with "·". */}
-              <dd>{service.capabilities.join(' · ')}</dd>
+              <dd>{service.capabilities.join(' · ')}</dd>
             </div>
             <div>
               <dt>{u.whatYouReceive}</dt>
@@ -121,6 +128,6 @@ export function ServiceCard({ service, index }: { service: Svc; index?: number }
           </dl>
         </details>
       </div>
-    </Reveal>
+    </article>
   );
 }

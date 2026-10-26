@@ -82,13 +82,13 @@ export const SEO: Record<Lang, Record<Pages, PageSeo>> = {
         'Typical structural engagements in South Florida: building type, structural system, scope and deliverables for new and existing buildings.',
     },
     about: {
-      // The engineer by name, then the trade and the place. No brand after
-      // it, whatever the width: "Tercero" twice in one title is what the
-      // check reports as word repetition.
-      title: 'Juan Tercero, PE., M.Sc. — Structural Engineer, South Florida',
+      // The firm, not a person (the owner, 2026-10-26: "somos empresa"). No
+      // brand after it: "Tercero" twice in one title is what the check
+      // reports as word repetition.
+      title: 'About the Firm — Licensed Engineers in Florida',
       description:
-        'Tercero Tablada Civil and Structural Engineering Inc.: one accountable team for structural design and building recertification in Miami-Dade and Broward.',
-      keywords: ['Juan Tercero PE', 'structural engineer Miami', 'Florida professional engineer structural'],
+        'Tercero Tablada Civil and Structural Engineering Inc.: licensed civil, structural and electrical engineers who inspect, assess and review buildings across Florida.',
+      keywords: ['structural engineering firm Florida', 'structural engineer Miami', 'Florida professional engineer structural'],
     },
     contact: {
       title: 'Request a Structural Engineering Proposal in South Florida',
@@ -129,10 +129,10 @@ export const SEO: Record<Lang, Record<Pages, PageSeo>> = {
     about: {
       // "en Florida", where English says "South Florida": with "Sur de
       // Florida" this title is 578 px, and a result shows 580.
-      title: 'Juan Tercero, PE., M.Sc. — Ingeniero estructural en Florida',
+      title: 'Sobre la firma — Ingenieros licenciados en Florida',
       description:
-        'Tercero Tablada Civil and Structural Engineering Inc.: un solo equipo para el diseño estructural y la recertificación de edificios en Miami-Dade y Broward.',
-      keywords: ['Juan Tercero PE', 'ingeniero estructural Miami', 'ingeniero profesional Florida estructural'],
+        'Tercero Tablada Civil and Structural Engineering Inc.: ingenieros licenciados que inspeccionan, evalúan y revisan edificios en toda Florida.',
+      keywords: ['firma de ingeniería estructural Florida', 'ingeniero estructural Miami', 'ingeniero profesional Florida estructural'],
     },
     contact: {
       title: 'Solicitar propuesta de ingeniería estructural — Sur de Florida',

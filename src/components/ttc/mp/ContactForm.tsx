@@ -258,12 +258,17 @@ export function ContactForm({
   const home = variant === 'home';
   const [f, setF] = useState<Fields>(() => ({
     ...EMPTY,
-    // The home asks for no service: it sends the last option, "Other / not
-    // sure yet", which the route accepts like any other.
-    service: home ? c.contactServiceOptions[c.contactServiceOptions.length - 1] : presetOption(presetService, c),
+    // The home variant shows no service select. On the home itself it sends
+    // the last option, "Other / not sure yet", which the route accepts like
+    // any other; on an inner page (the same plate closes every page since
+    // 2026-10-26) it sends the page's own service when one is given.
+    service: home ? presetOption(presetService, c) || c.contactServiceOptions[c.contactServiceOptions.length - 1] : presetOption(presetService, c),
   }));
   // Read once, on the first render, when `f.service` is still the preset.
-  const [noticeFirst] = useState(() => isProgramOption(f.service));
+  // Never in the home variant: the plate that closes every page (2026-10-26)
+  // keeps the home's order, the fields first and the attachments last, even
+  // when it carries a county program's service.
+  const [noticeFirst] = useState(() => !home && isProgramOption(f.service));
   // What mp.css reads (`:has([data-mp-notice-first])`) to shorten the page
   // above the form. On the form AND on the success block that replaces it,
   // so the hero does not change height at the moment the request is sent.

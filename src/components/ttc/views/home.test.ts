@@ -662,7 +662,9 @@ function divAt(markup: string, start: number): string {
 }
 /** A `<section id="…">`, whole. */
 function section(markup: string, id: string): string {
-  const open = markup.indexOf(`<section id="${id}"`);
+  // The id may follow the class (the contact plate prints its class first
+  // since 2026-10-26, so the inner pages' tests can cut it out by name).
+  const open = markup.search(new RegExp(`<section(?: [a-z-]+="[^"]*")* id="${id}"`));
   expect(open, `section #${id}`).toBeGreaterThanOrEqual(0);
   return markup.slice(open, markup.indexOf('</section>', open) + '</section>'.length);
 }
@@ -721,8 +723,10 @@ for (const lang of LANGS) {
 
     it('carries the page language on its root, so the headlines are sized per locale', () => {
       // (React hoists HomeAddress's canonical and hreflang links above the root.)
-      expect(markup).toContain(`<div class="mp-home" data-lang="${lang}">`);
-      expect(markup.match(/class="mp-home"/g)).toHaveLength(1);
+      // `.mp-plates` is the plate language the inner pages share since
+      // 2026-10-26; `.mp-home` is the home's own hook.
+      expect(markup).toContain(`<div class="mp-home mp-plates" data-lang="${lang}">`);
+      expect(markup.match(/class="mp-home mp-plates"/g)).toHaveLength(1);
     });
 
     // Spec item 10 (and ads-pages.test.ts: no executable script on any page).

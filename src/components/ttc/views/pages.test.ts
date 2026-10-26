@@ -195,11 +195,11 @@ describe('images: every <img> the public pages send', () => {
       const spoken = imgs(html)
         .filter((tag) => attr(tag, 'aria-hidden') !== 'true')
         .map((tag) => attr(tag, 'src'));
-      // The team's portraits are content too: they are read out where
-      // TeamGrid renders them — /about, their only page.
+      // No portraits since 2026-10-26: the site speaks as a company (the
+      // owner: "no pongas mi nombre, somos empresa"), and /about has no team
+      // grid.
       const c = getContent(lang);
-      const portrait = path === '/about' ? c.aboutPage.team.members.map((m) => m.photo.src) : [];
-      expect(spoken).toEqual([...portrait, c.company.logo.lockupLightSm]);
+      expect(spoken).toEqual([c.company.logo.lockupLightSm]);
     });
   }
 
@@ -276,7 +276,8 @@ describe('links: the text of a link is the name of where it goes', () => {
     it(`${lang}: a service card's photograph is not a second link`, () => {
       expect(html).not.toMatch(/<a\b[^>]*class="[^"]*mp-svc__media/);
       // …and the link that reaches over it is the card's title, by name.
-      const titles = [...html.matchAll(/<h3 class="mp-svc__title">([\s\S]*?)<\/h3>/g)].flatMap(
+      // The home's card since 2026-10-26 (ServiceCard): the title carries the link.
+      const titles = [...html.matchAll(/<h3 class="h-card__title">([\s\S]*?)<\/h3>/g)].flatMap(
         (m) => links(m[1]).map((a) => `${a.href} ${a.text}`),
       );
       expect(titles.sort()).toEqual(
@@ -564,28 +565,34 @@ describe('county program pages: no paragraph is printed twice', () => {
       // The closing band's button is the page's button: "Send the Miami-Dade
       // Notice", the label of the hero's and the timing table's, not a
       // generic "Request a Proposal" for the same form.
-      it(`${slug} (${lang}): the closing band's button names the county's notice`, () => {
+      // Since 2026-10-26 the page closes with the home's contact plate — the
+      // real form, in the home's skin, with this program's service already
+      // chosen — and its WhatsApp line names the notice (the owner: "en
+      // todas las páginas pon el Get in touch con el formulario").
+      it(`${slug} (${lang}): the page closes with the contact plate, its WhatsApp line naming the notice`, () => {
         const close = main.match(/<section class="[^"]*mp-close[^"]*"[\s\S]*?<\/section>/)![0];
-        const button = close.match(/<a class="mp-btn[^"]*"[^>]*><span>([\s\S]*?)<\/span>/)!;
-        expect(text(button[1])).toBe(text(esc(service.program!.cta)));
-        expect(button[0]).toContain(`href="${esc(localePath(`/contact?service=${slug}`, lang))}"`);
-        expect(close).not.toContain(`>${esc(c.closingCta.primary.label)}<`);
+        expect(close).toContain('class="h-plate h-contact mp-surface--graphite mp-close"');
+        expect(close).toContain('data-variant="home"');
+        expect(close).toContain(esc(r.whatsappNotice));
+        // The one button in it is the form's own "Send request".
+        expect(close).toContain('<form');
+        expect(close).not.toContain(`href="${esc(localePath(`/contact?service=${slug}`, lang))}"`);
       });
 
-      it(`${slug} (${lang}): the free-proposal facts are said once, in the closing band's text`, () => {
+      it(`${slug} (${lang}): the free-proposal facts are printed under no button, and the old band's text nowhere`, () => {
         expect(main).not.toContain('mp-reach__assure');
         expect(count(r.reply)).toBe(0);
-        expect(count(c.closingCta.body)).toBe(1);
-        const close = main.match(/<section class="[^"]*mp-close[^"]*"[\s\S]*?<\/section>/)![0];
-        expect(close).toContain(`<p class="mp-close__body">${esc(c.closingCta.body)}</p>`);
+        expect(count(c.closingCta.body)).toBe(0);
       });
 
       // 3. WhatsApp beside each of the three buttons, as a link and not as a
       //    <p> (ReachRow). The Call link that stood beside it went on
       //    2026-10-26 (the owner: "no quiero ver Call").
       it(`${slug} (${lang}): WhatsApp is beside each button, as a link and not as a paragraph`, () => {
+        // Two buttons since 2026-10-26 (the hero's and the deadline's); the
+        // contact plate that closes the page has its own WhatsApp line.
         const pairs = [...main.matchAll(/<(\w+) class="mp-reach__links">([\s\S]*?)<\/\1>/g)];
-        expect(pairs).toHaveLength(3);
+        expect(pairs).toHaveLength(2);
         for (const [, tag, inner] of pairs) {
           expect(tag).toBe('div');
           expect(links(inner).map((a) => a.text)).toEqual([text(esc(r.whatsappNotice))]);
@@ -593,29 +600,13 @@ describe('county program pages: no paragraph is printed twice', () => {
         }
       });
 
-      // 4. The engineer's credential. Whole under the hero: name, the
-      //    credential in letters and the firm's registration — no number
-      //    and no link since 2026-10-24 (the owner: as the large firms do).
-      //    "Next step" printed the same two lines again; it now prints who
-      //    reads the notice — the name — and nothing else.
-      it(`${slug} (${lang}): the engineer's credential is whole under the hero and brief in "Next step"`, () => {
-        const e = c.leadership;
-        const blocks = main.match(/<dl class="mp-cred[^"]*">[\s\S]*?<\/dl>/g) ?? [];
-        expect(blocks).toHaveLength(2);
-        const whole = blocks[0] ?? '';
-        const brief = blocks[1] ?? '';
-        for (const block of blocks) {
-          expect(block).toContain(esc(e.name));
-          expect(text(block)).not.toMatch(/\d{4,}/);
-          expect(links(block)).toEqual([]);
-        }
-        expect(whole).toContain(esc(e.credential));
-        expect(whole).toContain(esc(c.company.registry!));
-        expect(brief).not.toContain(esc(e.credential));
-        expect(brief).not.toContain(esc(c.company.registry!));
-        // The brief one is the one in the box, after the hero's.
-        expect(main.indexOf(brief)).toBeGreaterThan(main.indexOf('mp-callout--next'));
-        expect(main.indexOf(whole)).toBeLessThan(main.indexOf('mp-callout--next'));
+      // 4. No engineer's name anywhere on the page (the owner, 2026-10-26:
+      //    "no pongas mi nombre, somos empresa"): the credential block that
+      //    stood under the hero and in "Next step" is gone.
+      it(`${slug} (${lang}): no engineer is named — the firm answers`, () => {
+        expect(main.match(/<dl class="mp-cred[^"]*">[\s\S]*?<\/dl>/g) ?? []).toHaveLength(0);
+        expect(text(main)).not.toContain(c.leadership.name);
+        expect(text(main)).not.toContain(c.leadership.firstName);
       });
 
       /* ZERO, with nothing set aside: counted over every <p>, <dd> and <li>
@@ -629,33 +620,26 @@ describe('county program pages: no paragraph is printed twice', () => {
     }
   }
 
-  // Every closing band says the two facts in its text, at reading size, and
-  // no page prints them as a small line under a button.
-  it('the closing band says the free proposal and the reply time in its text, on every page', () => {
+  // Every page that closed with the band closes with the home's contact
+  // plate since 2026-10-26: the real form, in the home's skin. No page prints
+  // the two facts as a small line under a button, and the band's text is
+  // printed nowhere.
+  it('every page that closed with the band closes with the contact plate, the form in it', () => {
     const closed: string[] = [];
     for (const { lang, path, html } of pages.values()) {
       const c = getContent(lang);
       expect(html, `${lang} ${path}`).not.toContain('mp-reach__assure');
+      expect(html, `${lang} ${path}`).not.toContain(esc(c.closingCta.body));
       const close = html.match(/<section class="[^"]*mp-close[^"]*"[\s\S]*?<\/section>/)?.[0];
-      // /contact, the legal pages, the 404, the calculators catalogue and
-      // the calculators have no closing band.
+      // /contact (its own form), the legal pages, the 404, the calculators
+      // catalogue and the calculators have no closing plate.
       if (!close) continue;
       closed.push(`${lang} ${path}`);
-      const body = close.match(/<p class="mp-close__body">([\s\S]*?)<\/p>/)?.[1] ?? '';
-      expect(body, `${lang} ${path}`).toBe(esc(c.closingCta.body));
-    }
-    for (const [lang, free, reply] of [
-      ['en', 'free written proposal', 'usually within two hours'],
-      ['es', 'propuesta gratis', 'normalmente en menos de dos horas'],
-    ] as const) {
-      expect(getContent(lang).closingCta.body).toContain(free);
-      expect(getContent(lang).closingCta.body).toContain(reply);
+      expect(close, `${lang} ${path}`).toContain('h-contact');
+      expect(close, `${lang} ${path}`).toContain('data-variant="home"');
     }
     // Services, Existing Buildings, About, Typical Engagements and the six
-    // services, in each language — and every city page. The home page has no
-    // closing band any more: its last plate is the contact block ("Get in
-    // touch", with the form), and says neither the free proposal nor a reply
-    // time (views/home.test.ts).
+    // services, in each language — and every city page.
     expect(closed).toHaveLength(20 + LANGS.reduce((n, lang) => n + getCityPages(lang).length, 0));
   });
 });

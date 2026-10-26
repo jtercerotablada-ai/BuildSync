@@ -11,12 +11,13 @@ import { photo, type Photo } from '@/lib/ttc/media';
 import { Img } from '@/components/ttc/mp/media';
 import { LegalDoc } from '@/components/ttc/mp/LegalDoc';
 import { PageHero, type HeroAction } from '@/components/ttc/mp/PageHero';
-import { ContactCTA } from '@/components/ttc/mp/ContactCTA';
-import { EngineerCredential } from '@/components/ttc/mp/EngineerCredential';
+import { HomeContact } from '@/components/ttc/mp/home/HomeContact';
 import { ReachRow } from '@/components/ttc/mp/ReachRow';
 import { Dated, Source } from '@/components/ttc/mp/Outbound';
 import { accentLines } from '@/components/ttc/mp/text';
-import { SectionHeading } from '@/components/ttc/mp/primitives';
+import { Reveal, SectionHeading } from '@/components/ttc/mp/primitives';
+import { Arrow, Diamond } from '@/components/ttc/mp/home/glyphs';
+import { Words } from '@/components/ttc/mp/home/Words';
 import { breadcrumbLd, JsonLd } from './meta';
 
 /**
@@ -168,7 +169,7 @@ export function GuideView({ lang, slug }: { lang: Lang; slug: string }) {
   };
 
   return (
-    <>
+    <div className="mp-plates mp-dark">
       <JsonLd data={ld} />
       <JsonLd
         data={breadcrumbLd(lang, [
@@ -190,7 +191,6 @@ export function GuideView({ lang, slug }: { lang: Lang; slug: string }) {
             credential after them: it used to sit between the button and
             the two links. */}
         <ReachRow c={c} plain={!notice} />
-        <EngineerCredential lang={lang} brief />
       </PageHero>
 
       {/* The answer, the questions and the links on: one document, laid out
@@ -281,8 +281,8 @@ export function GuideView({ lang, slug }: { lang: Lang; slug: string }) {
         </nav>
       </LegalDoc>
 
-      <ContactCTA service={g.programs.length === 1 ? own.slug : undefined} notice={notice} />
-    </>
+      <HomeContact closing lang={lang} presetService={g.programs.length === 1 ? own.slug : undefined} notice={notice} />
+    </div>
   );
 }
 
@@ -299,7 +299,6 @@ export function GuidesView({ lang }: { lang: Lang }) {
   const l = (href: string) => localePath(href, lang);
   const list = getGuides(lang);
   const pageUrl = absoluteUrl(l(GUIDES_PATH));
-  const rows = Math.ceil(list.length / 2);
 
   const ld = {
     '@context': 'https://schema.org',
@@ -323,7 +322,7 @@ export function GuidesView({ lang }: { lang: Lang }) {
   };
 
   return (
-    <>
+    <div className="mp-plates mp-dark">
       <JsonLd data={ld} />
       <JsonLd
         data={breadcrumbLd(lang, [
@@ -338,26 +337,45 @@ export function GuidesView({ lang }: { lang: Lang }) {
         sub={idx.sub}
         photo={imagery.pages.guides}
       />
-      <section className="mp-section mp-surface--paper" aria-labelledby="mp-guides-list">
-        <div className="mp-shell">
-          <SectionHeading n="01" label={idx.listLabel} />
-          <h2 id="mp-guides-list" className="mp-intro__title">
-            {idx.listTitle}
-          </h2>
-          <ol
-            className="mp-guides mp-guides--index"
-            style={{ '--mp-guides-rows': String(rows) } as React.CSSProperties}
-          >
-            {list.map((g, i) => (
-              <li key={g.slug} className={i === rows ? 'mp-guides__col2' : undefined}>
-                <div className="mp-guides__photo">
-                  <Img photo={GUIDE_PHOTO[g.slug]} sizes="(max-width: 900px) 6rem, 10rem" />
+      {/* The list, as the home's cards (2026-10-26; the thumbnail rows went
+          with the services page's): the photograph at 3/2, the county the
+          guide covers as the tag, the name as the link, its line, the ring.
+          Three to a row, in the guides' own order. */}
+      <section className="h-plate mp-surface--graphite" aria-labelledby="mp-guides-list">
+        <div className="h-wrap">
+          <header className="h-head">
+            <div className="h-head__top">
+              <Reveal as="p" fx="up" className="h-label">
+                {idx.listLabel}
+              </Reveal>
+            </div>
+            <Reveal as="h2" fx="words" id="mp-guides-list" className="h-h2">
+              <Words text={idx.listTitle} />
+            </Reveal>
+          </header>
+          <ol className="h-tgrid h-tgrid--guides">
+            {list.map((g) => (
+              <li key={g.slug} className="h-card h-type">
+                <Reveal fx="img" className="h-ph" style={{ '--ar': '3 / 2' } as React.CSSProperties}>
+                  <div className="h-ph__in">
+                    <Img photo={GUIDE_PHOTO[g.slug]} sizes="(min-width: 900px) 30vw, (min-width: 561px) 46vw, 92vw" />
+                  </div>
+                </Reveal>
+                <div className="h-card__meta">
+                  <p className="h-track">
+                    <Diamond />
+                    {g.programs.map((p) => PLACE[p][lang]).join(' · ')}
+                  </p>
+                  <h3 className="h-card__title h-type__title">
+                    <Link href={l(guidePath(g.slug))} className="h-card__link">
+                      {g.name}
+                    </Link>
+                  </h3>
+                  <p className="h-card__line">{g.card}</p>
+                  <span className="h-ring" aria-hidden="true">
+                    <Arrow up />
+                  </span>
                 </div>
-                <span className="mp-guides__where">{g.programs.map((p) => PLACE[p][lang]).join(' · ')}</span>
-                <h3>
-                  <Link href={l(guidePath(g.slug))}>{g.name}</Link>
-                </h3>
-                <p>{g.card}</p>
               </li>
             ))}
           </ol>
@@ -383,7 +401,7 @@ export function GuidesView({ lang }: { lang: Lang }) {
           </div>
         </div>
       </section>
-      <ContactCTA />
-    </>
+      <HomeContact closing lang={lang} />
+    </div>
   );
 }

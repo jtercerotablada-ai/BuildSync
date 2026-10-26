@@ -5,7 +5,7 @@ import type { Lang } from '@/lib/ttc/i18n';
 import { PageHero } from '@/components/ttc/mp/PageHero';
 import { WorkList } from '@/components/ttc/mp/WorkList';
 import { Gallery } from '@/components/ttc/mp/Gallery';
-import { ContactCTA } from '@/components/ttc/mp/ContactCTA';
+import { HomeContact } from '@/components/ttc/mp/home/HomeContact';
 import { accentLines } from '@/components/ttc/mp/text';
 import { breadcrumbLd, JsonLd } from './meta';
 
@@ -30,7 +30,7 @@ export function WorkView({ lang }: { lang: Lang }) {
   const label = usingReal ? p.eyebrowReal : c.ui.typicalEngagements;
 
   return (
-    <>
+    <div className="mp-plates mp-dark">
       <JsonLd data={breadcrumbLd(lang, [{ name: c.ui.home, path: '/' }, { name: navLabel, path: '/projects' }])} />
 
       <PageHero
@@ -48,7 +48,7 @@ export function WorkView({ lang }: { lang: Lang }) {
 
       <WorkList n="01" />
       <Gallery n="02" />
-      <ContactCTA notice={false} />
-    </>
+      <HomeContact closing lang={lang} notice={false} />
+    </div>
   );
 }

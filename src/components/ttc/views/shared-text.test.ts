@@ -237,12 +237,14 @@ describe('who we work with: whole on the home page, short on the other two', () 
    /about alone — "not mixed in". The home page keeps the two firms' licence
    cards (PartnerSection), which name him as the firm's engineer, and nothing
    of his own account. */
-describe('the team: on /about alone, as equals, and none of it on the home page', () => {
-  const root = new URL('../../../../public/', import.meta.url);
+describe('the company voice: no team grid and no person named, on /about or anywhere', () => {
+  // The owner, 2026-10-26: "no pongas mi nombre, somos empresa" — like EMX,
+  // which names its owner nowhere. The team grid of 2026-10-24 is gone; the
+  // three rows under it ("What that means for you") stay on /about, in the
+  // firm's voice, and the home page prints none of them.
   for (const lang of LANGS) {
     const c = getContent(lang);
     const e = c.leadership;
-    const t = c.aboutPage.team;
     const home = page(lang, '/');
     const about = page(lang, '/about');
     const aboutText = text(about);
@@ -255,64 +257,19 @@ describe('the team: on /about alone, as equals, and none of it on the home page'
       }
     });
 
-    it(`${lang}: the team section and each person's anchor are on /about and not on the home page`, () => {
-      for (const id of ['team', 'engineer', 'melvin', 'rudy']) {
-        expect(about, id).toContain(`id="${id}"`);
-        expect(home, id).not.toContain(`id="${id}"`);
-      }
-      expect(home).not.toMatch(/class="mp-team/);
-    });
-
-    it(`${lang}: three equal tiles, each with its portrait on disk and a sensible weight`, () => {
-      expect(t.members.map((m) => m.id)).toEqual(['engineer', 'melvin', 'rudy']);
-      expect((about.match(/class="mp-team__member"/g) ?? []).length).toBe(3);
-      for (const m of t.members) {
-        expect(m.photo.alt.length, m.id).toBeGreaterThan(10);
-        expect(m.photo.w, m.id).toBeGreaterThan(0);
-        expect(m.photo.h, m.id).toBeGreaterThan(0);
-        const file = new URL(`.${m.photo.src}`, root);
-        expect(existsSync(file), m.photo.src).toBe(true);
-        expect(statSync(file).size, m.photo.src).toBeLessThan(150_000);
+    it(`${lang}: no team grid, no portrait and no person's name on /about or the home`, () => {
+      for (const html of [about, home]) {
+        expect(html).not.toMatch(/class="mp-team/);
+        expect(html).not.toContain('/ttc/img/leadership/');
+        expect(text(html)).not.toContain(e.name);
+        expect(text(html)).not.toContain(e.firstName);
+        expect(text(html)).not.toMatch(/Melvin|Rudy Diaz/);
       }
     });
 
     it(`${lang}: nobody is presented as the leader, and no university is named`, () => {
-      // The owner, 2026-10-24: "no me pongas como líder, soy parte igual" and
-      // "no menciones la universidad".
       expect(aboutText).not.toMatch(/\bled by\b|\bleads?\b|\bleaders?\b|\bfounders?\b|principal engineer|dirigid[oa] por|\bdirige\b|líder|fundador|ingeniero principal/i);
       expect(aboutText).not.toMatch(/universit|universidad|barcelona/i);
-    });
-
-    it(`${lang}: Melvin is "Engineer in Training", M.Sc. — never a PE, never licensed`, () => {
-      // The owner, 2026-10-24: "Melvin Engineer in Training"; Juan's tile reads
-      // "Civil Engineer, P.E.".
-      const tile = (id: string) => about.match(new RegExp(`<li id="${id}"[\\s\\S]*?</li>`))?.[0] ?? '';
-      const melvin = text(tile('melvin'));
-      const phrase = lang === 'en' ? 'Engineer in Training' : 'Ingeniero en Formación';
-      expect(melvin).toContain(phrase);
-      expect(melvin).toContain('M.Sc.');
-      expect(melvin.split(phrase).join('')).not.toMatch(/engineer|ingenier|\bPE\b|\bP\.E\./i);
-      expect(melvin).not.toMatch(/licen|passed|aprob/i);
-      expect(text(tile('engineer'))).toContain(lang === 'en' ? 'Civil Engineer, P.E.' : 'Ingeniero Civil, P.E.');
-    });
-
-    it(`${lang}: no tile and no team sentence says "separate company" or "partner"`, () => {
-      // The owner, 2026-10-24: "no es necesario poner separate company ...
-      // donde está Rudy no es necesario que menciones".
-      const team = about.match(/<section id="team"[\s\S]*?<\/section>/)?.[0] ?? '';
-      expect(team).not.toContain('mp-team__company');
-      expect(text(team)).not.toMatch(/separate|aparte|independiente|partner|aliad|socio/i);
-      expect(text(team)).not.toContain('Precision Source');
-    });
-
-    it(`${lang}: every link to /about#… from the footer and the closing band lands on an id that exists`, () => {
-      const hrefs = [
-        ...c.footerNav.flatMap((g) => g.items.map((i) => i.href)),
-        c.closingCta.primary.href,
-        c.closingCta.secondary.href,
-      ].filter((h) => h.startsWith('/about#'));
-      expect(hrefs.length).toBeGreaterThan(0);
-      for (const href of hrefs) expect(about, href).toContain(`id="${href.split('#')[1]}"`);
     });
   }
 });

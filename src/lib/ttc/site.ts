@@ -2921,8 +2921,8 @@ export const aboutPage = {
      said the same three words as the home page's headline and named neither
      the firm nor the engineer this page is about. The line under it opens
      with what is particular to the practice instead of repeating the H1. */
-  titleLines: ['Tercero Tablada Civil and Structural', 'Engineering Inc., in South Florida.'],
-  accentWord: 'South Florida.',
+  titleLines: ['Tercero Tablada Civil and Structural', 'Engineering Inc., across Florida.'],
+  accentWord: 'across Florida.',
   /* The slogan opens it (seo.test). The written-down reasoning is the
      Approach section's to say, and "one engineer" is already its first
      sentence: the lede says each once. */
@@ -2935,8 +2935,15 @@ export const aboutPage = {
     body: [
       'Two kinds of work run through this practice, and they inform each other. Reading the designs of others teaches you what fails on paper; inspecting buildings that have been standing for decades teaches you what to look for the next time.',
       'On existing buildings the field comes first: the building is checked on site before it is analyzed, and nothing is concluded from a drawing that has not been confirmed there in person.',
+      /* The firm's voice (the owner, 2026-10-26: "somos empresa"): what every
+         report has in common, whoever on the team worked on it. */
+      'Every report leaves this office with the firm’s name on it, written so that a board, an owner and a building official can follow the reasoning without calling us, and kept on file so the next cycle starts from what the last one found.',
     ],
   },
+  /* Over the three rows of `leadership.forYou` (AboutView, since 2026-10-26
+     in the firm’s voice; the team grid is gone). */
+  forYouTitle: 'One firm, accountable from the first call to the filed report.',
+  forYouLede: 'The same three things hold for a recertification, an assessment or a review, and for every member of the team you deal with along the way.',
   principles: {
     eyebrow: 'Principles',
     items: [
@@ -3020,9 +3027,12 @@ export const aboutPage = {
 
 export const servicesPage = {
   eyebrow: 'Services',
-  /* The subject and the place; the old H1 opens `sub` (see `aboutPage`). */
-  titleLines: ['Structural engineering services', 'in Miami-Dade and Broward.'],
-  accentWord: 'services',
+  /* The firm's six services for the whole state (the owner, 2026-10-26: the
+     home speaks for all of Florida, and the firm is civil, structural and
+     electrical, not "structural" alone); the two county programs name
+     their counties on their own pages. */
+  titleLines: ['Six services for', 'Florida’s buildings.'],
+  accentWord: 'buildings.',
   /* Existing buildings first — in the sub-line and the tracks — because the
      page opens with them. "Eight" follows the `services` array (four and
      four); change them together. The line used to explain how to read the
@@ -3031,10 +3041,18 @@ export const servicesPage = {
      October 20, 2026 is no "how to read this page" text. It ends on the
      step that costs nothing. Keep "structural engineering services" whole:
      it is where the H1's words are answered on the page (seo.test.ts). */
-  sub: 'Organized by what you need, not by what we do. Six structural engineering services, for buildings already standing and for the designs behind new ones. The proposal is free.',
+  sub: 'Organized by what you need, not by what we do. Six engineering services, for buildings already standing and for the designs behind new ones. The proposal is free.',
   /* The label of each service row's disclosure (ServiceCard): when you need
      it, what is included, what you receive. Short, so it never wraps. */
   cardMore: 'Details',
+  /* The plate over the six cards (ServicesView, 2026-10-26: one grid in the
+     home's order, each card tagged with its track). The two tracks' ledes
+     open it side by side. */
+  grid: {
+    label: 'Services',
+    title: 'Pick the service your building needs.',
+    accentWord: 'needs.',
+  },
   tracks: {
     existing: {
       id: 'existing',

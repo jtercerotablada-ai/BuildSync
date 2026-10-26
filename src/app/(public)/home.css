@@ -45,11 +45,11 @@
 /* mp.css paints the canvas paper (`html:has(.mp)`), so overscroll and the
    space under a short page never show white. The home is black: overscroll
    must be too. `:root:has()` outweighs `html:has()` whatever the load order. */
-:root:has(.mp-home) {
+:root:has(.mp-plates) {
   background: #0b0c0d;
 }
 
-.mp-home {
+.mp-plates {
   /* Gutter, and the widest the content gets (a plate is full width; its
      content is centred at this width on an ultra-wide screen). */
   --h-pad: clamp(20px, 4.4vw, 72px);
@@ -86,12 +86,12 @@
 
 /* A plate: full width, its own stacking context (the verticals sit at z −1
    inside it), the page's rhythm of padding. */
-.mp-home .h-plate {
+.mp-plates .h-plate {
   position: relative;
   isolation: isolate;
   padding: var(--h-plate-y) var(--h-pad);
 }
-.mp-home .h-wrap {
+.mp-plates .h-wrap {
   width: 100%;
   max-width: var(--h-max);
   margin-inline: auto;
@@ -103,7 +103,7 @@
    vertical y horizontal, creo puedes quitar esas líneas". */
 
 /* The gold ◆: a rotated square, not a glyph (Geist Mono has none). */
-.mp-home .h-dia {
+.mp-plates .h-dia {
   display: inline-block;
   flex: none;
   width: 6px;
@@ -114,10 +114,10 @@
 }
 
 /* Mono text: labels, tags, the bar. 12 px is the floor. */
-.mp-home .h-mono,
-.mp-home .h-label,
-.mp-home .h-tag,
-.mp-home .h-track {
+.mp-plates .h-mono,
+.mp-plates .h-label,
+.mp-plates .h-tag,
+.mp-plates .h-track {
   margin: 0;
   font-family: var(--mp-mono);
   font-size: 12px;
@@ -127,20 +127,20 @@
   text-transform: uppercase;
   color: var(--mp-snow-2);
 }
-.mp-home .h-mono {
+.mp-plates .h-mono {
   letter-spacing: 0.14em;
 }
-.mp-home .h-tag {
+.mp-plates .h-tag {
   color: var(--mp-snow-3);
 }
 
 /* A section's label: a short gold hairline, then the word. No numeral. */
-.mp-home .h-label {
+.mp-plates .h-label {
   display: flex;
   align-items: center;
   gap: 14px;
 }
-.mp-home .h-label::before {
+.mp-plates .h-label::before {
   content: '';
   flex: none;
   width: 34px;
@@ -150,14 +150,14 @@
 }
 
 /* A track tag: "◆ NEW BUILDINGS". */
-.mp-home .h-track {
+.mp-plates .h-track {
   display: flex;
   align-items: center;
   gap: 10px;
 }
 
 /* Section headings. One accent word per heading, in the italic serif. */
-.mp-home .h-h2 {
+.mp-plates .h-h2 {
   margin: 0;
   /* One size for every section headline (the owner, 2026-10-25: the
      credentials headline at 8vw was "muy grande"; "que tengan el mismo
@@ -168,10 +168,10 @@
   letter-spacing: -0.05em;
   color: var(--mp-snow);
 }
-.mp-home .h-h2--m {
+.mp-plates .h-h2--m {
   font-size: clamp(40px, 6.6vw, 120px);
 }
-.mp-home :is(h1, h2) .mp-serif {
+.mp-plates :is(h1, h2) .mp-serif {
   font-size: 1.1em;
   line-height: 0.8;
   letter-spacing: -0.02em;
@@ -179,7 +179,7 @@
 }
 /* Gold on a black plate only: `.mp-surface--graphite` is on every one of
    them. */
-.mp-home .mp-surface--graphite :is(h1, h2) .mp-serif {
+.mp-plates .mp-surface--graphite :is(h1, h2) .mp-serif {
   color: var(--mp-gold);
 }
 
@@ -189,25 +189,25 @@
    so nothing shifts. `overflow: clip` keeps the baseline where the text is.
    MOTION: [data-rv='wait'] .h-w > span { transform: translateY(130%) }
    (home-motion.css). */
-.mp-home .h-w {
+.mp-plates .h-w {
   display: inline-block;
   overflow: hidden;
   overflow: clip;
   padding: 0.08em 0.06em 0.2em 0;
   margin: -0.08em -0.06em -0.2em 0;
 }
-.mp-home .h-w > span {
+.mp-plates .h-w > span {
   display: inline-block;
 }
 
-.mp-home .h-lede {
+.mp-plates .h-lede {
   margin: 0;
   max-width: 34ch;
   font-size: clamp(17px, 1.35vw, 21px);
   line-height: 1.55;
   color: var(--mp-snow-2);
 }
-.mp-home .h-body {
+.mp-plates .h-body {
   margin: 0;
   font-size: clamp(16px, 1.2vw, 19px);
   line-height: 1.5;
@@ -216,7 +216,7 @@
 
 /* The one button: snow pill, graphite ring around the arrow; the gold fill on
    hover and focus is the only gold field on the page. */
-.mp-home .h-btn {
+.mp-plates .h-btn {
   display: inline-flex;
   align-items: center;
   gap: 12px;
@@ -236,7 +236,7 @@
   cursor: pointer;
   transition: background 0.5s var(--h-ease), color 0.5s var(--h-ease);
 }
-.mp-home .h-btn__arrow {
+.mp-plates .h-btn__arrow {
   display: grid;
   place-items: center;
   width: 36px;
@@ -246,29 +246,29 @@
   color: var(--mp-snow);
   transition: transform 0.6s var(--h-ease);
 }
-.mp-home .h-btn__arrow svg {
+.mp-plates .h-btn__arrow svg {
   width: 16px;
   height: 16px;
   display: block;
 }
-.mp-home .h-btn:focus-visible {
+.mp-plates .h-btn:focus-visible {
   background: var(--mp-gold);
 }
-.mp-home .h-btn:focus-visible .h-btn__arrow {
+.mp-plates .h-btn:focus-visible .h-btn__arrow {
   transform: translateX(3px) rotate(-45deg);
 }
 @media (hover: hover) and (pointer: fine) {
-  .mp-home .h-btn:hover {
+  .mp-plates .h-btn:hover {
     background: var(--mp-gold);
   }
-  .mp-home .h-btn:hover .h-btn__arrow {
+  .mp-plates .h-btn:hover .h-btn__arrow {
     transform: translateX(3px) rotate(-45deg);
   }
 }
 
 /* The quiet link: mono caps, a gold arrow, a gold hairline that grows. The
    ::before makes the target 44 px tall without moving the line. */
-.mp-home .h-link {
+.mp-plates .h-link {
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -283,12 +283,12 @@
   color: var(--mp-snow);
   text-decoration: none;
 }
-.mp-home .h-link::before {
+.mp-plates .h-link::before {
   content: '';
   position: absolute;
   inset: -6px 0;
 }
-.mp-home .h-link::after {
+.mp-plates .h-link::after {
   content: '';
   position: absolute;
   left: 0;
@@ -300,28 +300,28 @@
   transform-origin: left;
   transition: transform 0.6s var(--h-ease);
 }
-.mp-home .h-link svg {
+.mp-plates .h-link svg {
   width: 16px;
   height: 16px;
   flex: none;
   color: var(--mp-gold);
   transition: transform 0.5s var(--h-ease);
 }
-.mp-home .h-link:focus-visible::after {
+.mp-plates .h-link:focus-visible::after {
   transform: scaleX(1);
 }
 @media (hover: hover) and (pointer: fine) {
-  .mp-home .h-link:hover::after {
+  .mp-plates .h-link:hover::after {
     transform: scaleX(1);
   }
-  .mp-home .h-link:hover svg {
+  .mp-plates .h-link:hover svg {
     transform: translateX(4px);
   }
 }
 
 /* The ring at the end of a card: an up-right arrow that turns to the right and
    takes the gold when its card is hovered or focused. */
-.mp-home .h-ring {
+.mp-plates .h-ring {
   display: grid;
   place-items: center;
   flex: none;
@@ -332,7 +332,7 @@
   color: var(--mp-snow);
   transition: border-color 0.4s var(--h-ease), color 0.4s var(--h-ease);
 }
-.mp-home .h-ring svg {
+.mp-plates .h-ring svg {
   width: 18px;
   height: 18px;
   display: block;
@@ -340,7 +340,7 @@
 }
 
 /* The pause switch on this page: the shared `MotionToggle`, as a ring. */
-.mp-home .mp-motion-toggle {
+.mp-plates .mp-motion-toggle {
   inline-size: 40px;
   block-size: 40px;
   border-radius: 50%;
@@ -348,7 +348,7 @@
   background: transparent;
 }
 @media (pointer: coarse) {
-  .mp-home .mp-motion-toggle {
+  .mp-plates .mp-motion-toggle {
     inline-size: 44px;
     block-size: 44px;
   }
@@ -359,17 +359,17 @@
    reserved before the image arrives (no layout shift).
    MOTION: [data-fx='img'] — clip-path and scale on the image itself
    (home-motion.css). */
-.mp-home .h-ph {
+.mp-plates .h-ph {
   position: relative;
   overflow: hidden;
   aspect-ratio: var(--ar, 3 / 2);
   background: var(--mp-charcoal);
 }
-.mp-home .h-ph__in {
+.mp-plates .h-ph__in {
   position: absolute;
   inset: 0;
 }
-.mp-home .h-ph__in img {
+.mp-plates .h-ph__in img {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -384,7 +384,7 @@
 /* A full-height graphite stage, the content at the bottom. The height cap is
    in the headline's size (below), not in the stage: the stage is at least one
    small-viewport screen tall and grows only if its content does. */
-.mp-home .h-hero {
+.mp-plates .h-hero {
   position: relative;
   isolation: isolate;
   overflow: hidden;
@@ -402,7 +402,7 @@
    MOTION HOOK: [data-parallax='hero'] gets `translate3d(0, 0.22 × scrollY, 0)`
    from a tiny island while the hero is visible (off under 900 px and on coarse
    pointers). The settle keyframe is on the child, never on this node. */
-.mp-home .h-hero__media {
+.mp-plates .h-hero__media {
   position: absolute;
   left: 0;
   right: 0;
@@ -413,12 +413,12 @@
   background: var(--mp-graphite);
   pointer-events: none;
 }
-.mp-home .h-hero__film {
+.mp-plates .h-hero__film {
   position: absolute;
   inset: 0;
 }
-.mp-home .h-hero__film img,
-.mp-home .h-hero__film video {
+.mp-plates .h-hero__film img,
+.mp-plates .h-hero__film video {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -431,7 +431,7 @@
 /* The scrim is a fixed gradient: legibility never depends on where the
    bright water falls in a frame. Heaviest at the top (the header) and from
    two thirds down, where the headline's last line and its gold word sit. */
-.mp-home .h-hero__scrim {
+.mp-plates .h-hero__scrim {
   position: absolute;
   inset: 0;
   z-index: -1;
@@ -449,7 +449,7 @@
     radial-gradient(80% 60% at 16% 78%, rgba(11, 12, 13, 0.55), transparent 72%);
 }
 
-.mp-home .h-hero__copy {
+.mp-plates .h-hero__copy {
   position: relative;
   width: 100%;
   max-width: var(--h-max);
@@ -468,7 +468,7 @@
    1500 px of width the rest of the first screen grows with the page (the
    padding, the sub-line, the button), so 0.12 px more is paid for every pixel
    of width over 1500: at 1920 × 1080 the first screen still ends at the fold. */
-.mp-home .h-hero__title {
+.mp-plates .h-hero__title {
   margin: clamp(18px, 3vh, 34px) 0 0;
   font-size: clamp(52px, min(12vw, calc((100vh - 430px - max(0px, 100vw - 1500px) * 0.12) / 2.9)), 250px);
   font-size: clamp(52px, min(12vw, calc((100svh - 430px - max(0px, 100vw - 1500px) * 0.12) / 2.9)), 250px);
@@ -477,26 +477,26 @@
   letter-spacing: -0.055em;
   color: #fff;
 }
-.mp-home[data-lang='es'] .h-hero__title {
+.mp-plates[data-lang='es'] .h-hero__title {
   font-size: clamp(52px, min(11.4vw, calc((100vh - 430px - max(0px, 100vw - 1500px) * 0.12) / 2.9)), 250px);
   font-size: clamp(52px, min(11.4vw, calc((100svh - 430px - max(0px, 100vw - 1500px) * 0.12) / 2.9)), 250px);
 }
-.mp-home .h-hero__title .mp-serif {
+.mp-plates .h-hero__title .mp-serif {
   color: var(--mp-gold);
   white-space: nowrap;
 }
 
-.mp-home .h-hero__foot {
+.mp-plates .h-hero__foot {
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
   gap: 32px;
   margin-top: clamp(24px, 5.5vh, 64px);
 }
-.mp-home .h-nowrap {
+.mp-plates .h-nowrap {
   white-space: nowrap;
 }
-.mp-home .h-hero__sub {
+.mp-plates .h-hero__sub {
   margin: 0;
   max-width: 36ch;
   font-size: clamp(17px, 1.4vw, 22px);
@@ -506,7 +506,7 @@
 
 /* The bar: the firm's full name, the two counties, the pause switch, under a
    gold hairline that draws across. */
-.mp-home .h-hero__bar {
+.mp-plates .h-hero__bar {
   position: relative;
   display: grid;
   grid-template-columns: 1fr auto 1fr;
@@ -515,7 +515,7 @@
   margin-top: clamp(28px, 5vh, 52px);
   padding-top: 18px;
 }
-.mp-home .h-hero__bar::before {
+.mp-plates .h-hero__bar::before {
   content: '';
   position: absolute;
   left: 0;
@@ -526,8 +526,8 @@
   opacity: 0.55;
   transform-origin: left;
 }
-.mp-home .h-hero__firm,
-.mp-home .h-hero__counties {
+.mp-plates .h-hero__firm,
+.mp-plates .h-hero__counties {
   margin: 0;
   font-family: var(--mp-mono);
   font-size: 12px;
@@ -536,13 +536,13 @@
   text-transform: uppercase;
   color: rgba(246, 244, 239, 0.8);
 }
-.mp-home .h-hero__counties {
+.mp-plates .h-hero__counties {
   display: flex;
   align-items: center;
   gap: 0.9em;
   justify-self: center;
 }
-.mp-home .h-hero__toggle {
+.mp-plates .h-hero__toggle {
   justify-self: end;
 }
 
@@ -556,7 +556,7 @@
    chrome slice. */
 @media (prefers-reduced-motion: no-preference) {
   /* E2 — the film settles (transform only: the poster is the LCP). */
-  .mp-home .h-hero__film {
+  .mp-plates .h-hero__film {
     animation: h-settle 2.4s var(--h-ease) backwards;
   }
   /* E3 was the eyebrow's fade and its hairline's draw; the eyebrow is gone
@@ -564,33 +564,33 @@
   /* E4 — the headline's lines rise out of their masks: RevealText's own
      keyframe, slower, 140 ms apart (it writes 70 ms inline, so the delay is
      taken back here, once per line). */
-  .mp-home .h-hero__title .mp-enter--line {
+  .mp-plates .h-hero__title .mp-enter--line {
     animation-duration: 1.25s;
   }
-  .mp-home .h-hero__title > span:nth-of-type(1) .mp-enter--line {
+  .mp-plates .h-hero__title > span:nth-of-type(1) .mp-enter--line {
     animation-delay: 0.5s !important;
   }
-  .mp-home .h-hero__title > span:nth-of-type(2) .mp-enter--line {
+  .mp-plates .h-hero__title > span:nth-of-type(2) .mp-enter--line {
     animation-delay: 0.64s !important;
   }
-  .mp-home .h-hero__title > span:nth-of-type(3) .mp-enter--line {
+  .mp-plates .h-hero__title > span:nth-of-type(3) .mp-enter--line {
     animation-delay: 0.78s !important;
   }
-  .mp-home .h-hero__title > span:nth-of-type(4) .mp-enter--line {
+  .mp-plates .h-hero__title > span:nth-of-type(4) .mp-enter--line {
     animation-delay: 0.92s !important;
   }
   /* E5 — the sub-line and the button. */
-  .mp-home .h-hero__sub {
+  .mp-plates .h-hero__sub {
     animation: h-fadeup 1.1s var(--h-ease) 1.05s backwards;
   }
-  .mp-home .h-hero__foot > .h-btn {
+  .mp-plates .h-hero__foot > .h-btn {
     animation: h-fadeup 1.1s var(--h-ease) 1.21s backwards;
   }
   /* E6 — the bar: its hairline draws, then its three parts rise. */
-  .mp-home .h-hero__bar::before {
+  .mp-plates .h-hero__bar::before {
     animation: h-draw 1.8s var(--h-ease) 1.2s backwards;
   }
-  .mp-home .h-hero__bar > * {
+  .mp-plates .h-hero__bar > * {
     animation: h-fadeup 1s var(--h-ease) 1.5s backwards;
   }
 }
@@ -615,25 +615,25 @@
    sub-line says them). The headline is sized by the width alone: nothing here
    is tall enough to need the height term. */
 @media (max-width: 1099px) {
-  .mp-home .h-hero__counties {
+  .mp-plates .h-hero__counties {
     display: none;
   }
-  .mp-home .h-hero__bar {
+  .mp-plates .h-hero__bar {
     grid-template-columns: 1fr auto;
   }
 }
 @media (max-width: 720px) {
-  .mp-home .h-hero__title {
+  .mp-plates .h-hero__title {
     font-size: clamp(46px, 15vw, 130px);
   }
-  .mp-home[data-lang='es'] .h-hero__title {
+  .mp-plates[data-lang='es'] .h-hero__title {
     font-size: clamp(40px, 10.8vw, 130px);
   }
-  .mp-home .h-hero__film img,
-  .mp-home .h-hero__film video {
+  .mp-plates .h-hero__film img,
+  .mp-plates .h-hero__film video {
     filter: grayscale(1) contrast(1.1) brightness(0.94);
   }
-  .mp-home .h-hero__foot {
+  .mp-plates .h-hero__foot {
     flex-direction: column;
     align-items: flex-start;
     gap: 26px;
@@ -651,7 +651,7 @@
      16 %, .32 at 34 %): measured over the real film, 30 frames, at 360 × 640,
      390 × 844 and 768 × 1024, the dimmest line is now 5.2:1 and the gold word
      3.3:1 or more. One gradient for the whole range up to 900 px. */
-  .mp-home .h-hero__scrim {
+  .mp-plates .h-hero__scrim {
     background: linear-gradient(
       180deg,
       rgba(11, 12, 13, 0.82) 0%,
@@ -669,55 +669,55 @@
 /* Two rows of very large type, running in opposite directions (the script
    that moves them comes with the motion slice). Row A: the eight services,
    snow, Geist 500; row B: the building types, grey, Geist 300. */
-.mp-home .h-rib {
+.mp-plates .h-rib {
   position: relative;
   isolation: isolate;
   overflow: hidden;
   padding: clamp(56px, 7vw, 120px) 0 clamp(36px, 4.6vw, 80px);
 }
-.mp-home .h-rib__head {
+.mp-plates .h-rib__head {
   display: flex;
   align-items: center;
   gap: 20px;
   padding-inline: var(--h-pad);
   margin-bottom: clamp(30px, 4.4vw, 72px);
 }
-.mp-home .h-rib__sides {
+.mp-plates .h-rib__sides {
   display: flex;
   align-items: center;
   gap: 0.9em;
   margin-left: auto;
 }
-.mp-home .h-rib__toggle {
+.mp-plates .h-rib__toggle {
   flex: none;
 }
-.mp-home .h-rib__row {
+.mp-plates .h-rib__row {
   position: relative;
   overflow: hidden;
   white-space: nowrap;
 }
-.mp-home .h-rib__row + .h-rib__row {
+.mp-plates .h-rib__row + .h-rib__row {
   margin-top: clamp(8px, 1.4vw, 26px);
 }
 /* MOTION HOOK: [data-ribbon-track] is translated by the ribbon island (a ref,
    `translate3d`, never React-managed style). */
-.mp-home .h-rib__track {
+.mp-plates .h-rib__track {
   display: flex;
   width: max-content;
 }
-.mp-home .h-rib__list {
+.mp-plates .h-rib__list {
   display: flex;
   flex: none;
   margin: 0;
   padding: 0;
   list-style: none;
 }
-.mp-home .h-rib__list li {
+.mp-plates .h-rib__list li {
   display: flex;
   align-items: center;
   flex: none;
 }
-.mp-home .h-rib__list li::after {
+.mp-plates .h-rib__list li::after {
   content: '';
   flex: none;
   width: 0.12em;
@@ -727,7 +727,7 @@
   background: var(--mp-gold);
   transform: translateY(0.02em);
 }
-.mp-home .h-rib__a {
+.mp-plates .h-rib__a {
   padding: 0.04em 0 0.12em;
   /* 7.2 vw, not 11.4: at 164 px (1440 wide) a service name is 1,000 to 2,400
      px long and was never on the screen whole (a name fully visible 10 % of
@@ -739,7 +739,7 @@
   letter-spacing: -0.058em;
   color: var(--mp-snow);
 }
-.mp-home .h-rib__b {
+.mp-plates .h-rib__b {
   padding: 0.04em 0 0.12em;
   font-size: clamp(30px, 4.3vw, 76px);
   font-weight: 300;
@@ -747,16 +747,16 @@
   letter-spacing: -0.05em;
   color: var(--h-grey);
 }
-.mp-home .h-rib__a a {
+.mp-plates .h-rib__a a {
   color: inherit;
   text-decoration: none;
   transition: color 0.5s var(--h-ease);
 }
 @media (hover: hover) and (pointer: fine) {
-  .mp-home .h-rib__row:hover .h-rib__a a {
+  .mp-plates .h-rib__row:hover .h-rib__a a {
     color: #4b4e51;
   }
-  .mp-home .h-rib__row .h-rib__a a:hover {
+  .mp-plates .h-rib__row .h-rib__a a:hover {
     color: var(--mp-snow);
   }
 }
@@ -769,37 +769,37 @@
     transform: translate3d(-50%, 0, 0);
   }
 }
-html:not(.js) .mp-home .h-rib__track {
+html:not(.js) .mp-plates .h-rib__track {
   will-change: transform;
   animation: h-rib-run 120s linear infinite;
 }
-html:not(.js) .mp-home .h-rib__row--rev .h-rib__track {
+html:not(.js) .mp-plates .h-rib__row--rev .h-rib__track {
   animation-duration: 150s;
   animation-direction: reverse;
 }
 
 @media (max-width: 720px) {
-  .mp-home .h-rib__sides {
+  .mp-plates .h-rib__sides {
     display: none;
   }
-  .mp-home .h-rib__toggle {
+  .mp-plates .h-rib__toggle {
     margin-left: auto;
   }
 }
 
 /* ═══ 5 · S3 SERVICES ═════════════════════════════════════════════════════ */
 
-.mp-home .h-svc-plate {
+.mp-plates .h-svc-plate {
   padding-top: clamp(40px, 6vw, 100px);
 }
-.mp-home .h-head__top {
+.mp-plates .h-head__top {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 16px 24px;
   margin-bottom: clamp(22px, 3vw, 44px);
 }
-.mp-home .h-head__foot {
+.mp-plates .h-head__foot {
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
@@ -816,7 +816,7 @@ html:not(.js) .mp-home .h-rib__row--rev .h-rib__track {
    no row taller than another).
    The last right card hangs below the grid by the drop: the padding holds
    the room for it. */
-.mp-home .h-svc__grid {
+.mp-plates .h-svc__grid {
   --h-drop: clamp(90px, 15vw, 260px);
   --h-colgap: clamp(60px, 8.4vw, 150px);
   display: grid;
@@ -827,24 +827,24 @@ html:not(.js) .mp-home .h-rib__row--rev .h-rib__track {
   margin-top: var(--h-head-gap);
   padding-bottom: var(--h-drop);
 }
-.mp-home .h-svc__grid > .h-svc:nth-child(even) {
+.mp-plates .h-svc__grid > .h-svc:nth-child(even) {
   transform: translateY(var(--h-drop));
 }
 
-.mp-home .h-card {
+.mp-plates .h-card {
   position: relative;
 }
-.mp-home .h-card__meta {
+.mp-plates .h-card__meta {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: start;
   gap: 10px 22px;
   padding-top: 24px;
 }
-.mp-home .h-card__meta > .h-track {
+.mp-plates .h-card__meta > .h-track {
   grid-column: 1;
 }
-.mp-home .h-card__title {
+.mp-plates .h-card__title {
   grid-column: 1;
   margin: 0;
   font-size: clamp(26px, 2.9vw, 50px);
@@ -853,17 +853,17 @@ html:not(.js) .mp-home .h-rib__row--rev .h-rib__track {
   letter-spacing: -0.04em;
   color: var(--mp-snow);
 }
-.mp-home .h-card__link {
+.mp-plates .h-card__link {
   color: inherit;
   text-decoration: none;
 }
 /* The whole card is the link's target. */
-.mp-home .h-card__link::after {
+.mp-plates .h-card__link::after {
   content: '';
   position: absolute;
   inset: 0;
 }
-.mp-home .h-card__line {
+.mp-plates .h-card__line {
   grid-column: 1;
   margin: 0;
   max-width: 36ch;
@@ -871,41 +871,41 @@ html:not(.js) .mp-home .h-rib__row--rev .h-rib__track {
   line-height: 1.5;
   color: var(--mp-snow-2);
 }
-.mp-home .h-card__meta > .h-ring {
+.mp-plates .h-card__meta > .h-ring {
   grid-column: 2;
   grid-row: 1 / span 2;
 }
 
 /* The ring is drawn around the card on keyboard focus, not around the title
    alone (the title's own outline would be a box round three words). */
-.mp-home .h-card__link:focus-visible {
+.mp-plates .h-card__link:focus-visible {
   outline: none;
 }
-.mp-home .h-card:has(.h-card__link:focus-visible) {
+.mp-plates .h-card:has(.h-card__link:focus-visible) {
   outline: 2px solid var(--mp-gold);
   outline-offset: 8px;
 }
-.mp-home .h-card:has(.h-card__link:focus-visible) .h-ph__in img {
+.mp-plates .h-card:has(.h-card__link:focus-visible) .h-ph__in img {
   filter: none;
   transform: scale(1.045);
 }
-.mp-home .h-card:has(.h-card__link:focus-visible) .h-ring {
+.mp-plates .h-card:has(.h-card__link:focus-visible) .h-ring {
   border-color: var(--mp-gold);
   color: var(--mp-gold);
 }
-.mp-home .h-card:has(.h-card__link:focus-visible) .h-ring svg {
+.mp-plates .h-card:has(.h-card__link:focus-visible) .h-ring svg {
   transform: rotate(-45deg);
 }
 @media (hover: hover) and (pointer: fine) {
-  .mp-home .h-card:hover .h-ph__in img {
+  .mp-plates .h-card:hover .h-ph__in img {
     filter: none;
     transform: scale(1.045);
   }
-  .mp-home .h-card:hover .h-ring {
+  .mp-plates .h-card:hover .h-ring {
     border-color: var(--mp-gold);
     color: var(--mp-gold);
   }
-  .mp-home .h-card:hover .h-ring svg {
+  .mp-plates .h-card:hover .h-ring svg {
     transform: rotate(-45deg);
   }
 }
@@ -917,31 +917,31 @@ html:not(.js) .mp-home .h-rib__row--rev .h-rib__track {
    third and back up to the second: WCAG 1.3.2 and 2.4.3. Now the markup IS
    the order, on every width.) */
 @media (max-width: 899px) {
-  .mp-home .h-svc__grid {
+  .mp-plates .h-svc__grid {
     grid-template-columns: 1fr;
     row-gap: clamp(52px, 12vw, 80px);
     padding-bottom: 0;
   }
-  .mp-home .h-svc__grid > .h-svc:nth-child(even) {
+  .mp-plates .h-svc__grid > .h-svc:nth-child(even) {
     transform: none;
   }
 }
 
 /* ═══ 6 · S4 STATEMENT ════════════════════════════════════════════════════ */
 
-.mp-home .h-stmt {
+.mp-plates .h-stmt {
   padding-block: clamp(50px, 7vw, 120px) clamp(60px, 8vw, 130px);
 }
-.mp-home .h-stmt__grid {
+.mp-plates .h-stmt__grid {
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
   column-gap: clamp(16px, 2vw, 32px);
   align-items: center;
 }
-.mp-home .h-stmt__text {
+.mp-plates .h-stmt__text {
   grid-column: 1 / 9;
 }
-.mp-home .h-stmt__title {
+.mp-plates .h-stmt__title {
   margin: 0;
   font-size: clamp(36px, 5.7vw, 106px);
   font-weight: 500;
@@ -949,10 +949,10 @@ html:not(.js) .mp-home .h-rib__row--rev .h-rib__track {
   letter-spacing: -0.045em;
   color: #fff;
 }
-.mp-home .h-stmt__title .h-l {
+.mp-plates .h-stmt__title .h-l {
   display: block;
 }
-.mp-home .h-stmt__dim {
+.mp-plates .h-stmt__dim {
   margin: clamp(28px, 3.4vw, 56px) 0 0;
   max-width: 30ch;
   font-size: clamp(22px, 2.4vw, 42px);
@@ -960,27 +960,27 @@ html:not(.js) .mp-home .h-rib__row--rev .h-rib__track {
   letter-spacing: -0.025em;
   color: var(--mp-snow-3);
 }
-.mp-home .h-stmt__dim .mp-serif {
+.mp-plates .h-stmt__dim .mp-serif {
   font-size: 1.1em;
   line-height: 0.8;
   letter-spacing: -0.02em;
   color: var(--mp-snow);
 }
-.mp-home .h-stmt__photo {
+.mp-plates .h-stmt__photo {
   grid-column: 9 / 13;
   --ar: 4 / 5;
 }
 @media (max-width: 1099px) {
-  .mp-home .h-stmt__text {
+  .mp-plates .h-stmt__text {
     grid-column: 1 / -1;
   }
-  .mp-home .h-stmt__photo {
+  .mp-plates .h-stmt__photo {
     grid-column: 1 / 8;
     margin-top: clamp(36px, 6vw, 64px);
   }
 }
 @media (max-width: 720px) {
-  .mp-home .h-stmt__photo {
+  .mp-plates .h-stmt__photo {
     grid-column: 1 / -1;
   }
 }
@@ -991,17 +991,17 @@ html:not(.js) .mp-home .h-rib__row--rev .h-rib__track {
    hero's keyframes are already inside `no-preference`; mp.css switches off the
    `mp-enter` ones. The pause switch is hidden by mp.css (nothing moves). */
 @media (prefers-reduced-motion: reduce) {
-  .mp-home .h-rib__row {
+  .mp-plates .h-rib__row {
     white-space: normal;
     overflow: visible;
   }
-  .mp-home .h-rib__track {
+  .mp-plates .h-rib__track {
     display: block;
     width: 100%;
     transform: none !important;
     animation: none !important;
   }
-  .mp-home .h-rib__list {
+  .mp-plates .h-rib__list {
     flex-wrap: wrap;
     width: 100%;
     row-gap: 0.14em;
@@ -1011,45 +1011,45 @@ html:not(.js) .mp-home .h-rib__row--rev .h-rib__track {
      px "Reinforced Concrete Design" ended at "Reinforced Concrete D", and
      "Structural Analysis & Foundations" lost 39 px even at 1440 (QA, Spanish
      worse). */
-  .mp-home .h-rib__list li {
+  .mp-plates .h-rib__list li {
     flex: 0 1 auto;
     min-width: 0;
     max-width: 100%;
   }
-  .mp-home .h-rib__list li > a {
+  .mp-plates .h-rib__list li > a {
     min-width: 0;
     overflow-wrap: break-word;
   }
-  .mp-home .h-rib__list[aria-hidden='true'] {
+  .mp-plates .h-rib__list[aria-hidden='true'] {
     display: none;
   }
-  .mp-home .h-rib__a {
+  .mp-plates .h-rib__a {
     font-size: clamp(40px, 6.6vw, 110px);
   }
-  .mp-home .h-rib__b {
+  .mp-plates .h-rib__b {
     font-size: clamp(28px, 4vw, 70px);
   }
-  .mp-home .h-rib__list li:last-child::after {
+  .mp-plates .h-rib__list li:last-child::after {
     display: none;
   }
 }
 
 @media print {
-  .mp-home,
-  .mp-home .h-plate,
-  .mp-home .h-hero,
-  .mp-home .h-rib {
+  .mp-plates,
+  .mp-plates .h-plate,
+  .mp-plates .h-hero,
+  .mp-plates .h-rib {
     background: #fff !important;
     color: #000 !important;
   }
-  .mp-home .h-hero {
+  .mp-plates .h-hero {
     min-height: 0 !important;
     padding-top: 24px !important;
   }
-  .mp-home .h-hero__media,
-  .mp-home .h-hero__scrim,
-  .mp-home .h-rib__rows,
-  .mp-home .h-ph {
+  .mp-plates .h-hero__media,
+  .mp-plates .h-hero__scrim,
+  .mp-plates .h-rib__rows,
+  .mp-plates .h-ph {
     display: none !important;
   }
 }
@@ -1072,7 +1072,7 @@ html:not(.js) .mp-home .h-rib__row--rev .h-rib__track {
    the monogram floated 152 px inside the hero's eyebrow at 1920 (22 px at
    1440). `--h-pad` and `--h-max` are defined on `.mp-home`, which does not
    contain the header, so the same two numbers are written out here. */
-body:has(.mp-home) .mp-header__inner {
+body:has(.mp-plates) .mp-header__inner {
   max-width: calc(2200px + 2 * clamp(20px, 4.4vw, 72px));
   padding-inline: clamp(20px, 4.4vw, 72px);
 }
@@ -1112,7 +1112,7 @@ body:has(.mp-home) .mp-header__inner {
    cell and the menu's first button, so the header's steps aside there. From
    360px up (the common Android width) it fits on one line in both languages. */
 @media (max-width: 359px) {
-  body:has(.mp-home) .mp-header__cta {
+  body:has(.mp-plates) .mp-header__cta {
     display: none;
   }
 }
@@ -1121,7 +1121,7 @@ body:has(.mp-home) .mp-header__inner {
    2026-10-25: the eight tall cards one under the other were a screen too
    many); the two shapes alternate only where the grid has two columns. */
 @media (max-width: 720px) {
-  .mp-home .h-svc .h-ph {
+  .mp-plates .h-svc .h-ph {
     aspect-ratio: 3 / 2;
   }
 }

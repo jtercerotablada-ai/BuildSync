@@ -31,25 +31,25 @@
 @media screen and (prefers-reduced-motion: no-preference) {
   /* E9 · a block fades up: 34 px, 1.1 s. `--rv-delay` is the stagger
      (Reveal's `delay`); `--rv-y` is Reveal's `y`. */
-  .mp-home [data-fx='up'][data-rv='wait'] {
+  .mp-plates [data-fx='up'][data-rv='wait'] {
     opacity: 0;
     transform: translateY(var(--rv-y, 34px));
   }
-  .mp-home [data-fx='up'][data-rv='in'] {
+  .mp-plates [data-fx='up'][data-rv='in'] {
     animation: h-rv-up 1.1s var(--h-ease) var(--rv-delay, 0s) backwards;
   }
 
   /* E10 · a block slides in from the left: 72 px, 1.3 s (28 px on a phone,
      where 72 px is more than the gutter and the move would cross the
      screen's edge). */
-  .mp-home [data-fx='left'] {
+  .mp-plates [data-fx='left'] {
     --h-x: -72px;
   }
-  .mp-home [data-fx='left'][data-rv='wait'] {
+  .mp-plates [data-fx='left'][data-rv='wait'] {
     opacity: 0;
     transform: translateX(var(--h-x));
   }
-  .mp-home [data-fx='left'][data-rv='in'] {
+  .mp-plates [data-fx='left'][data-rv='in'] {
     animation: h-rv-left 1.3s var(--h-ease) var(--rv-delay, 0s) backwards;
   }
 
@@ -57,12 +57,12 @@
      the block IS the rule (the pause photograph's gold line), the block's
      `::before` is its rule (a credential card, a county), or the rule is a
      label's (the 34 px gold stroke before every section label). */
-  .mp-home .h-label[data-rv='wait']::before,
-  .mp-home [data-rv='wait'] .h-label::before {
+  .mp-plates .h-label[data-rv='wait']::before,
+  .mp-plates [data-rv='wait'] .h-label::before {
     transform: scaleX(0);
   }
-  .mp-home .h-label[data-rv='in']::before,
-  .mp-home [data-rv='in'] .h-label::before {
+  .mp-plates .h-label[data-rv='in']::before,
+  .mp-plates [data-rv='in'] .h-label::before {
     animation: h-draw 1.4s var(--h-ease) calc(var(--rv-delay, 0s) + 0.3s) backwards;
   }
 
@@ -75,11 +75,11 @@
      browser's lazy loading and VideoLoop's own observer read the image's
      geometry, and a clipped ANCESTOR would count as "not on screen" and hold
      them back until the reveal had begun. */
-  .mp-home [data-fx='img'][data-rv='wait'] :is(img, video) {
+  .mp-plates [data-fx='img'][data-rv='wait'] :is(img, video) {
     clip-path: inset(100% 0 0 0);
     transform: scale(1.34);
   }
-  .mp-home [data-fx='img'][data-rv='in'] img {
+  .mp-plates [data-fx='img'][data-rv='in'] img {
     animation:
       h-rv-clip 1.1s var(--h-ease) backwards,
       h-rv-settle 1.6s var(--h-ease) backwards;
@@ -89,17 +89,17 @@
      a word waits and comes up in the first third of its rise: the mask's ink
      slack (padding under the line box) would otherwise show the top of a
      parked word as a row of slivers. */
-  .mp-home [data-fx='words'][data-rv='wait'] .h-w > span {
+  .mp-plates [data-fx='words'][data-rv='wait'] .h-w > span {
     opacity: 0;
     transform: translateY(130%);
   }
-  .mp-home [data-fx='words'][data-rv='in'] .h-w > span {
+  .mp-plates [data-fx='words'][data-rv='in'] .h-w > span {
     animation: h-rv-word 1.25s var(--h-ease) calc(var(--rv-delay, 0s) + var(--wi, 0) * 55ms) backwards;
   }
 }
 
 @media screen and (prefers-reduced-motion: no-preference) and (max-width: 720px) {
-  .mp-home [data-fx='left'] {
+  .mp-plates [data-fx='left'] {
     --h-x: -28px;
   }
 }
@@ -155,18 +155,18 @@
    as it moves. */
 
 @media (prefers-reduced-motion: no-preference) {
-  html.js .mp-home .h-rib__track {
+  html.js .mp-plates .h-rib__track {
     will-change: transform;
   }
 }
 /* Without a script the rows run on CSS (home.css) and the pause switch, a
    button that only a script can answer, is not shown; the pointer on a row
    holds it instead, as it does when the script is running. */
-html:not(.js) .mp-home .mp-motion-toggle {
+html:not(.js) .mp-plates .mp-motion-toggle {
   display: none;
 }
 @media (hover: hover) and (pointer: fine) {
-  html:not(.js) .mp-home .h-rib__row:hover .h-rib__track {
+  html:not(.js) .mp-plates .h-rib__row:hover .h-rib__track {
     animation-play-state: paused;
   }
 }
@@ -174,7 +174,7 @@ html:not(.js) .mp-home .mp-motion-toggle {
    that has stopped running needs the page's gutter, which a running row,
    cut by the screen's edge, never did. */
 @media (prefers-reduced-motion: reduce) {
-  .mp-home .h-rib__row {
+  .mp-plates .h-rib__row {
     padding-inline: var(--h-pad);
   }
 }
@@ -195,15 +195,15 @@ html:not(.js) .mp-home .mp-motion-toggle {
   }
 }
 @media (prefers-reduced-motion: no-preference) {
-  .mp-home .h-types__track {
+  .mp-plates .h-types__track {
     will-change: transform;
     animation: h-types-drift 70s linear infinite;
   }
-  .mp-home .h-types__rail[data-paused] .h-types__track {
+  .mp-plates .h-types__rail[data-paused] .h-types__track {
     animation-play-state: paused;
   }
   @media (hover: hover) and (pointer: fine) {
-    .mp-home .h-types__rail:hover .h-types__track {
+    .mp-plates .h-types__rail:hover .h-types__track {
       animation-play-state: paused;
     }
   }
@@ -214,7 +214,7 @@ html:not(.js) .mp-home .mp-motion-toggle {
    transform; this only gives them a layer to move on, where it runs. */
 
 @media (min-width: 900px) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
-  .mp-home [data-parallax] {
+  .mp-plates [data-parallax] {
     will-change: transform;
   }
 }
@@ -228,7 +228,7 @@ html:not(.js) .mp-home .mp-motion-toggle {
      from-state holds through the delay and the animation lets go when it
      ends, so it leaves no transform behind (a transform on a fixed header
      would become the containing block of its menu). */
-  body:has(.mp-home) .mp-header {
+  body:has(.mp-plates) .mp-header {
     animation: h-header-drop 1s var(--mp-ease) 0.1s backwards;
   }
 }
@@ -243,7 +243,7 @@ html:not(.js) .mp-home .mp-motion-toggle {
    has scroll-driven animations; elsewhere there is no line. */
 @supports (animation-timeline: scroll()) {
   @media (prefers-reduced-motion: no-preference) {
-    body:has(.mp-home) .mp-header::after {
+    body:has(.mp-plates) .mp-header::after {
       content: '';
       position: absolute;
       inset: auto 0 0 0;
@@ -264,7 +264,7 @@ html:not(.js) .mp-home .mp-motion-toggle {
 }
 /* …and not over the open menu, where it would hang as a stray gold stub
    under the logo. */
-body:has(.mp-home) .mp-header.is-menu-open::after {
+body:has(.mp-plates) .mp-header.is-menu-open::after {
   display: none;
 }
 
@@ -277,12 +277,12 @@ body:has(.mp-home) .mp-header.is-menu-open::after {
    bar if it were. The menu is not inside the header, so the transform cannot
    become the containing block of its fixed panel. */
 @media (max-width: 900px) and (prefers-reduced-motion: no-preference) {
-  body:has(.mp-home) .mp-header {
+  body:has(.mp-plates) .mp-header {
     transition:
       border-color var(--mp-dur) var(--mp-ease),
       transform 0.5s var(--mp-ease);
   }
-  body:has(.mp-home) .mp-header.is-away:not(.is-menu-open) {
+  body:has(.mp-plates) .mp-header.is-away:not(.is-menu-open) {
     transform: translateY(-100%);
   }
 }

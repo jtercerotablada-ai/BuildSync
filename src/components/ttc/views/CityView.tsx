@@ -7,8 +7,7 @@ import { cityPagesOf, findCityPage } from '@/lib/ttc/city-content';
 import { localePath, type Lang } from '@/lib/ttc/i18n';
 import { cityFaqLd, cityServiceLd, cityWebPageLd } from '@/lib/ttc/city-structured-data';
 import { PageHero } from '@/components/ttc/mp/PageHero';
-import { ContactCTA } from '@/components/ttc/mp/ContactCTA';
-import { EngineerCredential } from '@/components/ttc/mp/EngineerCredential';
+import { HomeContact } from '@/components/ttc/mp/home/HomeContact';
 import { JUMP_ID } from '@/components/ttc/mp/JumpLinks';
 import { ReachRow } from '@/components/ttc/mp/ReachRow';
 import { Dated, Source } from '@/components/ttc/mp/Outbound';
@@ -231,7 +230,7 @@ export function CityView({ lang, program, slug }: { lang: Lang; program: string;
     ));
 
   return (
-    <>
+    <div className="mp-plates mp-dark">
       <JsonLd data={cityServiceLd(lang, service, page)} />
       <JsonLd data={cityWebPageLd(lang, page, t.h1(page.place))} />
       <JsonLd data={cityFaqLd(lang, page)} />
@@ -263,7 +262,6 @@ export function CityView({ lang, program, slug }: { lang: Lang; program: string;
         // page's own words, and the address block prints it in full.
         photo={imagery.services[service.slug]}
       >
-        <EngineerCredential lang={lang} brief />
         <ReachRow c={c} />
       </PageHero>
 
@@ -461,7 +459,7 @@ export function CityView({ lang, program, slug }: { lang: Lang; program: string;
         </section>
       </div>
 
-      <ContactCTA service={service.slug} />
-    </>
+      <HomeContact closing lang={lang} presetService={service.slug} />
+    </div>
   );
 }

@@ -4,45 +4,50 @@ import { imagery } from '@/lib/ttc/site';
 import type { Lang } from '@/lib/ttc/i18n';
 import { PageHero } from '@/components/ttc/mp/PageHero';
 import { ServiceCard } from '@/components/ttc/mp/ServiceCard';
-import { Typologies } from '@/components/ttc/mp/Typologies';
+import { TypesPlate } from '@/components/ttc/mp/plates/TypesPlate';
 import { HowWeWork } from '@/components/ttc/mp/HowWeWork';
-import { ContactCTA } from '@/components/ttc/mp/ContactCTA';
-import { SectionHeading, Reveal } from '@/components/ttc/mp/primitives';
+import { HomeContact } from '@/components/ttc/mp/home/HomeContact';
+import { Reveal } from '@/components/ttc/mp/primitives';
+import { Words } from '@/components/ttc/mp/home/Words';
 import { accentLines } from '@/components/ttc/mp/text';
 import { breadcrumbLd, JsonLd } from './meta';
 
 /**
- * Services organised by the client's situation. Existing buildings first —
- * the order of the whole site, the footer and the contact dropdown — then
- * new projects:
+ * The services index, in the home's language (the owner, 2026-10-26: every
+ * inner page to the standard of the home; the thumbnail rows this page had
+ * were "horrible"):
  *
- *   01  Existing buildings ┐ paper   one band, the two tracks side by side
- *   02  New projects       ┘         from 900px (#existing, #new), stacked
- *                                     below; four index rows each
- *   03  What we design       concrete  the typology list
- *   04  How we work          paper     the five-step process (this page only)
- *   05  Contact
+ *   hero          the page's headline, the lede, the photograph (PageHero in
+ *                 the dark skin)
+ *   services      ONE grid of the six services in `home.order`, each the
+ *                 home's card — photograph at 3/2, track tag, name, one
+ *                 line, the ring — with this page's own foot under it: the
+ *                 first step, the link to the form, the fold with the three
+ *                 other answers (ServiceCard). The two tracks' ledes open
+ *                 the plate side by side; their titles went with the
+ *                 two-column-by-track layout, which left one card alone
+ *                 under "Design review" (the home's lesson of 2026-10-26).
+ *   building types   the six kinds of building as the home's cards (TypesPlate)
+ *   how we work   the five steps, as hairline columns (HowWeWork, dark skin)
+ *   closing band
  *
- * The track ids are link targets (`/services#new` from the home page's
- * new-buildings section). The two columns share one grid (mp.css,
- * `.mp-tracks`): with subgrid the section labels, the intros and the four
- * row rules line up across both, and `--mp-track-rows` is the number of rows
- * a column spans — its label, its intro and its longest list.
- *
- * The hero has no facts panel: "4 services / 4 services / Miami-Dade &
- * Broward" said again what the H1 and the line under it say.
+ * The hero has no facts panel: a count of services beside a headline that
+ * counts them said it twice.
  */
 export function ServicesView({ lang }: { lang: Lang }) {
   const c = getContent(lang);
   const p = c.servicesPage;
-  const tracks = [
-    { ...p.tracks.existing, items: c.services.filter((s) => s.track === 'existing') },
-    { ...p.tracks.new, items: c.services.filter((s) => s.track === 'new') },
-  ];
-  const rows = 2 + Math.max(...tracks.map((t) => t.items.length));
+  // The home's order (the owner's, 2026-10-26): recertification, BSIP,
+  // then the rest by the sales he expects of them.
+  const cards = c.home.order.map((slug) => {
+    const s = c.services.find((x) => x.slug === slug);
+    if (!s) throw new Error(`home.order: no service "${slug}"`);
+    return s;
+  });
+  const trackLabel = (track: string) => (track === 'new' ? p.tracks.new.eyebrow : p.tracks.existing.eyebrow);
 
   return (
-    <>
+    <div className="mp-plates mp-dark">
       <JsonLd data={breadcrumbLd(lang, [{ name: c.ui.home, path: '/' }, { name: navLabelOf(c, '/services'), path: '/services' }])} />
 
       <PageHero
@@ -53,39 +58,38 @@ export function ServicesView({ lang }: { lang: Lang }) {
         photo={imagery.pages.services}
       />
 
-      <div className="mp-section mp-surface--paper">
-        <div className="mp-shell mp-tracks" style={{ ['--mp-track-rows' as string]: String(rows) }}>
-          {tracks.map((tr, ti) => (
-            <section
-              key={tr.id}
-              id={tr.id}
-              className="mp-track"
-              aria-labelledby={`mp-track-${tr.id}`}
-            >
-              <SectionHeading n={String(ti + 1).padStart(2, '0')} label={tr.eyebrow} />
-              <div className="mp-intro mp-intro--track">
-                <Reveal>
-                  <h2 id={`mp-track-${tr.id}`} className="mp-intro__title">
-                    {tr.title}
-                  </h2>
-                </Reveal>
-                <Reveal delay={0.06}>
-                  <p className="mp-intro__lede">{tr.lede}</p>
-                </Reveal>
-              </div>
-              <div className="mp-svcindex">
-                {tr.items.map((s, i) => (
-                  <ServiceCard key={s.slug} service={s} index={i} />
-                ))}
-              </div>
-            </section>
-          ))}
-        </div>
-      </div>
+      <section id="services" className="h-plate h-svc-plate mp-surface--graphite" aria-labelledby="mp-services-title">
+        <div className="h-wrap">
+          <header className="h-head">
+            <div className="h-head__top">
+              <Reveal as="p" fx="up" className="h-label">
+                {p.grid.label}
+              </Reveal>
+            </div>
+            <Reveal as="h2" fx="words" id="mp-services-title" className="h-h2">
+              <Words text={p.grid.title} accent={p.grid.accentWord} />
+            </Reveal>
+            <div className="h-head__foot h-head__foot--two">
+              <Reveal fx="up" className="h-head__lede">
+                <p className="h-lede">{p.tracks.existing.lede}</p>
+              </Reveal>
+              <Reveal fx="up" delay={0.08} className="h-head__lede">
+                <p className="h-lede">{p.tracks.new.lede}</p>
+              </Reveal>
+            </div>
+          </header>
 
-      <Typologies n="03" />
+          <div className="h-svc__grid">
+            {cards.map((s) => (
+              <ServiceCard key={s.slug} service={s} track={trackLabel(s.track)} />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <TypesPlate lang={lang} />
       <HowWeWork n="04" surface="paper" />
-      <ContactCTA notice={false} />
-    </>
+      <HomeContact closing lang={lang} notice={false} />
+    </div>
   );
 }

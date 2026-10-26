@@ -40,7 +40,7 @@
 
 /* The shared diamond: a rotated square in front of a mono line, drawn in CSS
    (Geist Mono has no ◆, so a typed one would come from a fallback font). */
-.mp-home :is(.h-cred__status, .h-cred__card--partner .mp-partner__role)::before {
+.mp-plates :is(.h-cred__status, .h-cred__card--partner .mp-partner__role)::before {
   content: '';
   flex: none;
   width: 6px;
@@ -51,7 +51,7 @@
 
 /* ═══ 01 · S6 BUILDING TYPES ══════════════════════════════════════════════ */
 
-.mp-home .h-types {
+.mp-plates .h-types {
   /* The left edge of the content. Past 2200 px of screen it is the gutter
      plus half of what is left over, so the capped head and the full-bleed
      rail share one edge. (A percentage here is a share of the box the
@@ -59,18 +59,18 @@
   --l-gutter: max(var(--h-pad), calc((100% - var(--h-max)) / 2 + var(--h-pad)));
   padding: clamp(48px, 6vw, 100px) 0 clamp(60px, 8vw, 130px);
 }
-.mp-home .h-types__head {
+.mp-plates .h-types__head {
   padding-inline: var(--h-pad);
 }
 /* The label and the tag share a row while they fit, and the tag drops under
    the label (left-aligned) when they do not. */
-.mp-home .h-types .h-head__top {
+.mp-plates .h-types .h-head__top {
   flex-wrap: wrap;
 }
-.mp-home .h-types .h-label {
+.mp-plates .h-types .h-label {
   white-space: nowrap;
 }
-.mp-home .h-types__h {
+.mp-plates .h-types__h {
   max-width: 15ch;
 }
 
@@ -82,16 +82,16 @@
    half the track and the join is never seen. The track's left margin is the
    content's edge: a margin is outside the box a transform's percentage
    measures, so −50 % stays one set. */
-.mp-home .h-types__rail {
+.mp-plates .h-types__rail {
   overflow: clip;
   padding-block: clamp(40px, 6vw, 96px) 12px;
 }
-.mp-home .h-types__track {
+.mp-plates .h-types__track {
   display: flex;
   width: max-content;
   margin-inline-start: var(--l-gutter);
 }
-.mp-home .h-types__set {
+.mp-plates .h-types__set {
   display: flex;
   align-items: flex-start;
   gap: clamp(14px, 1.8vw, 30px);
@@ -100,17 +100,17 @@
   list-style: none;
 }
 
-.mp-home .h-types__card {
+.mp-plates .h-types__card {
   position: relative;
   flex: 0 0 clamp(268px, 27vw, 470px);
 }
-.mp-home .h-types__card:nth-child(even) {
+.mp-plates .h-types__card:nth-child(even) {
   margin-top: clamp(32px, 5.4vw, 96px);
 }
-.mp-home .h-types__ph {
+.mp-plates .h-types__ph {
   --ar: 4 / 5;
 }
-.mp-home .h-types__t {
+.mp-plates .h-types__t {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: start;
@@ -124,44 +124,44 @@
 }
 /* The link is the title; its ::after covers the whole card, and the focus
    ring goes round the card (the pattern of Typologies). */
-.mp-home .h-types__link {
+.mp-plates .h-types__link {
   color: inherit;
   text-decoration: none;
   text-wrap: balance;
 }
-.mp-home .h-types__link::after {
+.mp-plates .h-types__link::after {
   content: '';
   position: absolute;
   inset: 0;
 }
-.mp-home .h-types__link:focus-visible {
+.mp-plates .h-types__link:focus-visible {
   outline: none;
 }
-.mp-home .h-types__link:focus-visible::after {
+.mp-plates .h-types__link:focus-visible::after {
   outline: 2px solid var(--mp-gold);
   outline-offset: 6px;
 }
-.mp-home .h-types__card:has(.h-types__link:focus-visible) .h-ph__in img {
+.mp-plates .h-types__card:has(.h-types__link:focus-visible) .h-ph__in img {
   filter: none;
   transform: scale(1.045);
 }
-.mp-home .h-types__card:has(.h-types__link:focus-visible) .h-ring {
+.mp-plates .h-types__card:has(.h-types__link:focus-visible) .h-ring {
   border-color: var(--mp-gold);
   color: var(--mp-gold);
 }
-.mp-home .h-types__card:has(.h-types__link:focus-visible) .h-ring svg {
+.mp-plates .h-types__card:has(.h-types__link:focus-visible) .h-ring svg {
   transform: rotate(-45deg);
 }
 @media (hover: hover) and (pointer: fine) {
-  .mp-home .h-types__card:hover .h-ph__in img {
+  .mp-plates .h-types__card:hover .h-ph__in img {
     filter: none;
     transform: scale(1.045);
   }
-  .mp-home .h-types__card:hover .h-ring {
+  .mp-plates .h-types__card:hover .h-ring {
     border-color: var(--mp-gold);
     color: var(--mp-gold);
   }
-  .mp-home .h-types__card:hover .h-ring svg {
+  .mp-plates .h-types__card:hover .h-ring svg {
     transform: rotate(-45deg);
   }
 }
@@ -171,7 +171,7 @@
    at the left, the heading and one paragraph at the right. On a phone:
    label, heading, paragraph, then the list. */
 
-.mp-home .h-cred__grid {
+.mp-plates .h-cred__grid {
   display: grid;
   grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
   grid-template-areas:
@@ -180,30 +180,30 @@
   align-items: start;
   column-gap: clamp(32px, 6vw, 120px);
 }
-.mp-home .h-cred__label {
+.mp-plates .h-cred__label {
   grid-area: label;
 }
-.mp-home .h-cred__main {
+.mp-plates .h-cred__main {
   grid-area: main;
 }
-.mp-home .h-cred__h {
+.mp-plates .h-cred__h {
   margin-top: clamp(22px, 3vw, 44px);
   max-width: 12ch;
 }
-.mp-home .h-cred__p {
+.mp-plates .h-cred__p {
   max-width: 52ch;
   margin-top: clamp(20px, 2.4vw, 36px);
 }
 /* The list: one discipline a row, its credential at the right, hairlines
    between the rows, the type a quiet grey (the heading carries the plate). */
-.mp-home .h-cred__list {
+.mp-plates .h-cred__list {
   grid-area: list;
   margin: clamp(56px, 8vw, 150px) 0 0;
   padding: 0;
   list-style: none;
   border-top: 1px solid var(--h-hair);
 }
-.mp-home .h-cred__row {
+.mp-plates .h-cred__row {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
@@ -212,7 +212,7 @@
   padding: clamp(18px, 1.9vw, 28px) 0;
   border-bottom: 1px solid var(--h-hair);
 }
-.mp-home .h-cred__name {
+.mp-plates .h-cred__name {
   font-size: clamp(22px, 2.3vw, 38px);
   font-weight: 400;
   line-height: 1.1;
@@ -221,7 +221,7 @@
 }
 /* The credential: a small mono tag in a thin gold ring. Not a heading and
    not a link. */
-.mp-home .h-cred__tag {
+.mp-plates .h-cred__tag {
   display: inline-block;
   padding: 4px 10px 3px;
   border: 1px solid rgb(201 154 56 / 0.6);
@@ -238,24 +238,24 @@
 
 /* ═══ 06 · S11 CONTACT ════════════════════════════════════════════════════ */
 
-.mp-home .h-contact {
+.mp-plates .h-contact {
   padding-block: clamp(80px, 11vw, 190px) clamp(70px, 9vw, 150px);
 }
-.mp-home .h-contact__h {
+.mp-plates .h-contact__h {
   margin-top: clamp(16px, 2vw, 32px);
   /* The size of every other section headline (`.h-h2`; the owner,
      2026-10-25: at 17.6vw it was "muy grande"). Pure white, as the hero. */
   color: #fff;
 }
-.mp-home .h-contact__h .mp-serif {
+.mp-plates .h-contact__h .mp-serif {
   letter-spacing: -0.025em;
 }
-.mp-home .h-contact__sub {
+.mp-plates .h-contact__sub {
   max-width: 44ch;
   margin: clamp(24px, 3vw, 44px) 0 0;
   font-size: clamp(17px, 1.4vw, 22px);
 }
-.mp-home .h-contact__grid {
+.mp-plates .h-contact__grid {
   display: grid;
   grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
   align-items: start;
@@ -264,16 +264,16 @@
 }
 
 /* The four direct lines. */
-.mp-home .h-contact__lines {
+.mp-plates .h-contact__lines {
   margin: 0;
   padding: 0;
   list-style: none;
   border-top: 1px solid var(--h-hair);
 }
-.mp-home .h-contact__lines li {
+.mp-plates .h-contact__lines li {
   border-bottom: 1px solid var(--h-hair);
 }
-.mp-home .h-contact__line {
+.mp-plates .h-contact__line {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
@@ -284,35 +284,35 @@
   text-decoration: none;
   transition: padding-left 0.6s var(--h-ease);
 }
-.mp-home .h-contact__line:focus-visible {
+.mp-plates .h-contact__line:focus-visible {
   outline: 2px solid var(--mp-gold);
   outline-offset: -2px;
   padding-left: clamp(10px, 1.2vw, 20px);
 }
-.mp-home .h-contact__line:focus-visible .h-ring {
+.mp-plates .h-contact__line:focus-visible .h-ring {
   border-color: var(--mp-gold);
   color: var(--mp-gold);
 }
-.mp-home .h-contact__line:focus-visible .h-ring svg {
+.mp-plates .h-contact__line:focus-visible .h-ring svg {
   transform: rotate(-45deg);
 }
 @media (hover: hover) and (pointer: fine) {
-  .mp-home .h-contact__line:hover {
+  .mp-plates .h-contact__line:hover {
     padding-left: clamp(10px, 1.2vw, 20px);
   }
-  .mp-home .h-contact__line:hover .h-ring {
+  .mp-plates .h-contact__line:hover .h-ring {
     border-color: var(--mp-gold);
     color: var(--mp-gold);
   }
-  .mp-home .h-contact__line:hover .h-ring svg {
+  .mp-plates .h-contact__line:hover .h-ring svg {
     transform: rotate(-45deg);
   }
 }
 /* The "Where" row is plain text: one column, no ring, no hover. */
-.mp-home .h-contact__line--plain {
+.mp-plates .h-contact__line--plain {
   grid-template-columns: minmax(0, 1fr);
 }
-.mp-home .h-contact__k {
+.mp-plates .h-contact__k {
   grid-column: 1;
   font-family: var(--mp-mono);
   font-size: 12px;
@@ -321,7 +321,7 @@
   text-transform: uppercase;
   color: var(--mp-snow-3);
 }
-.mp-home .h-contact__v {
+.mp-plates .h-contact__v {
   grid-column: 1;
   font-size: clamp(20px, 2vw, 34px);
   font-weight: 500;
@@ -331,10 +331,10 @@
   color: var(--mp-snow);
 }
 /* The telephone number is the large line; the others are long. */
-.mp-home .h-contact__line[href^='tel:'] .h-contact__v {
+.mp-plates .h-contact__line[href^='tel:'] .h-contact__v {
   font-size: clamp(24px, 2.5vw, 42px);
 }
-.mp-home .h-contact__go {
+.mp-plates .h-contact__go {
   grid-column: 2;
   grid-row: 1 / 3;
   width: 50px;
@@ -346,66 +346,66 @@
    fields keep the site's own structure (a label, an underline); the skin is
    larger type, mono labels, gold on focus, and a REAL :focus-visible ring on
    every control. */
-.mp-home .h-contact__form {
+.mp-plates .h-contact__form {
   color-scheme: dark;
   /* The form's error colours are for a light surface (7.5:1 on paper); on
      black they would be 2:1. */
   --mp-error: #ff7a68;
   --mp-error-ink: #ff9a8a;
 }
-.mp-home .h-contact__form .mp-form {
+.mp-plates .h-contact__form .mp-form {
   gap: clamp(20px, 2.2vw, 32px);
 }
 @media (min-width: 641px) {
-  .mp-home .h-contact__form .mp-form__row--3 {
+  .mp-plates .h-contact__form .mp-form__row--3 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   /* Name | email on the first row; the phone takes the whole second row
      rather than sitting alone in half of it with a hole beside it. */
-  .mp-home .h-contact__form .mp-form__row--3 > :nth-child(3) {
+  .mp-plates .h-contact__form .mp-form__row--3 > :nth-child(3) {
     grid-column: 1 / -1;
   }
 }
-.mp-home .h-contact__form .mp-field {
+.mp-plates .h-contact__form .mp-field {
   gap: 0;
 }
-.mp-home .h-contact__form .mp-field__label {
+.mp-plates .h-contact__form .mp-field__label {
   font-family: var(--mp-mono);
   font-size: 11px;
   letter-spacing: 0.16em;
   color: var(--mp-snow-3);
 }
-.mp-home .h-contact__form .mp-field__opt {
+.mp-plates .h-contact__form .mp-field__opt {
   font-family: var(--mp-mono);
   letter-spacing: 0.16em;
   color: var(--mp-snow-3);
 }
-.mp-home .h-contact__form .mp-field__input {
+.mp-plates .h-contact__form .mp-field__input {
   min-height: 56px;
   padding-block: 10px 8px;
   font-size: clamp(20px, 1.7vw, 26px);
   letter-spacing: -0.015em;
   color: var(--mp-snow);
 }
-.mp-home .h-contact__form .mp-field__textarea {
+.mp-plates .h-contact__form .mp-field__textarea {
   min-height: 130px;
   font-size: clamp(18px, 1.4vw, 22px);
   line-height: 1.5;
 }
-.mp-home .h-contact__form .mp-field__input:focus {
+.mp-plates .h-contact__form .mp-field__input:focus {
   border-color: var(--mp-gold);
 }
 /* A real ring, not the underline alone: 2 px gold, 6 px out. */
-.mp-home .h-contact__form .mp-field__input:focus-visible,
-.mp-home .h-contact__form .mp-files__native:focus-visible {
+.mp-plates .h-contact__form .mp-field__input:focus-visible,
+.mp-plates .h-contact__form .mp-files__native:focus-visible {
   outline: 2px solid var(--mp-gold);
   outline-offset: 6px;
 }
-.mp-home .h-contact__form .mp-field__select option {
+.mp-plates .h-contact__form .mp-field__select option {
   background: var(--mp-graphite);
   color: var(--mp-snow);
 }
-.mp-home .h-contact__form .mp-files__hint {
+.mp-plates .h-contact__form .mp-files__hint {
   max-width: 62ch;
   font-size: 0.9375rem;
   color: var(--mp-snow-2);
@@ -414,7 +414,7 @@
    The browser's "No file chosen" is said in the browser's language and is
    always true after a pick (the form clears the input and lists the files),
    so it is not drawn. */
-.mp-home .h-contact__form .mp-files__native {
+.mp-plates .h-contact__form .mp-files__native {
   display: block;
   width: 100%;
   max-width: 100%;
@@ -424,7 +424,7 @@
   color: transparent;
   cursor: pointer;
 }
-.mp-home .h-contact__form .mp-files__native::file-selector-button {
+.mp-plates .h-contact__form .mp-files__native::file-selector-button {
   min-height: 48px;
   margin-inline-end: 16px;
   padding: 0.85rem 1.4rem;
@@ -439,25 +439,25 @@
   cursor: pointer;
   transition: border-color 0.4s var(--h-ease), color 0.4s var(--h-ease);
 }
-.mp-home .h-contact__form .mp-files__native:hover::file-selector-button,
-.mp-home .h-contact__form .mp-files__native:focus-visible::file-selector-button {
+.mp-plates .h-contact__form .mp-files__native:hover::file-selector-button,
+.mp-plates .h-contact__form .mp-files__native:focus-visible::file-selector-button {
   border-color: var(--mp-snow);
 }
-.mp-home .h-contact__form .mp-files__native:disabled {
+.mp-plates .h-contact__form .mp-files__native:disabled {
   cursor: default;
 }
-.mp-home .h-contact__form .mp-files__native:disabled::file-selector-button {
+.mp-plates .h-contact__form .mp-files__native:disabled::file-selector-button {
   opacity: 0.5;
   cursor: default;
 }
-.mp-home .h-contact__form .mp-btn--solid {
+.mp-plates .h-contact__form .mp-btn--solid {
   min-height: 56px;
   padding-inline: 2rem;
   font-size: 1rem;
   /* The same pill as the hero's button: one action, one shape. */
   border-radius: 999px;
 }
-.mp-home .h-contact__form .mp-form__success {
+.mp-plates .h-contact__form .mp-form__success {
   padding: clamp(24px, 3vw, 48px);
   border-color: var(--h-hair);
 }
@@ -469,31 +469,31 @@
    from 900 × 720). Below 900 it opens out: the sentence under the headline,
    two cards side by side, the contractor's across both. */
 @media (max-width: 899px) {
-  .mp-home .h-cred__head {
+  .mp-plates .h-cred__head {
     grid-template-columns: minmax(0, 1fr);
     align-items: start;
   }
-  .mp-home .h-cred__lede {
+  .mp-plates .h-cred__lede {
     justify-self: start;
     max-width: 40ch;
   }
-  .mp-home .h-cred__row {
+  .mp-plates .h-cred__row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .mp-home .h-cred__card.mp-partner__card {
+  .mp-plates .h-cred__card.mp-partner__card {
     grid-column: 1 / -1;
   }
 }
 
 @media (max-width: 900px) {
-  .mp-home .h-cred__grid {
+  .mp-plates .h-cred__grid {
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
       'label'
       'main'
       'list';
   }
-  .mp-home .h-cred__list {
+  .mp-plates .h-cred__list {
     margin-top: clamp(32px, 6vw, 56px);
   }
   /* One column, in the order of the markup: the form, then the direct lines.
@@ -501,7 +501,7 @@
      keyboard and a screen reader going from the form's Send button back UP to
      Call: WCAG 1.3.2 and 2.4.3. The phone bar carries Call and WhatsApp from
      the first scroll, so nothing is lost.) */
-  .mp-home .h-contact__grid {
+  .mp-plates .h-contact__grid {
     grid-template-columns: minmax(0, 1fr);
     gap: 48px;
   }
@@ -510,7 +510,7 @@
 /* The email address is one 11-em word: on the narrowest phones it is sized to
    the room the ring leaves it, so it never breaks in the middle of the name. */
 @media (max-width: 400px) {
-  .mp-home .h-contact__line[href^='mailto:'] .h-contact__v {
+  .mp-plates .h-contact__line[href^='mailto:'] .h-contact__v {
     font-size: clamp(15px, calc((100vw - 2 * var(--h-pad) - 74px) / 11.3), 20px);
   }
 }
@@ -519,11 +519,11 @@
 @media (max-width: 720px) {
   /* A long credential wraps here: a two-line pill with a 999 px radius
      becomes a stadium, so the corners are softened instead. */
-  .mp-home .h-cred__tag {
+  .mp-plates .h-cred__tag {
     white-space: normal;
     border-radius: 14px;
   }
-  .mp-home .h-types__card {
+  .mp-plates .h-types__card {
     flex-basis: 76vw;
   }
 }
@@ -531,22 +531,22 @@
 /* ═══ 08 · REDUCED MOTION ═════════════════════════════════════════════════ */
 
 @media (prefers-reduced-motion: reduce) {
-  .mp-home .h-types__card:hover .h-ph__in img,
-  .mp-home .h-types__card:has(.h-types__link:focus-visible) .h-ph__in img {
+  .mp-plates .h-types__card:hover .h-ph__in img,
+  .mp-plates .h-types__card:has(.h-types__link:focus-visible) .h-ph__in img {
     transform: none;
   }
   /* No drift: the first set alone, as a native horizontal scroller. */
-  .mp-home .h-types__rail {
+  .mp-plates .h-types__rail {
     overflow-x: auto;
     overscroll-behavior-x: contain;
     scrollbar-width: thin;
     scrollbar-color: var(--mp-snow-3) transparent;
   }
-  .mp-home .h-types__track {
+  .mp-plates .h-types__track {
     margin-inline-start: 0;
     padding-inline-start: var(--l-gutter);
   }
-  .mp-home .h-types__set[aria-hidden='true'] {
+  .mp-plates .h-types__set[aria-hidden='true'] {
     display: none;
   }
 }

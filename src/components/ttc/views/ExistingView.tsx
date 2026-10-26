@@ -6,7 +6,7 @@ import { PageHero } from '@/components/ttc/mp/PageHero';
 import { SituationCard } from '@/components/ttc/mp/SituationCard';
 import { ProcessTimeline } from '@/components/ttc/mp/ProcessTimeline';
 import { PartnerSection } from '@/components/ttc/mp/PartnerSection';
-import { ContactCTA } from '@/components/ttc/mp/ContactCTA';
+import { HomeContact } from '@/components/ttc/mp/home/HomeContact';
 import { SectionHeading, Reveal } from '@/components/ttc/mp/primitives';
 import { accentLines } from '@/components/ttc/mp/text';
 import { breadcrumbLd, JsonLd } from './meta';
@@ -46,7 +46,7 @@ export function ExistingView({ lang }: { lang: Lang }) {
   );
 
   return (
-    <>
+    <div className="mp-plates mp-dark">
       <JsonLd data={breadcrumbLd(lang, [{ name: c.ui.home, path: '/' }, { name: navLabel, path: '/existing-buildings' }])} />
 
       <PageHero
@@ -83,7 +83,7 @@ export function ExistingView({ lang }: { lang: Lang }) {
           it runs. The short form — the block is whole on the home page, and
           the licenses are listed on /about, where this one links. */}
       <PartnerSection n="03" lang={lang} surface="paper" variant="brief" />
-      <ContactCTA />
-    </>
+      <HomeContact closing lang={lang} />
+    </div>
   );
 }
