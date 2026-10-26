@@ -24,8 +24,8 @@ import { Words } from './Words';
  * markup in `home.order`, two to a row, the left one first; the right column
  * is dropped by `clamp(90px, 15vw, 260px)` with a transform (home.css), so
  * the markup, the keyboard and a screen reader keep the order the eye reads
- * (left, right, left…) and the rows keep their height. Over the grid, a key:
- * the two tracks in one line each; every card carries its own track tag.
+ * (left, right, left…) and the rows keep their height. Every card carries
+ * its own track tag; the key that stood over the grid went on 2026-10-26.
  * Under 900 px the grid is one column, in the same order, no drop. `--o` on
  * each card is its place in `home.order` (the ribbon runs in that order;
  * nothing in the stylesheets orders by it).
@@ -45,7 +45,6 @@ import { Words } from './Words';
  *
  * MOTION (spec E8 to E12), by attribute (home-motion.css):
  *   `[data-fx="words"]`   the h2: each word rises out of its mask (`Words`)
- *   `[data-fx="left"]`    each legend of the key slides in from the left (E10)
  *   `[data-fx="img"]`     each photograph: clip-path reveal on `.h-ph__in`,
  *                         settle on its image (E12)
  * The head's label, tag, lede and link are wrapped in plain `Reveal`s, the
@@ -61,9 +60,6 @@ export function HomeServices({ lang }: { lang: Lang }) {
     if (!s) throw new Error(`home.order: no service "${slug}"`);
     return { s, i, photo: imagery.services[slug], line: (h.lines as Record<string, string>)[slug] };
   });
-  /* The key over the grid: existing buildings, then new construction. */
-  const legends = [h.legend.existing, h.legend.new];
-
   return (
     <section
       id="services"
@@ -93,24 +89,8 @@ export function HomeServices({ lang }: { lang: Lang }) {
           </div>
         </header>
 
-        <div className="h-svc__key">
-          {legends.map((g, k) => (
-            <Reveal
-              key={g.k}
-              fx="left"
-              delay={k * 0.15}
-              className="h-svc__legend"
-              style={{ '--o': 0 } as React.CSSProperties}
-            >
-              <p className="h-track">
-                <Diamond />
-                {g.k}
-              </p>
-              <p className="h-svc__legend-v">{g.v}</p>
-            </Reveal>
-          ))}
-        </div>
-
+        {/* No key over the grid any more (the owner, 2026-10-26: "este texto no
+            lo veo necesario"); each card carries its own track tag. */}
         <div className="h-svc__grid">
           {cards.map(({ s, i, photo, line }) => {
             /* One frame shape for all six, 3/2 (the owner, 2026-10-26: the

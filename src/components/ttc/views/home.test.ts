@@ -375,9 +375,12 @@ describe('the order of the six services (spec item 4, data part)', () => {
       expect(order.slice(0, 2)).toEqual(PROGRAMS);
     });
 
-    it(`${lang}: the four existing-building services, then the two of new construction`, () => {
+    // 2026-10-26: threshold inspections are the county programs applied to a
+    // tall building — an existing-building service; peer review is the one
+    // design-review service, last.
+    it(`${lang}: the five existing-building services, then the one design review`, () => {
       const track = (slug: string) => c.services.find((s) => s.slug === slug)!.track;
-      expect(order.map(track)).toEqual(['existing', 'existing', 'existing', 'existing', 'new', 'new']);
+      expect(order.map(track)).toEqual(['existing', 'existing', 'existing', 'existing', 'existing', 'new']);
     });
   }
 
@@ -984,16 +987,13 @@ for (const lang of LANGS) {
       expect(lines).toBeGreaterThan(form);
     });
 
-    it('services: the key (existing, then new), then the six cards in home.order (the phone shows them that way)', () => {
+    it('services: the six cards in home.order, and no key over them (the phone shows them that way)', () => {
       const services = section(markup, 'services');
       const cards = [...services.matchAll(/<article\b[\s\S]*?href="[^"]*\/services\/([a-z-]+)"/g)].map((m) => m[1]);
       expect(cards).toEqual([...c.home.order]);
-      // The key comes before the first card, existing buildings first.
-      const key = services.match(/<div class="h-svc__key">[\s\S]*?<div class="h-svc__grid">/)?.[0] ?? '';
-      const existing = key.indexOf(esc(c.home.services.legend.existing.k));
-      expect(existing).toBeGreaterThan(-1);
-      expect(key.indexOf(esc(c.home.services.legend.new.k))).toBeGreaterThan(existing);
-      expect(services.indexOf('h-svc__key')).toBeLessThan(services.indexOf('<article'));
+      // The owner, 2026-10-26: no key of the two tracks over the grid; each
+      // card carries its own track tag.
+      expect(services).not.toContain('h-svc__key');
     });
   });
 

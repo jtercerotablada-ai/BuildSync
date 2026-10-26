@@ -116,11 +116,12 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
   // The service's own wording for its page; each key falls back to the
   // shared label where it is read.
   const h = service.headings ?? {};
-  // The existing-building track holds four services and the new-construction
-  // track two, so a page has three same-track siblings or one. The grid
-  // auto-fits (mp.css `.mp-more`): the links fill the row instead of leaving
-  // a blank column.
-  const related = c.services.filter((s) => s.slug !== slug && s.track === service.track).slice(0, 3);
+  // Three same-track siblings; the design-review track holds peer review
+  // alone (2026-10-26: threshold inspections are an existing-building
+  // service), so that page offers the first three of the other track rather
+  // than an empty row. The grid auto-fits (mp.css `.mp-more`).
+  const sameTrack = c.services.filter((s) => s.slug !== slug && s.track === service.track);
+  const related = (sameTrack.length ? sameTrack : c.services.filter((s) => s.slug !== slug)).slice(0, 3);
   // The cities of this program that have a page of their own (cities.ts),
   // by the name their office row carries.
   const cityPages = new Map(cityPagesOf(lang, service.slug).map((p) => [p.city, p]));

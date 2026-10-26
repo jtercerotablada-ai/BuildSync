@@ -130,7 +130,7 @@ export const company = {
    * — the order the whole site now follows. No number belongs here.
    */
   description:
-    'Structural engineering for South Florida — building recertification in Miami-Dade, the Building Safety Inspection Program (BSIP) in Broward, milestone inspections, structural assessments and repair design, threshold inspections during construction, and the peer review of a structural design.',
+    'Structural engineering for South Florida — building recertification in Miami-Dade, the Building Safety Inspection Program (BSIP) in Broward, milestone inspections, structural assessments and repair design, the county inspections of threshold buildings, and the peer review of a structural design.',
   tagline: 'Structural Engineering for South Florida.',
   /**
    * Two real brand assets, both supplied by the client — never redraw either.
@@ -349,7 +349,7 @@ export const ui = {
      "Request a Proposal"; headings stay in sentence case. */
   requestProposal: 'Request a Proposal',
   seeAllServices: 'All Services',
-  newProjects: 'New construction',
+  newProjects: 'Design review',
   existingBuildings: 'Existing buildings',
   whenYouNeedIt: 'When you need it',
   whatsIncluded: "What's included",
@@ -2153,97 +2153,104 @@ export const services: Service[] = [
   },
   /* ── NEW PROJECTS ──────────────────────────────────────────────────────── */
   {
-    /* The owner, 2026-10-25: the structural associate whose PE the state
-       lists as a Special Inspector of threshold buildings works under the
-       firm, so the service is offered. Florida's own words throughout
-       (s. 553.71 and 553.79, F.S.): a threshold building is more than three
-       stories or fifty feet, or an assembly space over 5,000 square feet and
-       500 people; the owner hires the special inspector, who inspects the
-       structure during construction under the engineer of record's
-       structural inspection plan and reports to the building official. The
-       firm inspects; it designs nothing here and builds nothing. */
+    /* THRESHOLD BUILDINGS — the owner, 2026-10-26: "es lo mismo de
+       recertification pero edificios threshold". Not the special inspection
+       during construction (s. 553.79), which the firm does not offer, but the
+       county programs applied to a threshold building: Miami-Dade inspects
+       "any building 4-stories or taller and other buildings classified as a
+       threshold building" separately by a qualified structural engineer and
+       an electrical engineer, with a self-qualification letter and proof of
+       DBPR structural specialization behind the structural report, and has
+       the façade of structural sealant glazing inspected every five years
+       (miamidade.gov/recertification, read 2026-10-26); Broward's BSIP asks
+       for a structural engineer licensed as a Special Inspector for the
+       structural portion (BORA Policy 05-05). A threshold building is more
+       than three stories or fifty feet, or an assembly space over 5,000
+       square feet and 500 people (s. 553.71). The structural associate holds
+       exactly that file (Board Recognized Structural Engineer + Special
+       Inspector), which is why the firm takes these; nobody is named. */
     slug: 'threshold-inspections',
     n: '05',
     title: 'Threshold Building Inspections',
     shortTitle: 'Threshold Inspections',
-    track: 'new',
+    track: 'existing',
     summary:
-      'Special inspections of a threshold building as it is built, stage by stage under the structural inspection plan, with the reports the building department files.',
+      'The county inspection programs applied to a threshold building — over three stories or fifty feet — with the structural report, the self-qualification letter and the façade review its size requires.',
     card: {
-      when: 'A building over three stories is about to go up and the permit requires a special inspector.',
-      receive: 'Inspections at each stage of the structure, the reports the building department files, and the statement of compliance at the end.',
-      next: 'Send the permit set and the structural inspection plan, and tell us when the first pour is.',
+      when: 'Your building is over three stories or fifty feet, and the county’s notice has arrived or its date is near.',
+      receive: 'The complete county package for a threshold building: structural and electrical reports, the structural engineer’s self-qualification letter, and the façade review where glazing calls for it.',
+      next: 'Send the notice, or the building’s address and number of stories, and we tell you which program and which report it needs.',
     },
     heroSub:
-      'A certified Special Inspector follows the structure as it rises: every inspection the plan calls for, every report the county files.',
+      'A building over three stories or fifty feet answers the county with a fuller file: a structural engineer with the state’s specialization, a self-qualification letter, and the façade looked at as well.',
     headings: {
-      faq: 'Questions about threshold inspections',
-      considerations: 'What a special inspector does, and what the law expects.',
+      faq: 'Questions about threshold buildings',
+      considerations: 'What makes a building a threshold building, and what that changes.',
     },
-    problemTitle: 'The structure has to be inspected as it rises.',
+    problemTitle: 'A tall building owes the county more than a report.',
     problem:
-      'Florida requires a special inspector, hired by the owner, on every threshold building: more than three stories or fifty feet, or a large assembly space. The inspector checks the structure during construction, stage by stage, and reports to the building official. It is a role the law defines, and the project cannot close without it.',
+      'Miami-Dade and Broward run the same inspection programs for every aging building, but a threshold building — more than three stories or fifty feet, or a large assembly space — is held to more: its structural report has to come from a structural engineer with the state’s structural specialization, with a self-qualification letter attached, and a glazed façade has an inspection of its own. Many owners learn this only when the county sends the report back.',
     audience: [
-      'Owners and developers of threshold buildings',
-      'General contractors scheduling the structural inspections',
-      'Architects and engineers of record coordinating the inspection plan',
+      'Condominium and cooperative boards of buildings over three stories',
+      'Owners and managers of towers, parking structures and large assembly buildings',
+      'Property managers handling a notice for a threshold building',
     ],
     when: [
-      'A threshold building is about to start and the permit names a special inspector.',
-      'The structural inspection plan calls for inspections at each stage: foundations, columns, slabs, steel and connections.',
-      'The building department asks for the special inspector’s reports before the next stage, or before the certificate of occupancy.',
+      'The county’s notice names a building over three stories or fifty feet, or a large assembly space.',
+      'A report filed for a threshold building came back for the structural engineer’s qualification or for the missing self-qualification letter.',
+      'The façade carries structural sealant glazing and its own inspection is due.',
     ],
-    capabilities: ['Special inspections', 'Inspection plan', 'Stage reports', 'Statement of compliance'],
+    capabilities: ['Structural report', 'Self-qualification letter', 'Electrical report', 'Façade review'],
     scope: [
-      'Review of the structural inspection plan prepared by the engineer of record',
-      'Inspections of foundations, reinforcing steel, concrete placement, structural steel and connections at the stages the plan sets',
-      'Shoring and reshoring review where the plan requires it',
-      'Stage reports with photographs, filed as the building department requires',
-      'Non-conformances recorded and followed until corrected',
-      'The statement of compliance at completion',
+      'Which program and which report the building owes: recertification, the Building Safety Inspection Program, or the milestone inspection they satisfy',
+      'Structural inspection and report by a structural engineer who meets the counties’ requirements for threshold buildings, with the self-qualification letter',
+      'Electrical inspection and report by an engineer of the electrical discipline',
+      'Review of the façade and of structural sealant glazing where the building has it',
+      'Repair scope for what the inspection finds, and the reinspection that closes the file',
+      'Filing with the building official on the county’s forms',
     ],
     process: [
-      { step: 'Plan', detail: 'The structural inspection plan is reviewed and the inspection stages are set against the contractor’s schedule.' },
-      { step: 'Inspect', detail: 'Each stage is inspected on site before it is covered: reinforcing, formwork, concrete placement, steel erection and connections.' },
-      { step: 'Report', detail: 'Reports filed as the building department requires, with every non-conformance recorded until it is corrected.' },
-      { step: 'Close', detail: 'At completion, the statement that the structure was built as inspected, for the certificate of occupancy.' },
+      { step: 'Classify', detail: 'The building’s height, occupancy and glazing decide the program, the report and who may prepare it.' },
+      { step: 'Inspect', detail: 'Structural and electrical inspections on site, and the façade where the building has structural glazing.' },
+      { step: 'Report', detail: 'The reports on the county’s forms, the self-qualification letter attached, filed with the building official.' },
+      { step: 'Close', detail: 'Repair scope if anything is found, the reinspection, and the letter that closes the file.' },
     ],
     deliverables: [
-      'Stage inspection reports with photographic record',
-      'Non-conformance log and its corrections',
-      'Reports filed with the building department',
-      'Statement of compliance at completion',
+      'Structural report on the county’s form, with the self-qualification letter',
+      'Electrical report on the county’s form',
+      'Façade and structural glazing report where it applies',
+      'Repair scope, and the reinspection that closes the file',
     ],
     nextStep:
-      'Send the permit set and the structural inspection plan, and tell us the schedule. You receive a proposal for the inspections the plan calls for.',
+      'Send the notice, or the address and the number of stories, and we tell you which program the building falls under and what its report has to carry.',
     considerations: [
-      'A threshold building is more than three stories or fifty feet, or an assembly occupancy over 5,000 square feet and 500 people.',
-      'The special inspector is hired by the owner, not by the contractor, and reports to the building official.',
-      'The inspections follow the structural inspection plan of the engineer of record; the special inspector does not design the building and does not build it.',
+      'A threshold building is more than three stories or fifty feet, or an assembly occupancy over 5,000 square feet and 500 people; Miami-Dade inspects any building of four stories or more the same way.',
+      'Both counties ask that the structural report of a threshold building come from a structural engineer with the state’s structural specialization — in Broward, one licensed as a Special Inspector — with a self-qualification letter; the electrical report, from an engineer of the electrical discipline.',
+      'In Miami-Dade, a threshold building with a façade of structural sealant glazing has that façade inspected on its own cycle, every five years.',
     ],
     faq: [
       {
-        q: 'Who hires the special inspector?',
-        a: 'The owner does, under Florida law, and the inspector answers to the building official, not to the contractor. That independence is the point of the role: the person who checks the structure is not the person who builds it.',
+        q: 'Is my building a threshold building?',
+        a: 'If it has more than three stories or stands more than fifty feet tall, yes; so is a building with an assembly space over 5,000 square feet that holds more than 500 people. Miami-Dade applies the same rule to any building of four stories or more. Send the address and we confirm it.',
       },
       {
-        q: 'How often is the building inspected?',
-        a: 'As often as the structural inspection plan requires. The plan, prepared by the engineer of record, names the stages that have to be seen before they are covered: footings and mats, columns and walls, each floor’s reinforcing and placement, steel erection and connections. We set those stages against the contractor’s schedule and are on site for each.',
+        q: 'Why was our report sent back?',
+        a: 'Usually for the qualification: the counties accept a threshold building’s structural report only from a structural engineer with the state’s structural specialization — in Broward, one who is also a licensed Special Inspector — and only with a self-qualification letter attached. A report without that file is returned, and the clock keeps running.',
       },
       {
-        q: 'What happens when something does not match the drawings?',
-        a: 'It is recorded as a non-conformance, with photographs, and reported. The engineer of record decides the fix; we inspect the correction and close the item. Nothing is covered until it is closed.',
+        q: 'Does the façade need its own inspection?',
+        a: 'In Miami-Dade, when it is structural sealant glazing, yes: the county asks for a façade report every five years, on its own cycle, separate from the program’s report. We tell you whether your façade falls under it.',
       },
       {
-        q: 'What does the building department receive?',
-        a: 'The stage reports as the work proceeds, in the form the department asks for, and at the end the signed and sealed statement that the structure was built in accordance with the approved plans, which the certificate of occupancy depends on.',
+        q: 'Is this a different program from the recertification or the BSIP?',
+        a: 'No. It is the same county program — recertification in Miami-Dade, the Building Safety Inspection Program in Broward, and the state’s milestone inspection they both satisfy — applied to a building that, by its size, owes a fuller file. The notice, the dates and the forms are the program’s; what changes is who may prepare the structural report and what travels with it.',
       },
     ],
     seo: {
       title: 'Threshold Building Inspections — Miami-Dade & Broward',
       description:
-        'Special Inspector for threshold buildings in Miami-Dade and Broward: inspections at every stage of construction, reports to the building department.',
-      keywords: ['threshold inspection Florida', 'special inspector threshold building Miami', 'threshold building inspector Broward', 'special inspections structural Florida'],
+        'Recertification, BSIP and milestone inspections of threshold buildings in Miami-Dade and Broward, with the structural report their size requires.',
+      keywords: ['threshold building recertification Miami-Dade', 'threshold building BSIP Broward', 'threshold building structural engineer self-qualification', 'threshold building inspection Florida'],
     },
   },
   {
@@ -2478,7 +2485,7 @@ export const typologies: Typology[] = [
   { n: '02', title: 'Townhouses & duplexes', lede: 'Party walls, shared foundations and repeated bays: a defect in one bay is read against the others, so the repair is scoped once and priced once.', track: 'existing', href: '/services/structural-condition-assessments', photo: photo.houseTownhouses },
   { n: '03', title: 'Mid-rise reinforced concrete', lede: 'Flat plates, shear-wall cores and cantilevered balconies, the system South Florida is built from: inspected for the county, for the milestone law and for the board that has to decide.', track: 'existing', href: '/services/milestone-inspections', photo: photo.frameCurvedBalconies },
   { n: '04', title: 'Mixed-use & commercial frames', lede: 'Long spans over ground-floor retail, transfer structure where the grid changes, parking below: assessed as one load path, with the findings in the order they matter.', track: 'existing', href: '/services/structural-condition-assessments', photo: photo.frameCraneClean },
-  { n: '05', title: 'Buildings under construction', lede: 'Mats, columns, each floor’s reinforcing and placement, steel and connections: the threshold building inspected stage by stage before anything is covered, and reported to the county.', track: 'new', href: '/services/threshold-inspections', photo: photo.foundationMatPit },
+  { n: '05', title: 'Threshold buildings', lede: 'More than three stories or fifty feet: the same county programs, but a fuller file — a structural engineer with the state’s specialization, a self-qualification letter, and the glazed façade looked at too.', track: 'existing', href: '/services/threshold-inspections', photo: photo.recertMiamiDade },
   { n: '06', title: 'Repairs to existing structures', lede: 'Balconies, facades, slabs and columns that have been in service for decades — condition documented, repairs engineered, and the paperwork the county asks for.', track: 'existing', href: '/existing-buildings', photo: photo.repairSoffitTrowel },
 ];
 
@@ -2577,7 +2584,7 @@ export const home = {
   },
   ribbon: {
     label: 'What we inspect',
-    sideNew: 'New construction',
+    sideNew: 'Design review',
     sideExisting: 'Existing buildings',
     /* The second row, under the eight service names. */
     types: [
@@ -2594,19 +2601,19 @@ export const home = {
     label: 'Services',
     title: 'Six services. One standard.',
     accentWord: 'standard.',
-    lede: 'We read the buildings that stand, follow the ones going up, and check the designs of others before they are issued — anywhere in Florida.',
+    lede: 'We read the buildings that stand, the tall ones included, and check the designs of others before they are issued — anywhere in Florida.',
     legend: {
       existing: { k: 'Existing buildings', v: 'Inspection, assessment and repair design for buildings already standing.' },
-      new: { k: 'New construction', v: 'Threshold inspections during construction, and the independent peer review of a design before it is issued.' },
+      new: { k: 'Design review', v: 'The independent peer review of a structural design before it is issued.' },
     },
     all: 'All services',
     lines: {
-      'structural-condition-assessments': 'What a building is doing today, and the repairs it needs. Findings a board can read, and a repair scope it can act on.',
-      'building-recertification': 'Inspections and reports for Miami-Dade County’s recertification program. Structural and electrical, on the county’s forms.',
-      'threshold-inspections': 'Special inspections of a building over three stories, stage by stage as it is built. A report to the building department at each one.',
-      'broward-bsip': 'Inspections and reports for Broward County’s building safety program. Structural and electrical, filed on the county’s own forms.',
-      'peer-review': 'An independent second read of a structural design. A comment log, followed until every comment is closed.',
-      'milestone-inspections': 'Structural safety inspections under Florida’s milestone law and beyond it. Which rules reach the building, and what the inspection finds.',
+      'structural-condition-assessments': 'What a building is doing today, and the repairs it needs. Findings a board can read, and a repair scope drawn to be permitted and built.',
+      'building-recertification': 'Inspections and reports for Miami-Dade County’s recertification program. Structural and electrical, on the county’s forms, from the first visit to the filed report.',
+      'threshold-inspections': 'The county inspections of a building over three stories or fifty feet, with the fuller report its size requires and the structural qualification behind it.',
+      'broward-bsip': 'Inspections and reports for Broward County’s building safety program. Structural and electrical, filed on the county’s own forms and followed until the file closes.',
+      'peer-review': 'An independent second read of a structural design. A comment log, followed until every comment is closed, and a report a lender can read.',
+      'milestone-inspections': 'Structural safety inspections under Florida’s milestone law and beyond it. Which rules reach the building, what the inspection finds, and what to do about it.',
     },
   },
   statement: {
@@ -2614,7 +2621,7 @@ export const home = {
        entiendo" — the three conditions of the coast (hurricane wind, high
        water, salt air) gave way to the three verbs of the work. */
     lines: ['We inspect.', 'We assess.', 'We review.'],
-    dim: 'Existing buildings, buildings going up and the designs behind them, across Florida — and we write it all down so a board, an owner and a building official can follow.',
+    dim: 'Existing buildings, the threshold buildings among them, and the designs of others, across Florida — and we write it all down so a board, an owner and a building official can follow.',
     accentWord: 'all',
   },
   types: {
@@ -2685,7 +2692,7 @@ export const home = {
 export const howWeWork = {
   eyebrow: 'How we work',
   title: 'Five steps. You always know which one you are on.',
-  lede: 'The sequence is the same whether you are answering a county notice, following a building under construction or sending a design for review. What changes is the depth of step three.',
+  lede: 'The sequence is the same whether you are answering a county notice for a three-storey walk-up or for a tower, or sending a design for review. What changes is the depth of step three.',
   steps: [
     {
       n: '01',
@@ -2704,7 +2711,7 @@ export const howWeWork = {
       title: 'Evaluation or review',
       youDo: 'Give access to the site, or send the drawings and answer the engineer’s questions as they come.',
       /* No client portal exists, so no "progress you can see". */
-      youGet: 'Inspection and findings for existing buildings; stage inspections for a building going up; an independent read of a design under review — with questions raised as they come up, not saved for the end.',
+      youGet: 'Inspection and findings for existing buildings, with the fuller report a threshold building needs; an independent read of a design under review — with questions raised as they come up, not saved for the end.',
     },
     {
       n: '04',
@@ -2803,7 +2810,7 @@ export const engagements: Engagement[] = [
   { n: '02', title: 'Structural safety inspection', need: 'Cracks, rust stains or concrete breaking off, and you need to know how serious it is.', start: 'To start, a few pictures of the cracks, stains or loose concrete are enough.', projectType: 'Existing building — safety inspection', location: 'Miami-Dade or Broward', scope: 'Visual structural inspection, concrete distress mapping, prioritized findings', structuralSystem: 'Reinforced concrete frame, post-tensioned slabs', deliverables: 'Inspection report · Distress mapping · Follow-up scope' },
   { n: '03', title: 'Repair design after an inspection', need: 'An inspection found damage, and the repairs need drawings a contractor can price and the county can permit.', start: 'To start, the inspection report is enough, ours or another engineer’s.', projectType: 'Existing building — repair design', location: 'Miami-Dade or Broward', scope: 'Findings confirmed on site, design of the concrete and reinforcement repair, signed and sealed drawings for permit, replies to the reviewer’s comments, site visits during the work', structuralSystem: 'Reinforced concrete frame, balconies and slabs with distress', deliverables: 'Signed and sealed repair drawings · Specifications · Close-out letters' },
   { n: '04', title: 'Milestone inspection of a condominium', need: 'Your condominium or cooperative association has to document the state’s milestone inspection, and the board wants one engineer to carry it from the first visit to the filed report.', start: 'To start, the year the building was finished and the association’s name are enough.', projectType: 'Existing building — milestone inspection', location: 'Miami-Dade or Broward', scope: 'Phase one visual inspection, phase two where phase one calls for it, the report to the association and the building official, repair scope', structuralSystem: 'Reinforced concrete frame with cantilevered balconies and post-tensioned slabs', deliverables: 'Phase one report · Phase two report where required · Repair scope' },
-  { n: '05', title: 'Threshold building under construction', need: 'Your building permit calls for a special inspector, and the structure is about to come out of the ground.', start: 'To start, the permit set and the structural inspection plan are enough.', projectType: 'New construction — special inspection', location: 'Miami-Dade or Broward', scope: 'Stage inspections under the structural inspection plan, reports to the building department, statement of compliance', structuralSystem: 'Reinforced concrete frame; structural steel where it occurs', deliverables: 'Stage reports · Non-conformance log · Statement of compliance' },
+  { n: '05', title: 'County inspection of a threshold building', need: 'Your building is over three stories or fifty feet, and the county’s program asks more of its report than of a smaller building’s.', start: 'To start, the county’s notice, or the address and the number of stories, is enough.', projectType: 'Existing building — threshold', location: 'Miami-Dade or Broward', scope: 'Which program and report the building owes, structural and electrical inspection, the structural report with its self-qualification letter, façade and structural glazing where they apply, repair scope', structuralSystem: 'Reinforced concrete frame over three stories, post-tensioned slabs', deliverables: 'The county’s package for a threshold building · Self-qualification letter · Repair scope' },
   { n: '06', title: 'Independent structural peer review', need: 'A design needs an independent second check before permit or construction.', start: 'To start, the drawings and calculations under review are enough.', projectType: 'Design review — third party', location: 'Miami-Dade or Broward', scope: 'Independent review of drawings and calculations, comment log, close-out tracking', structuralSystem: 'Reinforced concrete and structural steel, mixed system', deliverables: 'Review report · Prioritized comment log · Resolution record' },
 ];
 
@@ -2916,14 +2923,14 @@ export const aboutPage = {
   /* The slogan opens it (seo.test). The written-down reasoning is the
      Approach section's to say, and "one engineer" is already its first
      sentence: the lede says each once. */
-  sub: 'Built around one accountable team. Tercero Tablada Civil and Structural Engineering Inc. inspects and assesses the buildings already standing, follows the ones going up and reviews the designs of others, across Miami-Dade and Broward.',
+  sub: 'Built around one accountable team. Tercero Tablada Civil and Structural Engineering Inc. inspects and assesses the buildings already standing, the threshold buildings among them, and reviews the designs of others, across Florida.',
   /* One section on /about: the two paragraphs beside the title, then the
      five principles under their own label (`principles.eyebrow`). */
   approach: {
     eyebrow: 'Approach',
     title: 'Reviewed line by line, before it leaves.',
     body: [
-      'Two kinds of work run through this practice, and they inform each other. Following a structure as it is built teaches you what fails in the field; inspecting buildings that have been standing for decades teaches you what to look for the next time.',
+      'Two kinds of work run through this practice, and they inform each other. Reading the designs of others teaches you what fails on paper; inspecting buildings that have been standing for decades teaches you what to look for the next time.',
       'On existing buildings the field comes first: the building is checked on site before it is analyzed, and nothing is concluded from a drawing that has not been confirmed there.',
     ],
   },
@@ -3021,7 +3028,7 @@ export const servicesPage = {
      October 20, 2026 is no "how to read this page" text. It ends on the
      step that costs nothing. Keep "structural engineering services" whole:
      it is where the H1's words are answered on the page (seo.test.ts). */
-  sub: 'Organized by what you need, not by what we do. Six structural engineering services, for buildings already standing and for buildings going up. The proposal is free.',
+  sub: 'Organized by what you need, not by what we do. Six structural engineering services, for buildings already standing and for the designs behind new ones. The proposal is free.',
   /* The label of each service row's disclosure (ServiceCard): when you need
      it, what is included, what you receive. Short, so it never wraps. */
   cardMore: 'Details',
@@ -3037,9 +3044,9 @@ export const servicesPage = {
     },
     new: {
       id: 'new',
-      eyebrow: 'New construction',
-      title: 'You are building, or reviewing a design.',
-      lede: 'For owners, developers, architects and contractors with a threshold building going up, or a structural set to be read independently before it is issued.',
+      eyebrow: 'Design review',
+      title: 'You are reviewing a design.',
+      lede: 'For owners, developers, architects and lenders with a structural set to be read independently before it is issued.',
     },
   },
 } as const;
@@ -3062,7 +3069,7 @@ export const existingPage = {
      pricing block's, for the two programs this line is about. It used to
      list the five services, which the four situations below name. */
   sub: 'The building is already standing. Left unanswered, a county notice turns into fines and a lien in Miami-Dade, and an enforcement hearing in Broward. Already late? It can still be resolved — send us the letter for a free, fixed-fee proposal.',
-  /* THE HUB: four situations, each with the service that answers it.
+  /* THE HUB: five situations, each with the service that answers it.
      This page used to print the four existing-building services as the very
      cards /services prints — same summary, same four rows — under a list of
      four "moments" that led nowhere. The two are now one section: a card per
@@ -3080,12 +3087,13 @@ export const existingPage = {
      lede: it only said how to use the tiles. */
   triggers: {
     eyebrow: 'When to call',
-    title: 'Four moments that need an engineer.',
+    title: 'Five moments that need an engineer.',
     items: [
       { slug: 'building-recertification', k: 'A notice arrived in Miami-Dade.', v: 'That is Miami-Dade’s building recertification. Send us the letter: we deliver the complete package the county asks for — structural, electrical and the certificates that go with them. The program’s page gives the ages and the deadline that apply.' },
       { slug: 'broward-bsip', k: 'A notice arrived in Broward.', v: 'That is the Building Safety Inspection Program, the BSIP, and your city’s letter sets its own date. We start from that letter and deliver the whole package — the structural and electrical inspections, the written report and the program’s official forms.' },
       { slug: 'milestone-inspections', k: 'The board asks whether the milestone law reaches the building.', v: 'The state law and the county programs overlap. We tell you which rules reach your building and how they are met in your county — and we inspect when no notice has come but a purchase, a lender or visible distress gives a reason to look.' },
       { slug: 'structural-condition-assessments', k: 'A report lists repairs, or something worries you.', v: 'Before contractors price anything, an engineer says which conditions affect the structure and defines the repair, so every bid answers the same scope. The same assessment serves before you buy a building or alter one.' },
+      { slug: 'threshold-inspections', k: 'The building is over three stories, or the county sent the report back.', v: 'A threshold building answers the same county programs with a fuller file: a structural engineer with the state’s specialization, a self-qualification letter, and the façade where it is structural glazing. We prepare that file, so the report is not returned for its qualification.' },
     ],
   },
   /* The one sequence both county programs share. It carries NO age and NO
@@ -3205,7 +3213,7 @@ export const contactPage = {
          step is still the inspection and the report — in other words. */
       { k: 'If the date has already passed', v: 'Write to us all the same, and attach the notice with any letter or citation that came after it. The inspection can still be done and the report filed; the sooner the engineer reads what you received, the sooner you have a plan to put before your Building Official.' },
       { k: 'If no notice has come yet', v: 'Send the address of the building and one date: in Miami-Dade, the year it was built; in Broward, the year of its certificate of occupancy. Each county counts a building’s age from that record, so with it we can tell you what applies to yours before a letter arrives.' },
-      { k: 'For any other building or project', v: 'Tell us about the building, where it is and what you need: an assessment, a repair design, the special inspections of a threshold building under construction, or a second look at a design by others. Drawings, photographs and earlier reports are welcome, and none of them is required. The proposal for this work is free as well.' },
+      { k: 'For any other building or project', v: 'Tell us about the building, where it is and what you need: an assessment, a repair design, the county inspection of a threshold building, or a second look at a design by others. Drawings, photographs and earlier reports are welcome, and none of them is required. The proposal for this work is free as well.' },
       { k: 'After you send it', v: 'When there is a notice, the engineer first reads what your Building Official is asking for. Our reply is a set of questions or a written proposal with the scope: what the work includes, what it leaves out, what you will receive and what it costs — for a recertification or a BSIP, a fixed fee. Nothing begins until you have agreed to it.' },
       { k: 'Where, and in which language', v: 'We work in Miami-Dade and Broward, in every city of both counties — from Miami, Hialeah and Coral Gables to Fort Lauderdale, Hollywood and Pompano Beach. Tell us the city, or that the building is outside city limits: that decides which office sends the notice and receives the report. The form and this site are in English and in Spanish; write in whichever is easier for you.' },
     ],
