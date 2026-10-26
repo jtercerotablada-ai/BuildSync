@@ -9,7 +9,7 @@ import { Arrow, Diamond } from './glyphs';
 import { Words } from './Words';
 
 /**
- * S3 · SERVICES. "Eight services. One discipline." The index of what the firm
+ * S3 · SERVICES. "Six services. One standard." The index of what the firm
  * does: each card is one photograph, a track tag, the service's title and one
  * plain line. A SERVER component.
  *

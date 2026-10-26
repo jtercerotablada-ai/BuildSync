@@ -1,44 +1,3 @@
-/* ══════════════════════════════════════════════════════════════════════════
-   HOME — the firm's presentation (the upper half of the page, and the tokens
-   the whole page shares)
-   ──────────────────────────────────────────────────────────────────────────
-   Imported by views/HomeView.tsx, so this is the only route that loads it;
-   the English home (/) and the Spanish home (/es) are the same view.
-   `home-lower.css` carries the lower half (types, the pause plate, the
-   credentials, where we work, the tools, the contact); both are scoped under
-   `.mp-home` and neither edits mp.css.
-
-   WHAT LIVES HERE
-     1  Canvas and tokens             (--h-*, shared by both halves)
-     2  Shared pieces                 (plates, labels, headings, buttons, rings)
-     3  S1 Hero                       (E2 to E6 are the keyframes at its end)
-     4  S2 Ribbon
-     5  S3 Services
-     6  S4 Statement
-     7  S5 BIM
-     8  Reduced motion, print
-     9  The header's Call button on a phone (the rest of the chrome's
-        differences on the home are in SiteHeader, MobileActionBar, SiteFooter)
-
-   THE PALETTE is the site's, not a new one: graphite for the page and the
-   plates, charcoal for a lifted surface, snow for text, the two greys for
-   secondary and tertiary text, gold for ornament (the one italic accent word
-   of a heading, the ◆, hairlines, rings on hover, focus). Never a gold field
-   larger than a button, never gold body text. Every photograph is black and
-   white (`--h-bw`); the film too (`--h-film`).
-
-   MOTION. Below the fold the reveals are the site's own (`reveal.ts`: a block
-   is hidden only after hydration, only while it is still below the fold).
-   The effects that need more than a fade — the word rise, the slide from the
-   left, the drawn hairline, the photograph reveal (spec E8 to E12) — are
-   hooked in the markup by `data-fx="words|left|line|img"` and styled in
-   home-motion.css under the same `[data-rv]` states; nothing here hides them.
-   Above the fold (the hero) every entrance is a CSS keyframe from the first
-   paint, off under `prefers-reduced-motion: reduce`.
-
-   MOTION HOOKS in this file are marked "MOTION HOOK".
-   ══════════════════════════════════════════════════════════════════════════ */
-
 /* ═══ 1 · CANVAS AND TOKENS ═══════════════════════════════════════════════ */
 
 /* mp.css paints the canvas paper (`html:has(.mp)`), so overscroll and the
@@ -1062,91 +1021,18 @@ html:not(.js) .mp-home .h-rib__row--rev .h-rib__track {
 
 /* ═══ 7 · S5 BIM ══════════════════════════════════════════════════════════ */
 
-.mp-home .h-bim__grid {
-  display: grid;
-  grid-template-columns: repeat(12, minmax(0, 1fr));
-  column-gap: clamp(16px, 2vw, 32px);
-  align-items: center;
-}
-.mp-home .h-bim__text {
-  grid-column: 1 / 6;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-}
-.mp-home .h-bim__text .h-h2 {
-  margin-top: clamp(22px, 3vw, 44px);
-}
 /* "La estructura," is a word longer than "The structure,": a touch smaller,
    so it keeps its line and "La" is not left alone on one. */
-.mp-home[data-lang='es'] .h-bim__text .h-h2 {
-  font-size: clamp(38px, 5.6vw, 104px);
-}
-.mp-home .h-bim__body {
-  margin-top: clamp(24px, 3vw, 40px);
-  max-width: 40ch;
-}
-.mp-home .h-bim__text .h-link {
-  margin-top: clamp(20px, 2.4vw, 32px);
-}
-.mp-home .h-bim__media {
-  grid-column: 6 / 13;
-}
 
 /* The frame: 16:10, a charcoal field, the loop filling it, and four small gold
    corner ticks (one ::after, eight 16 × 1 px gradients, inset 14 px). The loop
    is already monochrome: no filter.
    MOTION HOOK: [data-fx='img'] on the frame (clip-path reveal). */
-.mp-home .h-bim__frame {
-  position: relative;
-  overflow: hidden;
-  aspect-ratio: 16 / 10;
-  background: var(--mp-charcoal);
-}
-.mp-home .h-bim__frame img,
-.mp-home .h-bim__frame video {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.mp-home .h-bim__frame::after {
-  content: '';
-  position: absolute;
-  inset: 14px;
-  z-index: 2;
-  pointer-events: none;
-  background:
-    linear-gradient(var(--mp-gold), var(--mp-gold)) top left / 16px 1px,
-    linear-gradient(var(--mp-gold), var(--mp-gold)) top left / 1px 16px,
-    linear-gradient(var(--mp-gold), var(--mp-gold)) top right / 16px 1px,
-    linear-gradient(var(--mp-gold), var(--mp-gold)) top right / 1px 16px,
-    linear-gradient(var(--mp-gold), var(--mp-gold)) bottom left / 16px 1px,
-    linear-gradient(var(--mp-gold), var(--mp-gold)) bottom left / 1px 16px,
-    linear-gradient(var(--mp-gold), var(--mp-gold)) bottom right / 16px 1px,
-    linear-gradient(var(--mp-gold), var(--mp-gold)) bottom right / 1px 16px;
-  background-repeat: no-repeat;
-}
-.mp-home .h-bim__cap {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 16px;
-  margin-top: 16px;
-}
 
 /* Phones: the text, then the frame, the order of the markup (the frame used
    to be moved above the text with `order`, which put the pause switch ABOVE
    the heading and the link it follows in the tab order: WCAG 2.4.3). */
 @media (max-width: 899px) {
-  .mp-home .h-bim__text,
-  .mp-home .h-bim__media {
-    grid-column: 1 / -1;
-  }
-  .mp-home .h-bim__media {
-    margin-top: clamp(36px, 8vw, 64px);
-  }
 }
 
 /* ═══ 8 · REDUCED MOTION, PRINT ═══════════════════════════════════════════ */
@@ -1214,9 +1100,6 @@ html:not(.js) .mp-home .h-rib__row--rev .h-rib__track {
   .mp-home .h-hero__scrim,
   .mp-home .h-rib__rows,
   .mp-home .h-ph,
-  .mp-home .h-bim__media {
-    display: none !important;
-  }
 }
 
 /* ═══ 9 · THE HEADER'S CALL BUTTON ═══════════════════════════════════════

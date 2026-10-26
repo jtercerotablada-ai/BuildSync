@@ -196,6 +196,15 @@ const nextConfig: NextConfig = {
         destination: "/services/milestone-inspections",
         permanent: true,
       },
+      // The three design services left the site on 2026-10-25 (the owner:
+      // the firm does not design new buildings for now). Their addresses
+      // go to the services index, EN and /es.
+      { source: "/services/reinforced-concrete-design", destination: "/services", permanent: true },
+      { source: "/es/services/reinforced-concrete-design", destination: "/es/services", permanent: true },
+      { source: "/services/structural-analysis", destination: "/services", permanent: true },
+      { source: "/es/services/structural-analysis", destination: "/es/services", permanent: true },
+      { source: "/services/bim-coordination", destination: "/services", permanent: true },
+      { source: "/es/services/bim-coordination", destination: "/es/services", permanent: true },
       {
         source: "/es/services/building-safety-inspections",
         destination: "/es/services/milestone-inspections",

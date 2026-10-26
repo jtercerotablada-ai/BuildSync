@@ -33,7 +33,7 @@ function chrome(path: string, lang: Lang) {
   };
 }
 
-const INNER = ['/about', '/contact', '/services', '/existing-buildings', '/guides', '/services/structural-analysis', '/services/building-recertification', '/projects'];
+const INNER = ['/about', '/contact', '/services', '/existing-buildings', '/guides', '/services/threshold-inspections', '/services/building-recertification', '/projects'];
 
 describe('the home page chrome', () => {
   for (const lang of LANGS) {

@@ -188,9 +188,10 @@ describe('the ruler: Arial, as the check measures it', () => {
 describe('titles and descriptions: every page in the sitemap', () => {
   it('measures the pages the sitemap lists, and no others', () => {
     expect(pages.map((p) => p.url).sort()).toEqual(sitemap().map((e) => e.url).sort());
-    // Sixteen pages in each language, one more for every city page, and the
-    // calculators: their catalogue and each one that is open.
-    expect(pages).toHaveLength(2 * (16 + cityPagesEn.length + 1 + openCalculatorPaths.length + 1 + 1 + getGuides('en').length));
+    // Fourteen pages in each language (six of them services), one more for
+    // every city page, and the calculators: their catalogue and each one that
+    // is open.
+    expect(pages).toHaveLength(2 * (14 + cityPagesEn.length + 1 + openCalculatorPaths.length + 1 + 1 + getGuides('en').length));
   });
 
   for (const p of pages) {

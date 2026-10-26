@@ -46,7 +46,7 @@ const label = (c: { services: readonly { slug: string; shortTitle: string }[] },
   c.services.find((s) => s.slug === slug)!.shortTitle;
 const RECERT = label(en, "building-recertification");
 const BSIP_ES = label(es, "broward-bsip");
-const CONCRETE = label(en, "reinforced-concrete-design");
+const CONCRETE = label(en, "structural-condition-assessments");
 
 // A blob the token route could have produced: our store (the id comes from
 // the write token stubbed below), public access, under contact/.

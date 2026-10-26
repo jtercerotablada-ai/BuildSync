@@ -653,12 +653,12 @@ describe('county program pages: no paragraph is printed twice', () => {
       expect(getContent(lang).closingCta.body).toContain(free);
       expect(getContent(lang).closingCta.body).toContain(reply);
     }
-    // Services, Existing Buildings, About, Typical Engagements and the eight
+    // Services, Existing Buildings, About, Typical Engagements and the six
     // services, in each language — and every city page. The home page has no
     // closing band any more: its last plate is the contact block ("Get in
     // touch", with the form), and says neither the free proposal nor a reply
     // time (views/home.test.ts).
-    expect(closed).toHaveLength(24 + LANGS.reduce((n, lang) => n + getCityPages(lang).length, 0));
+    expect(closed).toHaveLength(20 + LANGS.reduce((n, lang) => n + getCityPages(lang).length, 0));
   });
 });
 

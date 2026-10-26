@@ -102,8 +102,8 @@ const services: SiteContent['services'] = [
   {
     slug: 'building-recertification',
     n: '01',
-    title: 'Recertificación de edificios en Miami-Dade',
-    shortTitle: 'Recertificación en Miami-Dade',
+    title: 'Recertificación de edificios',
+    shortTitle: 'Recertificación',
     track: 'existing',
     coverage: 'Condado de Miami-Dade, Florida',
     areaServed: ['Miami-Dade County, Florida'],
@@ -406,8 +406,8 @@ const services: SiteContent['services'] = [
   {
     slug: 'broward-bsip',
     n: '02',
-    title: 'Programa de Inspección de Seguridad de Edificios (BSIP) de Broward',
-    shortTitle: 'BSIP de Broward',
+    title: 'Programa de Inspección de Seguridad de Edificios (BSIP)',
+    shortTitle: 'BSIP',
     track: 'existing',
     coverage: 'Condado de Broward, Florida',
     areaServed: ['Broward County, Florida'],
@@ -692,7 +692,7 @@ const services: SiteContent['services'] = [
        and for what this page is now for. */
     slug: 'milestone-inspections',
     n: '03',
-    title: 'Inspecciones de hito (milestone) y de seguridad estructural',
+    title: 'Inspecciones de hito (milestone)',
     shortTitle: 'Inspecciones de hito (milestone)',
     track: 'existing',
     summary:
@@ -959,277 +959,94 @@ const services: SiteContent['services'] = [
   },
   /* ── NEW PROJECTS ──────────────────────────────────────────────────────── */
   {
-    slug: 'reinforced-concrete-design',
+    slug: 'threshold-inspections',
     n: '05',
-    title: 'Diseño de concreto reforzado',
-    shortTitle: 'Diseño de concreto reforzado',
+    title: 'Inspecciones de edificios threshold',
+    shortTitle: 'Inspecciones threshold',
     track: 'new',
     summary:
-      'Cimentaciones, columnas, vigas, losas y muros de corte diseñados como una sola trayectoria de carga — detallados para la obra y emitidos listos para permiso.',
-    coverage: 'Miami-Dade y Broward, Florida',
+      'Inspecciones especiales de un edificio threshold mientras se construye, etapa por etapa según el plan de inspección estructural, con los informes que presenta el departamento de construcción.',
     card: {
-      when: 'Un edificio nuevo necesita sus planos estructurales para el permiso, un arquitecto necesita la estructura de su diseño, o un contratista necesita detalles que se puedan construir.',
-      receive: 'Planos estructurales listos para el permiso, con su memoria de cálculo, notas generales y detalles típicos.',
-      next: 'Empiece por los planos arquitectónicos, en la etapa en que estén, y la ubicación del sitio.',
+      when: 'Un edificio de más de tres pisos está por construirse y el permiso exige un inspector especial.',
+      receive: 'Inspecciones en cada etapa de la estructura, los informes que presenta el departamento de construcción y la declaración de cumplimiento al final.',
+      next: 'Envíenos los planos del permiso y el plan de inspección estructural, y díganos cuándo es el primer vaciado.',
     },
     heroSub:
-      'Concreto reforzado para casas, edificios de mediana altura y estructuras comerciales — calculado para el viento de huracán y detallado para poder construirse.',
+      'Un Inspector Especial certificado sigue la estructura mientras se levanta: cada inspección que pide el plan, cada informe que presenta el condado.',
     headings: {
-      faq: 'Preguntas sobre el diseño de concreto reforzado',
-      considerations: 'El estudio de suelos, la geometría y la revisión del permiso.',
+      faq: 'Preguntas sobre las inspecciones threshold',
+      considerations: 'Qué hace un inspector especial y qué espera la ley.',
     },
-    problemTitle: 'El concreto se resuelve primero en el papel.',
+    problemTitle: 'La estructura tiene que inspeccionarse mientras se levanta.',
     problem:
-      'El concreto no perdona: un refuerzo que no se puede colocar, una condición de transferencia resuelta tarde o un espesor de losa fijado antes de conocer las cargas se convierten en problemas de obra que cuestan mucho más de lo que ahorraron.',
+      'Florida exige un inspector especial, contratado por el propietario, en todo edificio threshold: más de tres pisos o cincuenta pies, o un gran espacio de reunión. El inspector revisa la estructura durante la construcción, etapa por etapa, e informa al funcionario de construcción. Es un papel que define la ley, y el proyecto no puede cerrarse sin él.',
     audience: [
-      'Desarrolladores y propietarios de edificios',
-      'Arquitectos que llevan un proyecto a través del proceso de permisos',
-      'Contratistas generales y subcontratistas de concreto',
+      'Propietarios y desarrolladores de edificios threshold',
+      'Contratistas generales que programan las inspecciones estructurales',
+      'Arquitectos e ingenieros de registro que coordinan el plan de inspección',
     ],
     when: [
-      'Está construyendo una casa, townhouses, un edificio de mediana altura o una estructura comercial y necesita el juego de planos estructurales para el permiso.',
-      'Un arquitecto tiene un diseño y necesita la ingeniería estructural que lo respalde.',
-      'Un contratista necesita detalles de refuerzo construibles, no un esquema.',
+      'Un edificio threshold está por comenzar y el permiso nombra un inspector especial.',
+      'El plan de inspección estructural exige inspecciones en cada etapa: cimentaciones, columnas, losas, acero y conexiones.',
+      'El departamento de construcción pide los informes del inspector especial antes de la siguiente etapa, o antes del certificado de ocupación.',
     ],
-    capabilities: [
-      'Cimentaciones',
-      'Columnas y vigas',
-      'Losas',
-      'Muros de corte',
-      'Detallado de refuerzo',
-    ],
+    capabilities: ['Inspecciones especiales', 'Plan de inspección', 'Informes por etapa', 'Declaración de cumplimiento'],
     scope: [
-      'Sistema de gravedad — losas, vigas, vigas principales, columnas',
-      'Sistema lateral — muros de corte, pórticos, diafragmas',
-      'Cimentaciones — zapatas aisladas, losas de cimentación, vigas de amarre, cabezales de pilotes',
-      'Condiciones de transferencia, aberturas y estructuración irregular',
-      'Diseño de refuerzo, longitudes de desarrollo y detallado de empalmes',
-      'RFIs en fase de construcción y revisión de submittals',
+      'Revisión del plan de inspección estructural preparado por el ingeniero de registro',
+      'Inspecciones de cimentaciones, acero de refuerzo, vaciado de concreto, acero estructural y conexiones en las etapas que fija el plan',
+      'Revisión de apuntalamiento y reapuntalamiento donde el plan lo exige',
+      'Informes por etapa con fotografías, presentados como lo exige el departamento de construcción',
+      'No conformidades registradas y seguidas hasta su corrección',
+      'La declaración de cumplimiento al terminar',
     ],
     process: [
-      { step: 'Bajada de cargas', detail: 'Ocupación, carga muerta, carga viva y viento de huracán establecidos para el sitio real antes de dimensionar cualquier miembro.' },
-      { step: 'Selección del sistema', detail: 'Distribución de la estructura, tipo de losa y estrategia lateral elegidos con el arquitecto — luz, peralte y costo evaluados en conjunto.' },
-      { step: 'Análisis y dimensionamiento', detail: 'Miembros analizados y diseñados según el Código de Construcción de Florida (FBC), con deflexión y condiciones de servicio verificadas.' },
-      { step: 'Detallado', detail: 'Refuerzo dibujado de modo que realmente se pueda colocar — congestión, recubrimiento, ganchos y empalmes resueltos en el plano.' },
-      { step: 'Revisión y sello', detail: 'Planos cotejados línea por línea con los cálculos; luego firmados y sellados para la presentación del permiso.' },
+      { step: 'Plan', detail: 'Se revisa el plan de inspección estructural y se fijan las etapas de inspección contra el cronograma del contratista.' },
+      { step: 'Inspección', detail: 'Cada etapa se inspecciona en sitio antes de cubrirse: refuerzo, encofrado, vaciado de concreto, montaje de acero y conexiones.' },
+      { step: 'Informe', detail: 'Informes presentados como lo exige el departamento de construcción, con cada no conformidad registrada hasta que se corrige.' },
+      { step: 'Cierre', detail: 'Al terminar, la declaración de que la estructura se construyó como se inspeccionó, para el certificado de ocupación.' },
     ],
     deliverables: [
-      'Juego de planos estructurales, listo para permiso',
-      'Memoria de cálculo estructural',
-      'Notas generales y detalles típicos',
-      /* "Para la presentación del permiso" — see the EN block. */
-      'Documentos firmados y sellados para la presentación del permiso, donde el alcance lo requiera',
+      'Informes de inspección por etapa con registro fotográfico',
+      'Registro de no conformidades y sus correcciones',
+      'Informes presentados ante el departamento de construcción',
+      'Declaración de cumplimiento al terminar',
     ],
     nextStep:
-      'Envíe los planos arquitectónicos (en cualquier etapa) y la ubicación del sitio. Recibirá una propuesta con alcance, entregables y honorarios.',
+      'Envíenos los planos del permiso y el plan de inspección estructural, y díganos el cronograma. Recibe una propuesta por las inspecciones que pide el plan.',
     considerations: [
-      'El diseño de cimentaciones depende de un estudio geotécnico; donde no exista, le diremos qué se necesita antes de comenzar.',
-      'El alcance y los honorarios cambian con la irregularidad — transferencias, voladizos, postensado y geometrías inusuales se cotizan con honestidad, no se absorben en silencio.',
-      'Los comentarios de la revisión del permiso son parte del proceso; los respondemos, pero ningún ingeniero puede garantizar la decisión de una jurisdicción.',
+      'Un edificio threshold tiene más de tres pisos o cincuenta pies, o es un espacio de reunión de más de 5,000 pies cuadrados y 500 personas.',
+      'Al inspector especial lo contrata el propietario, no el contratista, e informa al funcionario de construcción.',
+      'Las inspecciones siguen el plan de inspección estructural del ingeniero de registro; el inspector especial no diseña el edificio ni lo construye.',
     ],
     faq: [
       {
-        q: '¿Cuándo debe entrar el ingeniero estructural al proyecto?',
-        a: 'En cuanto haya una distribución con la que trabajar. La estructuración, el tipo de losa y el sistema lateral se eligen con el arquitecto, y la luz, el peralte y el costo se equilibran mejor mientras los planos todavía pueden cambiar. Planos en cualquier etapa bastan para empezar esa conversación.',
+        q: '¿Quién contrata al inspector especial?',
+        a: 'El propietario, por ley de Florida, y el inspector responde ante el funcionario de construcción, no ante el contratista. Esa independencia es el sentido del papel: quien revisa la estructura no es quien la construye.',
       },
       {
-        q: '¿Por qué importa que el refuerzo se pueda colocar?',
-        a: 'Porque una barra que cabe en el cálculo pero no en el encofrado se convierte en un problema el día en que se vacía el concreto. La congestión en los nudos, el recubrimiento, los ganchos y la ubicación de los empalmes se resuelven en el plano, para que la cuadrilla construya lo que se muestra en lugar de improvisar en obra.',
+        q: '¿Con qué frecuencia se inspecciona el edificio?',
+        a: 'Tantas veces como lo exija el plan de inspección estructural. El plan, preparado por el ingeniero de registro, nombra las etapas que deben verse antes de cubrirse: zapatas y losas de cimentación, columnas y muros, el refuerzo y el vaciado de cada piso, el montaje de acero y las conexiones. Fijamos esas etapas contra el cronograma del contratista y estamos en sitio en cada una.',
       },
       {
-        q: '¿Qué recibe el contratista cuando empieza la construcción?',
-        a: 'Respuestas del equipo que diseñó la estructura. Las solicitudes de información (RFIs) se contestan y los submittals se revisan contra el diseño, para que una duda que surge en obra se resuelva con los planos y los cálculos, no con suposiciones.',
+        q: '¿Qué pasa cuando algo no coincide con los planos?',
+        a: 'Se registra como no conformidad, con fotografías, y se informa. El ingeniero de registro decide la corrección; nosotros inspeccionamos la corrección y cerramos el punto. Nada se cubre hasta que se cierra.',
       },
       {
-        q: '¿El viento de huracán forma parte del diseño desde el inicio?',
-        a: 'Desde el primer paso. Las cargas muertas, vivas y de viento de huracán se fijan para el sitio real antes de dimensionar cualquier miembro, y los muros de corte, pórticos y diafragmas que resisten el viento se diseñan con las losas y las columnas como una sola estructura, no se agregan al final.',
+        q: '¿Qué recibe el departamento de construcción?',
+        a: 'Los informes por etapa a medida que avanza la obra, en la forma que pide el departamento, y al final la declaración firmada y sellada de que la estructura se construyó de acuerdo con los planos aprobados, de la que depende el certificado de ocupación.',
       },
     ],
     seo: {
-      title: 'Diseño de concreto reforzado — Miami-Dade y Broward',
+      title: 'Inspecciones de edificios threshold — Miami-Dade y Broward',
       description:
-        'Diseño de concreto reforzado en el Sur de Florida: cimentaciones, columnas, losas y muros de casas y edificios, con planos listos para el permiso.',
-      keywords: ['diseño de concreto reforzado', 'diseño de estructuras de concreto Miami', 'ingeniero estructural Miami', 'ingeniero estructural Broward'],
-    },
-  },
-  {
-    slug: 'structural-analysis',
-    n: '06',
-    title: 'Análisis estructural y cimentaciones',
-    shortTitle: 'Análisis estructural y cimentaciones',
-    track: 'new',
-    summary:
-      'Análisis de gravedad y lateral, demanda de viento y sismo, y el sistema de cimentación que lleva todo eso al terreno.',
-    coverage: 'Miami-Dade y Broward, Florida',
-    card: {
-      when: 'Antes de comprometerse con un sitio o un concepto, en un lote difícil, o cuando hay que resolver el viento de huracán y las cargas laterales.',
-      receive: 'Los resultados del análisis en un resumen, el diseño de cimentaciones con sus reacciones, y la memoria de cálculo que respalda ambos.',
-      next: 'Empiece por el sitio y el concepto; agregue el estudio geotécnico si lo hay.',
-    },
-    heroSub:
-      'Todo el edificio en un solo modelo, del techo a las cimentaciones — para saber si un sitio o un concepto funciona antes de comprometerse.',
-    headings: {
-      faq: 'Preguntas sobre el análisis y las cimentaciones',
-      considerations: 'Un análisis vale lo que valen sus datos.',
-    },
-    problemTitle: 'Una sola trayectoria de carga, del techo al suelo.',
-    problem:
-      'Cuando el diseño por gravedad, el diseño por viento y las cimentaciones se tratan como ejercicios separados, es en las uniones entre ellos donde aparecen las fallas y las órdenes de cambio.',
-    audience: [
-      'Equipos de diseño que necesitan un modelo estructural completo',
-      'Propietarios que evalúan factibilidad u opciones estructurales',
-      'Contratistas que evalúan la constructibilidad de un sistema',
-    ],
-    when: [
-      'Necesita saber si un sitio, un estudio de suelos o un concepto de edificio funciona estructuralmente antes de comprometerse.',
-      'El proyecto tiene un sitio difícil: lote estrecho, suelo de baja capacidad, nivel freático alto, vecinos muy cercanos.',
-      'Necesita resolver la demanda de viento y lateral para un sitio en la Zona de Huracanes de Alta Velocidad (HVHZ).',
-    ],
-    capabilities: ['Modelado 3D', 'Demanda de viento y sismo', 'Control de deriva', 'Cimentaciones profundas', 'Verificación de asentamientos'],
-    scope: [
-      'Modelado analítico tridimensional de la estructura',
-      'Demanda de viento de huracán y lateral para el sitio real',
-      'Selección del sistema lateral y control de deriva',
-      'Verificación de diafragmas, colectores y continuidad de la trayectoria de carga',
-      'Diseño de cimentaciones superficiales y profundas',
-      'Verificación de asentamiento, capacidad portante y levantamiento con base en el estudio geotécnico',
-    ],
-    process: [
-      { step: 'Definir la demanda', detail: 'Categoría de riesgo, exposición, velocidad de viento y parámetros sísmicos fijados para el sitio real — no supuestos.' },
-      { step: 'Construir el modelo', detail: 'Geometría, rigidez, restricciones y masa ensambladas en un solo modelo analítico de toda la estructura.' },
-      { step: 'Analizar', detail: 'Se corren las combinaciones de carga por gravedad, viento y sismo; se verifican deriva, torsión y estabilidad.' },
-      { step: 'Resolver la cimentación', detail: 'Reacciones llevadas a un sistema de cimentación acorde con el estudio de suelos y las restricciones del sitio.' },
-      { step: 'Documentar', detail: 'Resultados trazados de vuelta a los planos y a una memoria de cálculo que un revisor puede seguir.' },
-    ],
-    deliverables: [
-      'Modelo de análisis y resumen de resultados',
-      'Documentación de cargas y combinaciones de carga',
-      'Diseño de cimentaciones y tabla de reacciones',
-      'Memoria de cálculo estructural',
-    ],
-    nextStep:
-      'Comparta el sitio, el estudio geotécnico si lo tiene y el concepto del edificio. Le respondemos con lo que es factible y cuánto costará el análisis.',
-    considerations: [
-      'Las recomendaciones de cimentación son tan buenas como los datos geotécnicos que las respaldan.',
-      'Las estructuras existentes requieren verificación en campo antes de que un modelo analítico sea confiable.',
-      'Los resultados del análisis se reportan tal como son — incluso cuando muestran que un sistema no funciona.',
-    ],
-    faq: [
-      {
-        q: '¿Necesitamos un estudio de suelos antes de empezar el análisis?',
-        a: 'No para empezar. El sitio y el concepto bastan para definir la demanda de viento y de gravedad y para probar la estructuración. La cimentación es distinta: se diseña con los datos del suelo, así que sus recomendaciones solo quedan definitivas cuando el estudio geotécnico está disponible.',
-      },
-      {
-        q: '¿Por qué el diseño por viento depende del sitio exacto?',
-        a: 'Porque la demanda cambia según dónde está el edificio. La categoría de riesgo, la exposición y la velocidad de viento de diseño se fijan para la dirección real, y un sitio en la Zona de Huracanes de Alta Velocidad tiene requisitos más estrictos. Un valor tomado de un proyecto cercano puede dejar la estructura corta, o hacerla más pesada de lo necesario.',
-      },
-      {
-        q: '¿Y si el análisis muestra que el concepto no funciona?',
-        a: 'Se lo decimos con claridad, y con la razón, antes de invertir en planos. Los resultados muestran dónde falla la trayectoria de carga — deriva, torsión, una transferencia, una cimentación que el suelo no puede soportar — y ese es el momento en que cambiar la estructuración o el sistema todavía cuesta poco.',
-      },
-      {
-        q: '¿Puede un revisor de permisos seguir los números?',
-        a: 'Sí. Las cargas, las combinaciones y los resultados quedan documentados, las reacciones de la cimentación van en una tabla, y cada valor de los planos se puede rastrear hasta la memoria de cálculo. Un funcionario de la oficina de construcción u otro ingeniero puede seguir cualquier miembro desde la hoja hasta su cálculo.',
-      },
-    ],
-    seo: {
-      title: 'Análisis estructural y cimentaciones — Miami-Dade y Broward',
-      description:
-        'Análisis estructural y diseño de cimentaciones en Miami-Dade y Broward: viento de huracán, sistemas laterales y cimentaciones para sitios difíciles.',
-      keywords: ['análisis estructural Sur de Florida', 'diseño de cimentaciones Miami', 'análisis de viento ASCE 7 Florida', 'diseño de sistema lateral'],
-    },
-  },
-  {
-    slug: 'bim-coordination',
-    n: '07',
-    title: 'Modelado y coordinación BIM',
-    shortTitle: 'Coordinación BIM',
-    track: 'new',
-    summary:
-      'Modelos digitales coordinados que resuelven los conflictos antes de que lleguen a la obra y producen entregables estructurales más claros.',
-    coverage: 'Miami-Dade y Broward, Florida',
-    card: {
-      when: 'El equipo modela en Revit, el propietario o el contratista pide un modelo federado e informes de interferencias, o las instalaciones y la estructura siguen chocando en los planos.',
-      receive: 'El modelo estructural, los informes de interferencias e incidencias, y planos y tablas tomados del modelo.',
-      next: 'Díganos el software, el nivel de detalle y el calendario de coordinación.',
-    },
-    heroSub:
-      'La estructura modelada en Revit y verificada con las demás disciplinas, para que cada interferencia se cierre en el diseño y no en obra.',
-    headings: {
-      faq: 'Preguntas sobre la coordinación BIM estructural',
-      considerations: 'Lo que un modelo puede hacer, y lo que no.',
-    },
-    problemTitle: 'Encuentre los conflictos antes de llegar a obra.',
-    problem:
-      'La mayoría de los conflictos entre la estructura, la arquitectura y las instalaciones mecánicas, eléctricas y de plomería se descubren en obra, donde corregirlos cuesta más. Un modelo coordinado traslada ese descubrimiento al diseño, donde cuesta una conversación en lugar de una orden de cambio.',
-    audience: [
-      'Equipos de diseño que llevan coordinación multidisciplinaria',
-      'Contratistas que requieren entregables basados en modelo',
-      'Propietarios que quieren que el modelo de diseño sobreviva hasta la operación',
-    ],
-    when: [
-      'El equipo del proyecto trabaja en Revit y necesita la estructura modelada con el mismo estándar.',
-      'El propietario o el contratista exige un modelo federado e informes de interferencias como entregable.',
-      'Ductos, tuberías y estructura siguen chocando en los planos y alguien tiene que hacerse cargo de la resolución.',
-    ],
-    capabilities: ['Modelado estructural', 'Federación de modelos', 'Detección de interferencias', 'Seguimiento de incidencias', 'Planos derivados del modelo'],
-    scope: [
-      'Modelado estructural — cimentaciones, columnas, losas, muros, estructuración',
-      'Federación de los modelos estructural, arquitectónico y MEP',
-      'Verificación de interferencias y seguimiento de su resolución',
-      'Planos, tablas y cantidades derivados del modelo',
-      'Reuniones de coordinación e informes de incidencias',
-      'Entrega del modelo alineada a los requisitos de información del proyecto',
-    ],
-    process: [
-      { step: 'Fijar las reglas', detail: 'Coordenadas compartidas, nomenclatura de niveles y ejes, desglose del modelo y nivel de información acordados antes de empezar a modelar.' },
-      { step: 'Modelar la estructura', detail: 'El modelo estructural se construye como fuente del diseño, no como subproducto del dibujo.' },
-      { step: 'Federar', detail: 'Modelos de las disciplinas combinados y verificados entre sí en un ciclo fijo.' },
-      { step: 'Resolver', detail: 'Conflictos registrados, asignados y seguidos hasta su cierre — con la solución estructural diseñada, no improvisada.' },
-      { step: 'Entregar', detail: 'Planos, tablas y el propio modelo emitidos como un solo conjunto consistente.' },
-    ],
-    deliverables: [
-      'Modelo estructural al nivel de información acordado',
-      'Informes de interferencias e incidencias con estado de resolución',
-      'Planos y tablas derivados del modelo',
-      'Registro de coordinación para el expediente del proyecto',
-    ],
-    nextStep:
-      'Díganos qué software usa el equipo, el nivel de detalle requerido y el calendario de coordinación. Proponemos el alcance de modelado y el formato de intercambio.',
-    considerations: [
-      'La calidad de la coordinación depende de lo que entregan las demás disciplinas y de cuándo; el proceso es colaborativo por definición.',
-      'Un modelo no sustituye un juego de planos firmado y sellado — lo respalda.',
-      'El nivel de información debe corresponder a la decisión que se toma, no al número más alto disponible.',
-    ],
-    faq: [
-      {
-        q: 'Nuestro equipo no trabaja en Revit. ¿Podemos coordinar igual?',
-        a: 'Sí, siempre que el formato de intercambio se acuerde desde el inicio. Los modelos se pueden compartir en IFC y las incidencias ir y venir en BCF, ambos formatos abiertos, para que cada disciplina conserve su propio software. La propuesta indica el formato junto con el alcance de modelado.',
-      },
-      {
-        q: '¿Quién decide cómo se resuelve una interferencia con la estructura?',
-        a: 'Donde la estructura está involucrada, nosotros diseñamos la solución estructural; no se improvisa en el modelo. Cada interferencia se registra, se asigna a la disciplina responsable y se sigue hasta cerrarla, y una viga que debe cambiar de peralte o una abertura en losa que debe moverse se verifica antes de aceptar el cambio.',
-      },
-      {
-        q: '¿Cuánto detalle debe tener el modelo?',
-        a: 'El suficiente para la decisión de esa etapa, y no más. La coordinación temprana necesita los miembros principales en su lugar; la fabricación o las cantidades necesitan mucho más. El nivel de información se acuerda antes de modelar, junto con las coordenadas compartidas, la nomenclatura de niveles y ejes y la división del modelo.',
-      },
-      {
-        q: '¿El modelo reemplaza los planos estructurales?',
-        a: 'No. Los planos y las tablas se toman del modelo, así que coinciden con él, pero el juego de planos sigue siendo el documento en que se basan el permiso y la construcción. El modelo se entrega junto con ellos, al nivel de información acordado.',
-      },
-    ],
-    seo: {
-      title: 'Modelado y coordinación BIM — Miami-Dade y Broward',
-      description:
-        'Modelado BIM estructural y coordinación para proyectos en el Sur de Florida: modelos Revit, detección de interferencias y planos derivados del modelo.',
-      keywords: ['coordinación BIM Miami', 'modelado BIM estructural', 'detección de interferencias estructural', 'ingeniero estructural Revit Florida'],
+        'Inspector Especial para edificios threshold en Miami-Dade y Broward: inspecciones en cada etapa de la obra e informes al departamento de construcción.',
+      keywords: ['inspección threshold Florida', 'inspector especial edificio threshold Miami', 'inspector threshold Broward', 'inspecciones especiales estructurales Florida'],
     },
   },
   {
     slug: 'peer-review',
-    n: '08',
-    title: 'Revisión por pares y cumplimiento',
+    n: '06',
+    title: 'Revisión por pares',
     shortTitle: 'Revisión por pares',
     track: 'new',
     summary:
@@ -1243,6 +1060,7 @@ const services: SiteContent['services'] = [
     heroSub:
       'Un ingeniero independiente lee sus planos y cálculos según el código aplicable antes de que se emitan, y sigue hasta cerrar cada comentario.',
     headings: {
+      h1: 'Revisión estructural independiente por pares',
       faq: 'Preguntas sobre la revisión estructural por pares',
       considerations: 'Qué es una revisión por pares, y qué no es.',
     },
@@ -1367,7 +1185,7 @@ export const es: SiteContent = {
     /* Existing buildings first, each county's program by its own name — the
        order the whole site follows. No number belongs here. */
     description:
-      'Ingeniería estructural para el Sur de Florida — recertificación de edificios en Miami-Dade, el Programa de Inspección de Seguridad de Edificios (BSIP) en Broward, evaluaciones estructurales y diseño de reparaciones, y diseño estructural de edificios nuevos.',
+      'Ingeniería estructural para el Sur de Florida — recertificación de edificios en Miami-Dade, el Programa de Inspección de Seguridad de Edificios (BSIP) en Broward, inspecciones de hito (milestone), evaluaciones estructurales y diseño de reparaciones, inspecciones threshold durante la construcción y revisión por pares de un diseño estructural.',
     tagline: 'Ingeniería estructural para el Sur de Florida.',
     logo: {
       lockupDark: '/ttc/img/logo-horizontal.png',
@@ -1479,7 +1297,7 @@ export const es: SiteContent = {
     explore: 'Explorar',
     requestProposal: 'Solicitar propuesta',
     seeAllServices: 'Todos los servicios',
-    newProjects: 'Proyectos nuevos',
+    newProjects: 'Obra nueva',
     existingBuildings: 'Edificios existentes',
     whenYouNeedIt: 'Cuándo lo necesita',
     whatsIncluded: 'Qué incluye',
@@ -1653,13 +1471,11 @@ export const es: SiteContent = {
      "milestone" beside "hitos" (the law's name), Townhouses. */
   home: {
     order: [
-      'reinforced-concrete-design',
       'structural-condition-assessments',
-      'structural-analysis',
+      'threshold-inspections',
       'building-recertification',
-      'bim-coordination',
-      'broward-bsip',
       'peer-review',
+      'broward-bsip',
       'milestone-inspections',
     ],
     chrome: {
@@ -1673,13 +1489,13 @@ export const es: SiteContent = {
       eyebrow: ['Ingenieros Civiles', 'Ingenieros Estructurales', 'Ingenieros Eléctricos'],
       titleLines: ['Ingenieros', 'estructurales para', 'el Sur de Florida.'],
       accentWord: 'Florida.',
-      sub: 'Con licencia en Florida. Diseñamos edificios nuevos y examinamos los existentes en el Sur de Florida, en Miami-Dade y Broward.',
+      sub: 'Con licencia en Florida. Inspeccionamos, evaluamos y revisamos la estructura de los edificios del Sur de Florida, en Miami-Dade y Broward.',
       cta: 'Contáctenos',
       counties: ['Miami-Dade', 'Broward'],
     },
     ribbon: {
       label: 'Lo que hacemos',
-      sideNew: 'Edificios nuevos',
+      sideNew: 'Obra nueva',
       sideExisting: 'Edificios existentes',
       types: [
         'Viviendas',
@@ -1693,36 +1509,28 @@ export const es: SiteContent = {
     },
     services: {
       label: 'Servicios',
-      title: 'Ocho servicios. Un solo estándar.',
+      title: 'Seis servicios. Un mismo estándar.',
       accentWord: 'estándar.',
-      lede: 'Leemos los edificios que ya están en pie y diseñamos los que aún no existen.',
+      lede: 'Leemos los edificios que ya están en pie, seguimos los que se levantan y revisamos los diseños antes de que se emitan.',
       legend: {
         existing: { k: 'Edificios existentes', v: 'Inspección, evaluación y diseño de reparaciones.' },
-        new: { k: 'Edificios nuevos', v: 'Cimentaciones, estructura y diseño para viento de huracán.' },
+        new: { k: 'Obra nueva', v: 'Inspecciones threshold durante la construcción y revisión por pares de un diseño.' },
       },
       tag: 'Fotografías ilustrativas',
       all: 'Todos los servicios',
       lines: {
-        'reinforced-concrete-design': 'Cimentaciones, columnas, vigas y losas, diseñadas como una sola estructura.',
-        'structural-condition-assessments': 'Lo que hoy le ocurre al edificio y las reparaciones que necesita.',
-        'structural-analysis': 'Gravedad, viento de huracán y las cimentaciones que lo llevan todo al terreno.',
-        'building-recertification': 'Inspecciones e informes para el programa de recertificación del Condado de Miami-Dade.',
-        'bim-coordination': 'Modelos coordinados que resuelven los conflictos en pantalla.',
-        'broward-bsip': 'Inspecciones e informes para el programa de seguridad de edificios del Condado de Broward.',
-        'peer-review': 'Una segunda lectura independiente de un diseño estructural.',
-        'milestone-inspections': 'Inspecciones de seguridad estructural bajo la ley de hitos (milestone) de Florida y más allá.',
+        'structural-condition-assessments': 'Lo que hoy le ocurre al edificio y las reparaciones que necesita. Hallazgos que una junta puede leer, y un alcance de reparación sobre el que puede actuar.',
+        'building-recertification': 'Inspecciones e informes para el programa de recertificación del Condado de Miami-Dade. Estructural y eléctrica, en los formularios del condado.',
+        'threshold-inspections': 'Inspecciones especiales de un edificio de más de tres pisos, etapa por etapa mientras se construye. Un informe al departamento de construcción en cada una.',
+        'broward-bsip': 'Inspecciones e informes para el programa de seguridad de edificios del Condado de Broward. Estructural y eléctrica, presentadas en los formularios propios del condado.',
+        'peer-review': 'Una segunda lectura independiente de un diseño estructural. Un registro de comentarios, con seguimiento hasta cerrar cada uno.',
+        'milestone-inspections': 'Inspecciones de seguridad estructural bajo la ley de hitos (milestone) de Florida y más allá. Qué reglas alcanzan al edificio, y qué encuentra la inspección.',
       },
     },
     statement: {
       lines: ['Viento de huracán.', 'Agua alta.', 'Décadas de aire salino.'],
       dim: 'Diseñamos para todo eso y lo dejamos por escrito para que un propietario, un arquitecto y un revisor puedan seguirlo.',
       accentWord: 'todo',
-    },
-    bim: {
-      label: 'Modelado',
-      title: 'La estructura, modelada.',
-      accentWord: 'modelada.',
-      body: 'Modelamos la estructura y la verificamos contra el modelo del arquitecto y los sistemas del edificio, para resolver los conflictos en pantalla y no en obra.',
     },
     types: {
       label: 'Tipos de edificio',
@@ -1765,25 +1573,25 @@ export const es: SiteContent = {
   /* The grid's own headline, a question — see the EN comment. The home
      page keeps "De una vivienda unifamiliar…", on `home.types`. */
   typologiesSection: {
-    eyebrow: 'Qué diseñamos',
-    title: '¿Diseñamos su tipo de edificio?',
+    eyebrow: 'Qué inspeccionamos',
+    title: '¿Inspeccionamos su tipo de edificio?',
     accentWord: 'su tipo',
-    lede: 'El mismo ingeniero y el mismo estándar de detallado, a la escala del edificio que tenemos enfrente. Si su proyecto no está en esta lista, vale más una conversación que una suposición.',
+    lede: 'El mismo ingeniero y el mismo estándar de inspección, a la escala del edificio que tenemos enfrente. Si su edificio no está en esta lista, vale más una conversación que una suposición.',
   },
 
   typologies: [
-    { n: '01', title: 'Viviendas unifamiliares', lede: 'Casas nuevas diseñadas desde la zapata hacia arriba — cimentaciones dimensionadas según el estudio de suelos, una estructura que resiste el viento de huracán, y planos que un constructor local puede cotizar y construir.', track: 'new', href: '/services/reinforced-concrete-design', photo: photo.houseConcreteGarden },
-    { n: '02', title: 'Townhouses y dúplex', lede: 'Muros medianeros, cimentaciones compartidas y crujías repetidas — la estructura resuelta una vez y detallada para que la repetición siga siendo un ahorro y no un riesgo.', track: 'new', href: '/services/structural-analysis', photo: photo.houseTownhouses },
-    { n: '03', title: 'Concreto reforzado de mediana altura', lede: 'Losas planas, núcleos de muros de corte y balcones en voladizo — el sistema con el que se construye el Sur de Florida, diseñado como una sola trayectoria de carga continua.', track: 'new', href: '/services/reinforced-concrete-design', photo: photo.frameCurvedBalconies },
-    { n: '04', title: 'Estructuras comerciales y de uso mixto', lede: 'Luces largas sobre el comercio de planta baja, estructura de transferencia donde cambia la retícula, y coordinación con todos cuyas instalaciones pasan por ella.', track: 'new', href: '/services/bim-coordination', photo: photo.frameCraneClean },
-    { n: '05', title: 'Cimentaciones en sitios difíciles', lede: 'Lotes estrechos, suelo de baja capacidad, nivel freático alto y vecinos lo bastante cerca como para importar — la subestructura diseñada a partir del estudio geotécnico, no a pesar de él.', track: 'new', href: '/services/structural-analysis', photo: photo.foundationMatPit },
+    { n: '01', title: 'Viviendas unifamiliares', lede: 'Losas agrietadas, zapatas asentadas, daños de tormenta o una compra a la vista: la casa leída como estructura, con las reparaciones que necesita y nada que no.', track: 'existing', href: '/services/structural-condition-assessments', photo: photo.houseConcreteGarden },
+    { n: '02', title: 'Townhouses y dúplex', lede: 'Muros medianeros, cimentaciones compartidas y crujías repetidas: un defecto en una crujía se lee contra las demás, y la reparación se define una vez y se cotiza una vez.', track: 'existing', href: '/services/structural-condition-assessments', photo: photo.houseTownhouses },
+    { n: '03', title: 'Concreto reforzado de mediana altura', lede: 'Losas planas, núcleos de muros de corte y balcones en voladizo, el sistema con el que se construye el Sur de Florida: inspeccionado para el condado, para la ley de hitos y para la junta que tiene que decidir.', track: 'existing', href: '/services/milestone-inspections', photo: photo.frameCurvedBalconies },
+    { n: '04', title: 'Estructuras comerciales y de uso mixto', lede: 'Luces largas sobre el comercio de planta baja, estructura de transferencia donde cambia la retícula, estacionamiento debajo: evaluadas como un solo camino de cargas, con los hallazgos en el orden en que importan.', track: 'existing', href: '/services/structural-condition-assessments', photo: photo.frameCraneClean },
+    { n: '05', title: 'Edificios en construcción', lede: 'Losas de cimentación, columnas, el refuerzo y el vaciado de cada piso, acero y conexiones: el edificio threshold inspeccionado etapa por etapa antes de cubrir nada, e informado al condado.', track: 'new', href: '/services/threshold-inspections', photo: photo.foundationMatPit },
     { n: '06', title: 'Reparaciones de estructuras existentes', lede: 'Balcones, fachadas, losas y columnas con décadas en servicio — condición documentada, reparaciones diseñadas, y la documentación que pide el condado.', track: 'existing', href: '/existing-buildings', photo: photo.repairSoffitTrowel },
   ],
 
   howWeWork: {
     eyebrow: 'Cómo trabajamos',
     title: 'Cinco pasos. Usted siempre sabe en cuál está.',
-    lede: 'La secuencia es la misma tanto si está respondiendo a una notificación del condado como si está tramitando el permiso de una estructura nueva. Lo que cambia es la profundidad del paso tres.',
+    lede: 'La secuencia es la misma tanto si está respondiendo a una notificación del condado, como si sigue un edificio en construcción o envía un diseño a revisión. Lo que cambia es la profundidad del paso tres.',
     steps: [
       {
         n: '01',
@@ -1799,9 +1607,9 @@ export const es: SiteContent = {
       },
       {
         n: '03',
-        title: 'Evaluación o diseño',
-        youDo: 'Dé acceso al sitio, o responda las preguntas de coordinación del arquitecto a medida que surjan.',
-        youGet: 'Inspección y hallazgos para edificios existentes; análisis, modelado y detallado para los nuevos — con las preguntas planteadas a medida que surgen, no guardadas para el final.',
+        title: 'Evaluación o revisión',
+        youDo: 'Dé acceso al sitio, o envíe los planos y responda las preguntas del ingeniero a medida que surjan.',
+        youGet: 'Inspección y hallazgos para edificios existentes; inspecciones por etapa para un edificio en construcción; una lectura independiente de un diseño en revisión — con las preguntas planteadas a medida que surgen, no guardadas para el final.',
       },
       {
         n: '04',
@@ -1823,14 +1631,15 @@ export const es: SiteContent = {
   caseStudies,
 
   engagements: [
-    { n: '01', title: 'Estructura residencial de mediana altura', need: 'Tiene el diseño del arquitecto y necesita la ingeniería de la estructura para el permiso.', start: 'Para empezar, bastan los planos actuales del arquitecto, aunque todavía no sean los definitivos.', projectType: 'Residencial — construcción nueva', location: 'Miami-Dade o Broward', scope: 'Diseño estructural completo: sistemas de gravedad y laterales, cimentaciones, detallado', structuralSystem: 'Losa plana de concreto reforzado con núcleo de muros de corte', deliverables: 'Juego de planos estructurales · Memoria de cálculo · Notas generales' },
-    /* 02 names both county programs and 03 is no longer a "milestone"
-       inspection — see the comment over `engagements` in site.ts, which
+    /* 01 names both county programs; 02 and 03 are two situations of the
+       assessments page; 04 is the state's milestone inspection as a profile
+       of its own — see the comment over `engagements` in site.ts, which
        also says what `need` may and may not say. */
-    { n: '02', title: 'Recertificación o inspección BSIP de un condominio', need: 'Su edificio debe pasar la inspección del condado, o el plazo ya venció. Todavía se puede resolver.', start: 'Para empezar, basta con una foto de la notificación del condado, aunque ya haya pasado su fecha.', projectType: 'Edificio existente — programa del condado', location: 'Miami-Dade o Broward', scope: 'Revisión de la notificación, inspección estructural y eléctrica, informes en los formularios oficiales, alcance de reparaciones, reinspección', structuralSystem: 'Estructura de concreto reforzado con balcones en voladizo', deliverables: 'El paquete completo que pide el condado, en sus formularios oficiales · Registro fotográfico · Alcance de reparaciones' },
-    { n: '03', title: 'Inspección de seguridad estructural', need: 'Grietas, manchas de óxido o concreto que se desprende, y necesita saber qué tan grave es.', start: 'Para empezar, bastan unas fotos de las grietas, las manchas o el concreto suelto.', projectType: 'Edificio existente — inspección de seguridad', location: 'Miami-Dade o Broward', scope: 'Inspección estructural visual, mapeo de deterioro del concreto, hallazgos priorizados', structuralSystem: 'Estructura de concreto reforzado, losas postensadas', deliverables: 'Informe de inspección · Mapeo de deterioro · Alcance de seguimiento' },
-    { n: '04', title: 'Sistema de cimentación para un sitio restringido', need: 'Un lote estrecho o un suelo débil, y la cimentación tiene que diseñarse para eso.', start: 'Para empezar, basta con el plano del sitio y, si lo tiene, el estudio de suelos.', projectType: 'Construcción nueva — cimentaciones', location: 'Miami-Dade o Broward', scope: 'Diseño de cimentaciones con base en el estudio geotécnico, verificación de asentamiento y levantamiento', structuralSystem: 'Losa de cimentación con vigas de amarre; cimentaciones profundas en zonas de transferencia', deliverables: 'Planos de cimentación · Tabla de reacciones · Memoria de cálculo' },
-    { n: '05', title: 'Coordinación BIM multidisciplinaria', need: 'Varias especialidades comparten un edificio, y un conflicto cuesta menos en pantalla que en obra.', start: 'Para empezar, bastan los modelos o planos más recientes de cada especialidad.', projectType: 'Construcción nueva — coordinación', location: 'Miami-Dade o Broward', scope: 'Modelado estructural, federación de modelos, verificación de interferencias, seguimiento de incidencias', structuralSystem: 'Estructura de concreto reforzado con vigas de transferencia de gran luz', deliverables: 'Modelo estructural · Informes de interferencias e incidencias · Planos derivados del modelo' },
+    { n: '01', title: 'Recertificación o inspección BSIP de un condominio', need: 'Su edificio debe pasar la inspección del condado, o el plazo ya venció. Todavía se puede resolver.', start: 'Para empezar, basta con una foto de la notificación del condado, aunque ya haya pasado su fecha.', projectType: 'Edificio existente — programa del condado', location: 'Miami-Dade o Broward', scope: 'Revisión de la notificación, inspección estructural y eléctrica, informes en los formularios oficiales, alcance de reparaciones, reinspección', structuralSystem: 'Estructura de concreto reforzado con balcones en voladizo', deliverables: 'El paquete completo que pide el condado, en sus formularios oficiales · Registro fotográfico · Alcance de reparaciones' },
+    { n: '02', title: 'Inspección de seguridad estructural', need: 'Grietas, manchas de óxido o concreto que se desprende, y necesita saber qué tan grave es.', start: 'Para empezar, bastan unas fotos de las grietas, las manchas o el concreto suelto.', projectType: 'Edificio existente — inspección de seguridad', location: 'Miami-Dade o Broward', scope: 'Inspección estructural visual, mapeo de deterioro del concreto, hallazgos priorizados', structuralSystem: 'Estructura de concreto reforzado, losas postensadas', deliverables: 'Informe de inspección · Mapeo de deterioro · Alcance de seguimiento' },
+    { n: '03', title: 'Diseño de reparación tras una inspección', need: 'Una inspección encontró daños, y las reparaciones necesitan planos que un contratista pueda cotizar y el condado pueda permitir.', start: 'Para empezar, basta el informe de la inspección, sea nuestro o de otro ingeniero.', projectType: 'Edificio existente — diseño de reparación', location: 'Miami-Dade o Broward', scope: 'Hallazgos confirmados en sitio, diseño de la reparación del concreto y del refuerzo, planos firmados y sellados para el permiso, respuestas a los comentarios del revisor, visitas durante la obra', structuralSystem: 'Estructura de concreto reforzado, balcones y losas con deterioro', deliverables: 'Planos de reparación firmados y sellados · Especificaciones · Cartas de cierre' },
+    { n: '04', title: 'Inspección de hito (milestone) de un condominio', need: 'Su asociación de condominio o cooperativa debe documentar la inspección de hito del estado, y la junta quiere un solo ingeniero que la lleve desde la primera visita hasta el informe presentado.', start: 'Para empezar, bastan el año en que se terminó el edificio y el nombre de la asociación.', projectType: 'Edificio existente — inspección de hito', location: 'Miami-Dade o Broward', scope: 'Inspección visual de fase uno, fase dos cuando la primera lo exige, el informe a la asociación y al oficial de construcción, alcance de reparaciones', structuralSystem: 'Estructura de concreto reforzado con balcones en voladizo y losas postensadas', deliverables: 'Informe de fase uno · Informe de fase dos cuando se requiere · Alcance de reparaciones' },
+    { n: '05', title: 'Edificio threshold en construcción', need: 'Su permiso de construcción exige un inspector especial, y la estructura está por salir del suelo.', start: 'Para empezar, bastan los planos del permiso y el plan de inspección estructural.', projectType: 'Obra nueva — inspección especial', location: 'Miami-Dade o Broward', scope: 'Inspecciones por etapa según el plan de inspección estructural, informes al departamento de construcción, declaración de cumplimiento', structuralSystem: 'Estructura de concreto reforzado; acero estructural donde lo haya', deliverables: 'Informes por etapa · Registro de no conformidades · Declaración de cumplimiento' },
     { n: '06', title: 'Revisión estructural independiente por pares', need: 'Un diseño necesita una segunda revisión independiente antes del permiso o de la obra.', start: 'Para empezar, bastan los planos y cálculos que se van a revisar.', projectType: 'Revisión de diseño — terceros', location: 'Miami-Dade o Broward', scope: 'Revisión independiente de planos y cálculos, registro de comentarios, seguimiento hasta el cierre', structuralSystem: 'Concreto reforzado y acero estructural, sistema mixto', deliverables: 'Informe de revisión · Registro de comentarios priorizados · Registro de resolución' },
   ],
 
@@ -1947,12 +1756,12 @@ export const es: SiteContent = {
     eyebrow: 'Sobre la firma',
     titleLines: ['Tercero Tablada Civil and Structural', 'Engineering Inc., en el Sur de Florida.'],
     accentWord: 'Sur de Florida.',
-    sub: 'Construida alrededor de un solo equipo responsable. Tercero Tablada Civil and Structural Engineering Inc. diseña edificios nuevos de concreto reforzado y evalúa los que ya están en pie, en Miami-Dade y Broward.',
+    sub: 'Construida alrededor de un solo equipo responsable. Tercero Tablada Civil and Structural Engineering Inc. inspecciona y evalúa los edificios que ya están en pie, sigue los que se construyen y revisa los diseños de otros, en Miami-Dade y Broward.',
     approach: {
       eyebrow: 'Enfoque',
       title: 'Revisado línea por línea, antes de salir.',
       body: [
-        'Por esta firma pasan dos tipos de trabajo, y cada uno enriquece al otro. Diseñar estructuras nuevas enseña qué falla en campo; inspeccionar edificios que llevan décadas en pie enseña qué detallar de otra manera la próxima vez.',
+        'Por esta firma pasan dos tipos de trabajo, y cada uno enriquece al otro. Seguir una estructura mientras se construye enseña qué falla en campo; inspeccionar edificios que llevan décadas en pie enseña qué buscar la próxima vez.',
         'En edificios existentes el trabajo empieza en campo: el edificio se revisa en sitio antes de analizarse, y nada se concluye a partir de un plano que no se haya confirmado allí.',
       ],
     },
@@ -2017,9 +1826,9 @@ export const es: SiteContent = {
       },
       new: {
         id: 'new',
-        eyebrow: 'Proyectos nuevos',
-        title: 'Usted está construyendo algo.',
-        lede: 'Para propietarios, desarrolladores, arquitectos y contratistas con un proyecto en diseño o camino al permiso.',
+        eyebrow: 'Obra nueva',
+        title: 'Usted está construyendo, o revisando un diseño.',
+        lede: 'Para propietarios, desarrolladores, arquitectos y contratistas con un edificio threshold en construcción, o un juego de planos estructurales que debe leerse de forma independiente antes de emitirse.',
       },
     },
   },
@@ -2118,7 +1927,7 @@ export const es: SiteContent = {
         { k: 'Si ya tiene la carta', v: 'Para empezar basta una foto de la carta tomada con el teléfono. Adjúntela en este formulario o envíela por WhatsApp; no hace falta escanearla ni copiar lo que dice. Si la carta tiene varias páginas, tómele una foto a cada una. Lo primero que buscamos es qué oficina la envió y qué fechas indica.' },
         { k: 'Si la fecha ya pasó', v: 'Escríbanos de todos modos y adjunte la carta junto con cualquier aviso o citación que haya llegado después. La inspección todavía puede hacerse y el informe presentarse; cuanto antes lea el ingeniero lo que recibió, antes tendrá usted un plan que presentar a su Building Official (el funcionario de construcción).' },
         { k: 'Si todavía no le ha llegado', v: 'Envíe la dirección del edificio y un dato: en Miami-Dade, el año de construcción; en Broward, el año del certificado de ocupación. Cada condado cuenta la antigüedad del edificio a partir de ese registro, y con él podemos decirle qué le corresponde al suyo antes de que llegue la carta.' },
-        { k: 'Para cualquier otro edificio o proyecto', v: 'Cuéntenos del edificio, dónde está y qué necesita: una evaluación, el diseño de una reparación, la estructura de un edificio nuevo o una segunda revisión de un diseño hecho por otros. Los planos, las fotografías y los informes anteriores son bienvenidos, y ninguno es obligatorio. La propuesta para este trabajo también es gratis.' },
+        { k: 'Para cualquier otro edificio o proyecto', v: 'Cuéntenos del edificio, dónde está y qué necesita: una evaluación, el diseño de una reparación, las inspecciones especiales de un edificio threshold en construcción o una segunda revisión de un diseño hecho por otros. Los planos, las fotografías y los informes anteriores son bienvenidos, y ninguno es obligatorio. La propuesta para este trabajo también es gratis.' },
         { k: 'Después de enviarlo', v: 'Si hay una carta, el ingeniero lee primero lo que pide su Building Official. Después le enviamos preguntas o una propuesta escrita con el alcance: qué incluye el trabajo, qué queda fuera, qué recibe usted y cuánto cuesta — en una recertificación o un BSIP, un precio fijo. Nada comienza hasta que usted la acepte.' },
         { k: 'Dónde y en qué idioma', v: 'Trabajamos en Miami-Dade y Broward, en todas las ciudades de ambos condados: de Miami, Hialeah y Coral Gables a Fort Lauderdale, Hollywood y Pompano Beach. Indíquenos la ciudad, o si el edificio está fuera de los límites de una ciudad: de eso depende qué oficina envía la carta y recibe el informe. El formulario y este sitio están en español y en inglés; escríbanos en el idioma que le resulte más cómodo.' },
       ],

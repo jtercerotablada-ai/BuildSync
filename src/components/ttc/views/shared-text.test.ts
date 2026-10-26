@@ -323,8 +323,8 @@ describe('the team: on /about alone, as equals, and none of it on the home page'
  *
  * Left out, on purpose:
  *   • The band that closes every page (`mp-close`). It is the same band on
- *     thirteen of the sixteen pages of each language, and the check itself
- *     sets aside what "appears on a large number of your pages".
+ *     most of the pages of each language, and the check itself sets aside
+ *     what "appears on a large number of your pages".
  *   • The firm's name and a service's name: a name is the same wherever it
  *     is printed, and a card is titled with the name of the page it opens.
  */
@@ -343,8 +343,8 @@ describe('listing pages and ordinary service pages: no block of text on two page
     const names = new Set([c.company.name, ...c.services.map((s) => s.title)].map((n) => norm(text(esc(n)))));
     const mine = pages.filter((p) => p.lang === lang && !PROGRAMS.some((slug) => p.path === `/services/${slug}`));
 
-    it(`${lang}: reads the five listing pages and the six ordinary services`, () => {
-      expect(mine).toHaveLength(11);
+    it(`${lang}: reads the five listing pages and the four ordinary services`, () => {
+      expect(mine).toHaveLength(9);
     });
 
     it(`${lang}: every block of six words or more is on one page`, () => {

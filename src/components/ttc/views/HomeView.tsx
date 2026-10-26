@@ -1,6 +1,5 @@
 import React from 'react';
 import type { Lang } from '@/lib/ttc/i18n';
-import { HomeBim } from '@/components/ttc/mp/home/HomeBim';
 import { HomeContact } from '@/components/ttc/mp/home/HomeContact';
 import { HomeCredentials } from '@/components/ttc/mp/home/HomeCredentials';
 import { HomeHero } from '@/components/ttc/mp/home/HomeHero';
@@ -27,7 +26,6 @@ import { HomeAddress } from './meta';
  *   HomeRibbon    the eight services and the building types, as moving type
  *   HomeServices  the eight services, a photograph and one line each
  *   HomeStatement hurricane wind, high water, decades of salt air
- *   HomeBim       the structural model, the one thing a camera cannot show
  *   HomeTypes     the kinds of building, a rail of illustrative photographs
  *   HomeCredentials  the licenses, the registration, the contractor's card
  *   HomeContact   "Get in touch." with the real form
@@ -49,7 +47,7 @@ import { HomeAddress } from './meta';
  * the owner's ceiling of 23).
  *
  * Styles: home.css (tokens, the hero, the ribbon, the services, the statement,
- * the BIM block), home-lower.css (the rest) and home-motion.css (everything
+ * home-lower.css (the rest) and home-motion.css (everything
  * that moves: the reveals, the ribbon, the rail, the slide-over stack, the
  * header's drop-in and progress line), in that order, all imported here so
  * the home is the only route that loads them; mp.css is untouched.
@@ -68,7 +66,6 @@ export function HomeView({ lang }: { lang: Lang }) {
       <HomeRibbon lang={lang} />
       <HomeServices lang={lang} />
       <HomeStatement lang={lang} />
-      <HomeBim lang={lang} />
       <HomeTypes lang={lang} />
       <HomeCredentials lang={lang} />
       <HomeContact lang={lang} />

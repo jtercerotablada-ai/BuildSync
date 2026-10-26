@@ -85,12 +85,6 @@
       h-rv-settle 1.6s var(--h-ease) backwards;
   }
   /* The BIM frame's four gold corner ticks come in once the picture has. */
-  .mp-home .h-bim__frame[data-rv='wait']::after {
-    opacity: 0;
-  }
-  .mp-home .h-bim__frame[data-rv='in']::after {
-    animation: h-rv-fade 1s var(--h-ease) 1.3s backwards;
-  }
 
   /* E8 · a heading's words rise out of their masks (Words.tsx): 1.25 s, 55 ms
      apart (`--wi` is a word's index in the whole heading). Opacity is 0 while

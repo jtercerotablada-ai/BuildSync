@@ -130,7 +130,7 @@ export const company = {
    * — the order the whole site now follows. No number belongs here.
    */
   description:
-    'Structural engineering for South Florida — building recertification in Miami-Dade, the Building Safety Inspection Program (BSIP) in Broward, structural assessments and repair design, and the structural design of new buildings.',
+    'Structural engineering for South Florida — building recertification in Miami-Dade, the Building Safety Inspection Program (BSIP) in Broward, milestone inspections, structural assessments and repair design, threshold inspections during construction, and the peer review of a structural design.',
   tagline: 'Structural Engineering for South Florida.',
   /**
    * Two real brand assets, both supplied by the client — never redraw either.
@@ -349,7 +349,7 @@ export const ui = {
      "Request a Proposal"; headings stay in sentence case. */
   requestProposal: 'Request a Proposal',
   seeAllServices: 'All Services',
-  newProjects: 'New projects',
+  newProjects: 'New construction',
   existingBuildings: 'Existing buildings',
   whenYouNeedIt: 'When you need it',
   whatsIncluded: "What's included",
@@ -1040,8 +1040,9 @@ export const services: Service[] = [
   {
     slug: 'building-recertification',
     n: '01',
-    title: 'Miami-Dade Building Recertification',
-    shortTitle: 'Miami-Dade Recertification',
+    /* The county is the explanation, not the title (the owner, 2026-10-25). */
+    title: 'Building Recertification',
+    shortTitle: 'Recertification',
     track: 'existing',
     coverage: 'Miami-Dade County, Florida',
     areaServed: ['Miami-Dade County, Florida'],
@@ -1472,8 +1473,8 @@ export const services: Service[] = [
   {
     slug: 'broward-bsip',
     n: '02',
-    title: 'Broward Building Safety Inspection Program (BSIP)',
-    shortTitle: 'Broward BSIP',
+    title: 'Building Safety Inspection Program (BSIP)',
+    shortTitle: 'BSIP',
     track: 'existing',
     coverage: 'Broward County, Florida',
     areaServed: ['Broward County, Florida'],
@@ -1846,7 +1847,7 @@ export const services: Service[] = [
        structural safety inspections nobody sent a notice for. */
     slug: 'milestone-inspections',
     n: '03',
-    title: 'Milestone & Structural Safety Inspections',
+    title: 'Milestone Inspections',
     shortTitle: 'Milestone Inspections',
     track: 'existing',
     summary:
@@ -2152,286 +2153,103 @@ export const services: Service[] = [
   },
   /* ── NEW PROJECTS ──────────────────────────────────────────────────────── */
   {
-    slug: 'reinforced-concrete-design',
+    /* The owner, 2026-10-25: the structural associate whose PE the state
+       lists as a Special Inspector of threshold buildings works under the
+       firm, so the service is offered. Florida's own words throughout
+       (s. 553.71 and 553.79, F.S.): a threshold building is more than three
+       stories or fifty feet, or an assembly space over 5,000 square feet and
+       500 people; the owner hires the special inspector, who inspects the
+       structure during construction under the engineer of record's
+       structural inspection plan and reports to the building official. The
+       firm inspects; it designs nothing here and builds nothing. */
+    slug: 'threshold-inspections',
     n: '05',
-    title: 'Reinforced Concrete Design',
-    shortTitle: 'Reinforced Concrete Design',
+    title: 'Threshold Building Inspections',
+    shortTitle: 'Threshold Inspections',
     track: 'new',
     summary:
-      'Foundations, columns, beams, slabs and shear walls designed as one load path — detailed for the field and issued permit-ready.',
+      'Special inspections of a threshold building as it is built, stage by stage under the structural inspection plan, with the reports the building department files.',
     card: {
-      when: 'A new building needs its structural set for permit, an architect needs the structure behind a design, or a contractor needs details that can be built.',
-      receive: 'Permit-ready structural drawings with their calculations, general notes and typical details.',
-      next: 'Start with the architectural drawings, at whatever stage they are, and the site location.',
+      when: 'A building over three stories is about to go up and the permit requires a special inspector.',
+      receive: 'Inspections at each stage of the structure, the reports the building department files, and the statement of compliance at the end.',
+      next: 'Send the permit set and the structural inspection plan, and tell us when the first pour is.',
     },
     heroSub:
-      'Reinforced concrete for houses, mid-rises and commercial buildings — sized for hurricane wind and detailed so it can be built.',
+      'A certified Special Inspector follows the structure as it rises: every inspection the plan calls for, every report the county files.',
     headings: {
-      faq: 'Questions about reinforced concrete design',
-      considerations: 'The soil report, the geometry and the permit review.',
+      faq: 'Questions about threshold inspections',
+      considerations: 'What a special inspector does, and what the law expects.',
     },
-    problemTitle: 'Concrete has to be right on paper first.',
+    problemTitle: 'The structure has to be inspected as it rises.',
     problem:
-      'Concrete is unforgiving: reinforcement that cannot be placed, a transfer condition resolved late, or a slab thickness set before the loads are known all become field problems that cost far more than they saved.',
+      'Florida requires a special inspector, hired by the owner, on every threshold building: more than three stories or fifty feet, or a large assembly space. The inspector checks the structure during construction, stage by stage, and reports to the building official. It is a role the law defines, and the project cannot close without it.',
     audience: [
-      'Developers and building owners',
-      'Architects carrying a project through permitting',
-      'General contractors and concrete subcontractors',
+      'Owners and developers of threshold buildings',
+      'General contractors scheduling the structural inspections',
+      'Architects and engineers of record coordinating the inspection plan',
     ],
     when: [
-      'You are building a house, townhouses, a mid-rise or a commercial frame and need the structural set for permit.',
-      'An architect has a design and needs the structure engineered behind it.',
-      'A contractor needs buildable reinforcement details, not a schematic.',
+      'A threshold building is about to start and the permit names a special inspector.',
+      'The structural inspection plan calls for inspections at each stage: foundations, columns, slabs, steel and connections.',
+      'The building department asks for the special inspector’s reports before the next stage, or before the certificate of occupancy.',
     ],
-    capabilities: [
-      'Foundations',
-      'Columns & beams',
-      'Slabs',
-      'Shear walls',
-      'Reinforcement detailing',
-    ],
+    capabilities: ['Special inspections', 'Inspection plan', 'Stage reports', 'Statement of compliance'],
     scope: [
-      'Gravity system — slabs, beams, girders, columns',
-      'Lateral system — shear walls, frames, diaphragms',
-      'Foundations — spread footings, mats, grade beams, pile caps',
-      'Transfer conditions, openings and irregular framing',
-      'Reinforcement design, development and splice detailing',
-      'Construction-phase RFIs and submittal review',
+      'Review of the structural inspection plan prepared by the engineer of record',
+      'Inspections of foundations, reinforcing steel, concrete placement, structural steel and connections at the stages the plan sets',
+      'Shoring and reshoring review where the plan requires it',
+      'Stage reports with photographs, filed as the building department requires',
+      'Non-conformances recorded and followed until corrected',
+      'The statement of compliance at completion',
     ],
     process: [
-      { step: 'Load take-down', detail: 'Occupancy, dead, live and hurricane-wind loads established for the actual site before any member is sized.' },
-      { step: 'System selection', detail: 'Framing layout, slab type and lateral strategy chosen with the architect — span, depth and cost tested together.' },
-      { step: 'Analysis & sizing', detail: 'Members analyzed and designed to the Florida Building Code, with deflection and serviceability checked.' },
-      { step: 'Detailing', detail: 'Reinforcement drawn so it can actually be placed — congestion, cover, hooks and splices resolved on the drawing.' },
-      /* One engineer: the check is thorough, not "independent". */
-      { step: 'Check & seal', detail: 'Drawings checked line by line against the calculations, then signed and sealed for permit submittal.' },
+      { step: 'Plan', detail: 'The structural inspection plan is reviewed and the inspection stages are set against the contractor’s schedule.' },
+      { step: 'Inspect', detail: 'Each stage is inspected on site before it is covered: reinforcing, formwork, concrete placement, steel erection and connections.' },
+      { step: 'Report', detail: 'Reports filed as the building department requires, with every non-conformance recorded until it is corrected.' },
+      { step: 'Close', detail: 'At completion, the statement that the structure was built as inspected, for the certificate of occupancy.' },
     ],
     deliverables: [
-      'Structural drawing set, permit-ready',
-      'Structural calculations package',
-      'General notes and typical details',
-      /* "For permit submittal", as the last process step says: with the
-         milestone page's wording this line was one sentence on two pages. */
-      'Signed and sealed documents for permit submittal, where the scope requires it',
+      'Stage inspection reports with photographic record',
+      'Non-conformance log and its corrections',
+      'Reports filed with the building department',
+      'Statement of compliance at completion',
     ],
     nextStep:
-      'Send the architectural drawings (any stage) and the site location. You receive a proposal with scope, deliverables and fee.',
+      'Send the permit set and the structural inspection plan, and tell us the schedule. You receive a proposal for the inspections the plan calls for.',
     considerations: [
-      'Foundation design depends on a geotechnical report; where none exists we will tell you what is needed before we start.',
-      'Scope and fee change with irregularity — transfers, cantilevers, post-tensioning and unusual geometry are priced honestly, not absorbed silently.',
-      'Permit review comments are part of the process; we respond to them, but no engineer can guarantee a jurisdiction’s decision.',
+      'A threshold building is more than three stories or fifty feet, or an assembly occupancy over 5,000 square feet and 500 people.',
+      'The special inspector is hired by the owner, not by the contractor, and reports to the building official.',
+      'The inspections follow the structural inspection plan of the engineer of record; the special inspector does not design the building and does not build it.',
     ],
-    /* Four questions after the steps (428 words of its own without them).
-       The rules are the assessments page's. */
     faq: [
       {
-        q: 'How early should the structural engineer join the project?',
-        a: 'As soon as there is a layout to work from. The framing, the slab type and the lateral system are chosen with the architect, and span, depth and cost balance best while the plans can still move. Drawings at any stage are enough to start that conversation.',
+        q: 'Who hires the special inspector?',
+        a: 'The owner does, under Florida law, and the inspector answers to the building official, not to the contractor. That independence is the point of the role: the person who checks the structure is not the person who builds it.',
       },
       {
-        q: 'Why does it matter that the reinforcement can be placed?',
-        a: 'Because a bar that fits in the calculation but not in the formwork becomes a problem on the day of the pour. Congestion at the joints, cover, hooks and splice locations are worked out on the drawing, so the crew builds what is shown instead of improvising in the field.',
+        q: 'How often is the building inspected?',
+        a: 'As often as the structural inspection plan requires. The plan, prepared by the engineer of record, names the stages that have to be seen before they are covered: footings and mats, columns and walls, each floor’s reinforcing and placement, steel erection and connections. We set those stages against the contractor’s schedule and are on site for each.',
       },
       {
-        q: 'What does the contractor get once construction starts?',
-        a: 'Answers from the team that designed the structure. Requests for information are answered and submittals are reviewed against the design, so a question raised on site is settled from the drawings and the calculations, not by guesswork.',
+        q: 'What happens when something does not match the drawings?',
+        a: 'It is recorded as a non-conformance, with photographs, and reported. The engineer of record decides the fix; we inspect the correction and close the item. Nothing is covered until it is closed.',
       },
       {
-        q: 'Is hurricane wind part of the design from the start?',
-        a: 'From the first step. Dead, live and hurricane-wind loads are set for the actual site before any member is sized, and the shear walls, frames and diaphragms that resist the wind are designed with the slabs and columns as one structure, not added at the end.',
-      },
-    ],
-    /* seo.title: keyword + place, inside the 580 px a search result shows
-       (seo.ts has the rule; the brand does not fit after any service
-       title). seo.description: under 1000 px, no code names. */
-    seo: {
-      title: 'Reinforced Concrete Design — Miami-Dade & Broward',
-      description:
-        'Reinforced concrete design for South Florida houses, mid-rise and commercial buildings: foundations, columns, slabs and shear walls, issued permit-ready.',
-      keywords: ['reinforced concrete design', 'concrete structure design Miami', 'structural engineer Miami', 'structural engineer Broward'],
-    },
-  },
-  {
-    slug: 'structural-analysis',
-    n: '06',
-    title: 'Structural Analysis & Foundations',
-    shortTitle: 'Structural Analysis & Foundations',
-    track: 'new',
-    summary:
-      'Gravity and lateral analysis, wind and seismic demand, and the foundation system that carries all of it into the ground.',
-    card: {
-      when: 'Before you commit to a site or a concept, on a difficult lot, or when hurricane wind and lateral loads have to be resolved.',
-      receive: 'The analysis results in a summary, the foundation design with its reactions, and the calculations behind both.',
-      next: 'Start with the site and the concept; add the geotechnical report if there is one.',
-    },
-    heroSub:
-      'The whole building in one model, roof to foundations — so you know whether a site or a concept works before you commit.',
-    headings: {
-      faq: 'Questions about analysis and foundations',
-      considerations: 'An analysis is only as good as its inputs.',
-    },
-    problemTitle: 'One load path, from roof to soil.',
-    problem:
-      'When the gravity design, the wind design and the foundations are handled as separate exercises, the seams between them are where failures and change orders start.',
-    audience: [
-      'Design teams needing a complete structural model',
-      'Owners evaluating feasibility or structural options',
-      'Contractors assessing constructability of a system',
-    ],
-    when: [
-      'You need to know whether a site, a soil report or a building concept works structurally before committing.',
-      'The project has a difficult site: tight lot, poor bearing, high water table, close neighbors.',
-      'You need wind and lateral demand resolved for a High-Velocity Hurricane Zone site.',
-    ],
-    capabilities: ['3D modeling', 'Wind & seismic demand', 'Drift control', 'Deep foundations', 'Settlement checks'],
-    scope: [
-      'Three-dimensional analytical modeling of the structure',
-      'Hurricane wind and lateral demand for the actual site',
-      'Lateral system selection and drift control',
-      'Diaphragm, collector and load-path continuity checks',
-      'Shallow and deep foundation design',
-      'Settlement, bearing and uplift verification against the geotechnical report',
-    ],
-    process: [
-      { step: 'Define the demand', detail: 'Risk category, exposure, wind speed and seismic parameters fixed for the actual site — not assumed.' },
-      { step: 'Build the model', detail: 'Geometry, stiffness, restraints and mass assembled into one analytical model of the whole structure.' },
-      { step: 'Analyze', detail: 'Gravity, wind and seismic load combinations run; drift, torsion and stability checked.' },
-      { step: 'Resolve the foundation', detail: 'Reactions carried into a foundation system matched to the soil report and site constraints.' },
-      { step: 'Document', detail: 'Results traced back into drawings and a calculation package a reviewer can follow.' },
-    ],
-    deliverables: [
-      'Analysis model and results summary',
-      'Load and load-combination documentation',
-      'Foundation design and reactions schedule',
-      'Structural calculations package',
-    ],
-    nextStep:
-      'Share the site, the geotechnical report if you have one, and the building concept. We reply with what is feasible and what the analysis will cost.',
-    considerations: [
-      'Foundation recommendations are only as good as the geotechnical data behind them.',
-      'Existing structures require field verification before an analytical model can be trusted.',
-      'Analysis results are reported as they are — including when they show a system does not work.',
-    ],
-    /* Four questions after the steps (408 words of its own without them).
-       The rules are the assessments page's. */
-    faq: [
-      {
-        q: 'Do we need a soil report before the analysis starts?',
-        a: 'Not to begin. The site and the concept are enough to define the wind and gravity demand and to test the framing. The foundation is different: it is designed against the soil data, so its recommendations become final only once the geotechnical report is in hand.',
-      },
-      {
-        q: 'Why does the wind design depend on the exact site?',
-        a: 'Because the demand changes with where the building stands. Risk category, exposure and design wind speed are set for the real address, and a site in the High-Velocity Hurricane Zone carries stricter requirements. A value borrowed from a nearby project can leave the frame short, or make it heavier than it needs to be.',
-      },
-      {
-        q: 'What if the analysis shows the concept does not work?',
-        a: 'Then you hear it plainly, with the reason, before money goes into drawings. The results show where the load path breaks down — drift, torsion, a transfer, a foundation the soil cannot carry — and that is the moment when changing the framing or the system is still cheap.',
-      },
-      {
-        q: 'Can a plans reviewer follow the numbers?',
-        a: 'Yes. The loads, the combinations and the results are documented, the foundation reactions are listed in a schedule, and every value on the drawings traces back to the calculation package. A building official or a second engineer can follow any member from the sheet to its calculation.',
+        q: 'What does the building department receive?',
+        a: 'The stage reports as the work proceeds, in the form the department asks for, and at the end the signed and sealed statement that the structure was built in accordance with the approved plans, which the certificate of occupancy depends on.',
       },
     ],
     seo: {
-      title: 'Structural Analysis & Foundations — Miami-Dade & Broward',
+      title: 'Threshold Building Inspections — Miami-Dade & Broward',
       description:
-        'Structural analysis and foundation design in Miami-Dade and Broward: hurricane wind, lateral systems, and shallow or deep foundations for difficult sites.',
-      keywords: ['structural analysis South Florida', 'foundation design Miami', 'wind analysis ASCE 7 Florida', 'lateral system design'],
-    },
-  },
-  {
-    slug: 'bim-coordination',
-    n: '07',
-    title: 'BIM Modeling & Coordination',
-    shortTitle: 'BIM Coordination',
-    track: 'new',
-    summary:
-      'Coordinated digital models that resolve conflicts before they reach the field and produce clearer structural deliverables.',
-    card: {
-      when: 'The team models in Revit, the owner or the contractor asks for a federated model and clash reports, or services and structure keep clashing on the drawings.',
-      receive: 'The structural model, the clash and issue reports, and drawings and schedules taken from the model.',
-      next: 'Tell us the software, the level of detail and the coordination calendar.',
-    },
-    heroSub:
-      'The structure modeled in Revit and checked against the other disciplines, so clashes are closed in design, not on site.',
-    headings: {
-      faq: 'Questions about structural BIM coordination',
-      considerations: 'What a model can do, and what it cannot.',
-    },
-    problemTitle: 'Find the conflicts before the site does.',
-    problem:
-      'Most conflicts between the structure, the architecture and the mechanical, electrical and plumbing systems are discovered on site, where they cost the most to fix. A coordinated model moves that discovery back into design, where it costs a conversation instead of a change order.',
-    audience: [
-      'Design teams running multi-discipline coordination',
-      'Contractors requiring model-based deliverables',
-      'Owners who want the as-designed model to survive into operations',
-    ],
-    when: [
-      'The project team works in Revit and needs the structure modeled to the same standard.',
-      'The owner or contractor requires a federated model and clash reports as a deliverable.',
-      'Ducts, pipes and structure keep colliding on drawings and someone has to own the resolution.',
-    ],
-    capabilities: ['Structural modeling', 'Model federation', 'Clash detection', 'Issue tracking', 'Model-derived drawings'],
-    scope: [
-      'Structural modeling — foundations, columns, slabs, walls, framing',
-      'Federation of structural, architectural and MEP models',
-      'Interference checking and clash resolution tracking',
-      'Model-derived drawings, schedules and quantities',
-      'Coordination meetings and issue reporting',
-      'Model delivery aligned to project information requirements',
-    ],
-    process: [
-      { step: 'Set the rules', detail: 'Shared coordinates, level and grid naming, model breakdown and level of information agreed before modeling starts.' },
-      { step: 'Model the structure', detail: 'The structural model is built as the design source, not as a drafting by-product.' },
-      { step: 'Federate', detail: 'Discipline models combined and checked against each other on a fixed cycle.' },
-      { step: 'Resolve', detail: 'Conflicts logged, assigned and tracked to closure — with the structural fix engineered, not improvised.' },
-      { step: 'Deliver', detail: 'Drawings, schedules and the model itself issued as one consistent set.' },
-    ],
-    deliverables: [
-      'Structural model at the agreed level of information',
-      'Clash and issue reports with resolution status',
-      'Model-derived drawings and schedules',
-      'Coordination record for the project file',
-    ],
-    nextStep:
-      'Tell us the software the team uses, the level of detail required and the coordination schedule. We propose the modeling scope and the exchange format.',
-    considerations: [
-      'Coordination quality depends on what the other disciplines deliver and when; the process is collaborative by definition.',
-      'A model is not a substitute for a signed and sealed drawing set — it supports it.',
-      'Level of information should match the decision being made, not the largest number available.',
-    ],
-    /* Four questions after the steps (510 words of its own without them:
-       just over the floor, and the Spanish page carries the same four). The
-       rules are the assessments page's. */
-    faq: [
-      {
-        q: 'Our team does not work in Revit. Can we still coordinate?',
-        a: 'Yes, as long as the exchange format is agreed at the start. Models can be shared as IFC and issues passed back and forth in BCF, both open formats, so each discipline keeps its own software. The proposal names the format together with the modeling scope.',
-      },
-      {
-        q: 'Who decides how a clash with the structure is fixed?',
-        a: 'Where the structure is involved, we engineer the structural fix; it is not improvised in the model. Each clash is logged, assigned to the discipline that owns it and tracked until it closes, and a beam that has to change depth or a slab opening that has to move is checked before the change is accepted.',
-      },
-      {
-        q: 'How much detail should the model carry?',
-        a: 'Enough for the decision being made at that stage, and no more. Early coordination needs the main members in the right place; fabrication or quantities need far more. The level of information is agreed before modeling starts, along with shared coordinates, level and grid naming and how the model is split.',
-      },
-      {
-        q: 'Does the model replace the structural drawings?',
-        a: 'No. The drawings and schedules are taken from the model, so the two agree, but the drawing set remains the document the permit and the construction rely on. The model is handed over with them, at the level of information agreed.',
-      },
-    ],
-    seo: {
-      title: 'BIM Modeling & Coordination — Miami-Dade & Broward',
-      description:
-        'Structural BIM modeling and coordination for South Florida projects: Revit models, clash detection and model-derived structural drawings.',
-      keywords: ['BIM coordination Miami', 'structural BIM modeling', 'clash detection structural', 'Revit structural engineer Florida'],
+        'Special Inspector for threshold buildings in Miami-Dade and Broward: inspections at every stage of construction, reports to the building department.',
+      keywords: ['threshold inspection Florida', 'special inspector threshold building Miami', 'threshold building inspector Broward', 'special inspections structural Florida'],
     },
   },
   {
     slug: 'peer-review',
-    n: '08',
-    title: 'Peer Review & Compliance',
+    n: '06',
+    title: 'Peer Review',
     shortTitle: 'Peer Review',
     track: 'new',
     summary:
@@ -2444,6 +2262,9 @@ export const services: Service[] = [
     heroSub:
       'An independent engineer reads your drawings and calculations against the governing code before they are issued, and stays until every comment is closed.',
     headings: {
+      /* The title alone, "Peer Review", is too short an H1 to say what the
+         page is (seo.test.ts); every word of this one is on the page. */
+      h1: 'Independent structural peer review',
       faq: 'Questions about a structural peer review',
       considerations: 'What a peer review is, and what it is not.',
     },
@@ -2594,9 +2415,7 @@ export const imagery = {
     'broward-bsip': photo.bsipBroward,
     'milestone-inspections': photo.midriseClean,
     'structural-condition-assessments': photo.midriseGlassBalconies,
-    'reinforced-concrete-design': photo.concreteFrameSlabs,
-    'structural-analysis': photo.analysisTowersUp,
-    'bim-coordination': photo.frameCraneSky,
+    'threshold-inspections': photo.frameCraneSky,
     'peer-review': photo.peerTowerBw,
   } as Record<string, Photo>,
   /* The hero aside, the only clip left is the model in the new-buildings
@@ -2640,18 +2459,18 @@ export type Typology = {
    the home page's headline (`home.types.title`) — the same h2 on two
    pages. The home page keeps the approved line; this section asks. */
 export const typologiesSection = {
-  eyebrow: 'What we design',
-  title: 'Do we design your kind of building?',
+  eyebrow: 'What we inspect',
+  title: 'Do we inspect your kind of building?',
   accentWord: 'your kind',
-  lede: 'The same engineer and the same detailing standard, scaled to the building in front of us. If your project is not on this list, it is worth a conversation rather than an assumption.',
+  lede: 'The same engineer and the same standard of inspection, scaled to the building in front of us. If your building is not on this list, it is worth a conversation rather than an assumption.',
 } as const;
 
 export const typologies: Typology[] = [
-  { n: '01', title: 'Single-family residences', lede: 'New houses engineered from the footing up — foundations sized to the soil report, a frame that carries hurricane wind, and drawings a local builder can price and build.', track: 'new', href: '/services/reinforced-concrete-design', photo: photo.houseConcreteGarden },
-  { n: '02', title: 'Townhouses & duplexes', lede: 'Party walls, shared foundations and repeated bays — the structure resolved once and detailed so the repetition stays a saving instead of a risk.', track: 'new', href: '/services/structural-analysis', photo: photo.houseTownhouses },
-  { n: '03', title: 'Mid-rise reinforced concrete', lede: 'Flat plates, shear-wall cores and cantilevered balconies — the system South Florida is built from, engineered as one continuous load path.', track: 'new', href: '/services/reinforced-concrete-design', photo: photo.frameCurvedBalconies },
-  { n: '04', title: 'Mixed-use & commercial frames', lede: 'Long spans over ground-floor retail, transfer structure where the grid changes, and coordination with everyone whose services run through it.', track: 'new', href: '/services/bim-coordination', photo: photo.frameCraneClean },
-  { n: '05', title: 'Foundations on difficult sites', lede: 'Tight lots, poor bearing, high water table and neighbors close enough to matter — the substructure engineered against the geotechnical report, not around it.', track: 'new', href: '/services/structural-analysis', photo: photo.foundationMatPit },
+  { n: '01', title: 'Single-family residences', lede: 'Cracked slabs, settled footings, storm damage or a purchase in sight: the house read as a structure, with the repairs it needs and nothing it does not.', track: 'existing', href: '/services/structural-condition-assessments', photo: photo.houseConcreteGarden },
+  { n: '02', title: 'Townhouses & duplexes', lede: 'Party walls, shared foundations and repeated bays: a defect in one bay is read against the others, so the repair is scoped once and priced once.', track: 'existing', href: '/services/structural-condition-assessments', photo: photo.houseTownhouses },
+  { n: '03', title: 'Mid-rise reinforced concrete', lede: 'Flat plates, shear-wall cores and cantilevered balconies, the system South Florida is built from: inspected for the county, for the milestone law and for the board that has to decide.', track: 'existing', href: '/services/milestone-inspections', photo: photo.frameCurvedBalconies },
+  { n: '04', title: 'Mixed-use & commercial frames', lede: 'Long spans over ground-floor retail, transfer structure where the grid changes, parking below: assessed as one load path, with the findings in the order they matter.', track: 'existing', href: '/services/structural-condition-assessments', photo: photo.frameCraneClean },
+  { n: '05', title: 'Buildings under construction', lede: 'Mats, columns, each floor’s reinforcing and placement, steel and connections: the threshold building inspected stage by stage before anything is covered, and reported to the county.', track: 'new', href: '/services/threshold-inspections', photo: photo.foundationMatPit },
   { n: '06', title: 'Repairs to existing structures', lede: 'Balconies, facades, slabs and columns that have been in service for decades — condition documented, repairs engineered, and the paperwork the county asks for.', track: 'existing', href: '/existing-buildings', photo: photo.repairSoffitTrowel },
 ];
 
@@ -2705,13 +2524,11 @@ export const home = {
      grid: new and existing alternate, Reinforced Concrete first, the two
      county programs 4th and 6th. */
   order: [
-    'reinforced-concrete-design',
     'structural-condition-assessments',
-    'structural-analysis',
+    'threshold-inspections',
     'building-recertification',
-    'bim-coordination',
-    'broward-bsip',
     'peer-review',
+    'broward-bsip',
     'milestone-inspections',
   ],
   /* The chrome on the home alone (header, phone menu, footer). `callLabel`
@@ -2732,7 +2549,7 @@ export const home = {
     eyebrow: ['Civil Engineers', 'Structural Engineers', 'Electrical Engineers'],
     titleLines: ['Structural', 'engineers for', 'South Florida.'],
     accentWord: 'Florida.',
-    sub: 'Licensed in Florida. We design new buildings and examine existing ones across South Florida, in Miami-Dade and Broward.',
+    sub: 'Licensed in Florida. We inspect, assess and review the structure of South Florida’s buildings, in Miami-Dade and Broward.',
     cta: 'Get in touch',
     /* The two counties in the hero bar, between the firm's name and the
        pause switch. */
@@ -2740,7 +2557,7 @@ export const home = {
   },
   ribbon: {
     label: 'What we engineer',
-    sideNew: 'New buildings',
+    sideNew: 'New construction',
     sideExisting: 'Existing buildings',
     /* The second row, under the eight service names. */
     types: [
@@ -2755,36 +2572,28 @@ export const home = {
   },
   services: {
     label: 'Services',
-    title: 'Eight services. One standard.',
+    title: 'Six services. One standard.',
     accentWord: 'standard.',
-    lede: 'We read the buildings that stand and engineer the ones that do not yet.',
+    lede: 'We read the buildings that stand, follow the ones going up, and check the designs before they are issued.',
     legend: {
       existing: { k: 'Existing buildings', v: 'Inspection, assessment and repair design.' },
-      new: { k: 'New buildings', v: 'Foundations, frame and hurricane-wind design.' },
+      new: { k: 'New construction', v: 'Threshold inspections during construction, and peer review of a design.' },
     },
     tag: 'Illustrative photographs',
     all: 'All services',
     lines: {
-      'reinforced-concrete-design': 'Foundations, columns, beams and slabs, designed as one structure.',
-      'structural-condition-assessments': 'What a building is doing today, and the repairs it needs.',
-      'structural-analysis': 'Gravity, hurricane wind and the foundations that carry it all.',
-      'building-recertification': 'Inspections and reports for Miami-Dade County’s recertification program.',
-      'bim-coordination': 'Coordinated models that settle conflicts on screen.',
-      'broward-bsip': 'Inspections and reports for Broward County’s building safety program.',
-      'peer-review': 'An independent second read of a structural design.',
-      'milestone-inspections': 'Structural safety inspections under Florida’s milestone law and beyond it.',
+      'structural-condition-assessments': 'What a building is doing today, and the repairs it needs. Findings a board can read, and a repair scope it can act on.',
+      'building-recertification': 'Inspections and reports for Miami-Dade County’s recertification program. Structural and electrical, on the county’s forms.',
+      'threshold-inspections': 'Special inspections of a building over three stories, stage by stage as it is built. A report to the building department at each one.',
+      'broward-bsip': 'Inspections and reports for Broward County’s building safety program. Structural and electrical, filed on the county’s own forms.',
+      'peer-review': 'An independent second read of a structural design. A comment log, followed until every comment is closed.',
+      'milestone-inspections': 'Structural safety inspections under Florida’s milestone law and beyond it. Which rules reach the building, and what the inspection finds.',
     },
   },
   statement: {
     lines: ['Hurricane wind.', 'High water.', 'Decades of salt air.'],
     dim: 'We engineer for all of it, and write it down so an owner, an architect and a reviewer can follow.',
     accentWord: 'all',
-  },
-  bim: {
-    label: 'Modeling',
-    title: 'The structure, modeled.',
-    accentWord: 'modeled.',
-    body: 'We model the structure and check it against the architect’s model and the building’s systems, so conflicts are settled on screen, not on site.',
   },
   types: {
     label: 'Building types',
@@ -2849,7 +2658,7 @@ export const home = {
 export const howWeWork = {
   eyebrow: 'How we work',
   title: 'Five steps. You always know which one you are on.',
-  lede: 'The sequence is the same whether you are answering a county notice or permitting a new frame. What changes is the depth of step three.',
+  lede: 'The sequence is the same whether you are answering a county notice, following a building under construction or sending a design for review. What changes is the depth of step three.',
   steps: [
     {
       n: '01',
@@ -2865,10 +2674,10 @@ export const howWeWork = {
     },
     {
       n: '03',
-      title: 'Evaluation or design',
-      youDo: 'Give access to the site, or answer the architect’s coordination questions as they come.',
+      title: 'Evaluation or review',
+      youDo: 'Give access to the site, or send the drawings and answer the engineer’s questions as they come.',
       /* No client portal exists, so no "progress you can see". */
-      youGet: 'Inspection and findings for existing buildings; analysis, modeling and detailing for new ones — with questions raised as they come up, not saved for the end.',
+      youGet: 'Inspection and findings for existing buildings; stage inspections for a building going up; an independent read of a design under review — with questions raised as they come up, not saved for the end.',
     },
     {
       n: '04',
@@ -2949,32 +2758,38 @@ export type Engagement = {
    own: without these six lines the profiles are under 500 words
    (work.test.ts).
 
-   02 names both county programs because its location is both counties:
+   01 names both county programs because its location is both counties:
    "recertification" alone is Miami-Dade's word. For the same reason its
    deliverable is "the complete package the county asks for" and not a list:
    the two counties ask for different packages, and each is on its own
-   program's page. 03 is no longer called a "milestone" inspection — in both
-   counties the milestone inspection is met through the county program,
-   which is profile 02. */
+   program's page. 02 and 03 are two situations of one service, the
+   assessments page: the inspection that says how serious it is, and the
+   repair drawings that follow one. 04 is the state's milestone inspection
+   as a profile of its own — the service page says how the county programs
+   meet it; the profile is for the board that has to document it. 05 and 06
+   are the new-construction track: a threshold building under construction,
+   and a design under independent review. No profile designs a new
+   building: the owner confirmed on 2026-10-25 that the firm does not, for
+   now. */
 export const engagements: Engagement[] = [
-  { n: '01', title: 'Mid-rise residential frame', need: 'You have the architect’s design and need the structure engineered for the permit.', start: 'To start, the architect’s current drawings are enough, even before they are final.', projectType: 'Residential — new construction', location: 'Miami-Dade or Broward', scope: 'Full structural design: gravity and lateral systems, foundations, detailing', structuralSystem: 'Reinforced concrete flat plate with shear-wall core', deliverables: 'Structural drawing set · Calculations · General notes' },
-  { n: '02', title: 'Condominium recertification or BSIP inspection', need: 'Your building is due for the county’s inspection, or the deadline has already passed. It can still be resolved.', start: 'To start, a picture of the county’s notice is enough, even one past its date.', projectType: 'Existing building — county program', location: 'Miami-Dade or Broward', scope: 'Notice review, structural and electrical inspection, the reports on the official forms, repair scope, reinspection', structuralSystem: 'Reinforced concrete frame with cantilevered balconies', deliverables: 'The complete package the county asks for, on its official forms · Photographic record · Repair scope' },
-  { n: '03', title: 'Structural safety inspection', need: 'Cracks, rust stains or concrete breaking off, and you need to know how serious it is.', start: 'To start, a few pictures of the cracks, stains or loose concrete are enough.', projectType: 'Existing building — safety inspection', location: 'Miami-Dade or Broward', scope: 'Visual structural inspection, concrete distress mapping, prioritized findings', structuralSystem: 'Reinforced concrete frame, post-tensioned slabs', deliverables: 'Inspection report · Distress mapping · Follow-up scope' },
-  { n: '04', title: 'Foundation system for a constrained site', need: 'A tight lot or poor soil, and the foundation has to be designed around it.', start: 'To start, the site plan is enough, with the soil report if there is one.', projectType: 'New construction — foundations', location: 'Miami-Dade or Broward', scope: 'Foundation design based on the geotechnical report, settlement and uplift verification', structuralSystem: 'Mat foundation with grade beams; deep foundations at transfer zones', deliverables: 'Foundation drawings · Reactions schedule · Calculations' },
-  { n: '05', title: 'Multi-discipline BIM coordination', need: 'Several trades share one building, and a conflict costs less to fix on screen than on site.', start: 'To start, the latest models or drawings from each trade are enough.', projectType: 'New construction — coordination', location: 'Miami-Dade or Broward', scope: 'Structural modeling, model federation, interference checking, issue tracking', structuralSystem: 'Reinforced concrete frame with long-span transfer beams', deliverables: 'Structural model · Clash & issue reports · Model-derived drawings' },
+  { n: '01', title: 'Condominium recertification or BSIP inspection', need: 'Your building is due for the county’s inspection, or the deadline has already passed. It can still be resolved.', start: 'To start, a picture of the county’s notice is enough, even one past its date.', projectType: 'Existing building — county program', location: 'Miami-Dade or Broward', scope: 'Notice review, structural and electrical inspection, the reports on the official forms, repair scope, reinspection', structuralSystem: 'Reinforced concrete frame with cantilevered balconies', deliverables: 'The complete package the county asks for, on its official forms · Photographic record · Repair scope' },
+  { n: '02', title: 'Structural safety inspection', need: 'Cracks, rust stains or concrete breaking off, and you need to know how serious it is.', start: 'To start, a few pictures of the cracks, stains or loose concrete are enough.', projectType: 'Existing building — safety inspection', location: 'Miami-Dade or Broward', scope: 'Visual structural inspection, concrete distress mapping, prioritized findings', structuralSystem: 'Reinforced concrete frame, post-tensioned slabs', deliverables: 'Inspection report · Distress mapping · Follow-up scope' },
+  { n: '03', title: 'Repair design after an inspection', need: 'An inspection found damage, and the repairs need drawings a contractor can price and the county can permit.', start: 'To start, the inspection report is enough, ours or another engineer’s.', projectType: 'Existing building — repair design', location: 'Miami-Dade or Broward', scope: 'Findings confirmed on site, design of the concrete and reinforcement repair, signed and sealed drawings for permit, replies to the reviewer’s comments, site visits during the work', structuralSystem: 'Reinforced concrete frame, balconies and slabs with distress', deliverables: 'Signed and sealed repair drawings · Specifications · Close-out letters' },
+  { n: '04', title: 'Milestone inspection of a condominium', need: 'Your condominium or cooperative association has to document the state’s milestone inspection, and the board wants one engineer to carry it from the first visit to the filed report.', start: 'To start, the year the building was finished and the association’s name are enough.', projectType: 'Existing building — milestone inspection', location: 'Miami-Dade or Broward', scope: 'Phase one visual inspection, phase two where phase one calls for it, the report to the association and the building official, repair scope', structuralSystem: 'Reinforced concrete frame with cantilevered balconies and post-tensioned slabs', deliverables: 'Phase one report · Phase two report where required · Repair scope' },
+  { n: '05', title: 'Threshold building under construction', need: 'Your building permit calls for a special inspector, and the structure is about to come out of the ground.', start: 'To start, the permit set and the structural inspection plan are enough.', projectType: 'New construction — special inspection', location: 'Miami-Dade or Broward', scope: 'Stage inspections under the structural inspection plan, reports to the building department, statement of compliance', structuralSystem: 'Reinforced concrete frame; structural steel where it occurs', deliverables: 'Stage reports · Non-conformance log · Statement of compliance' },
   { n: '06', title: 'Independent structural peer review', need: 'A design needs an independent second check before permit or construction.', start: 'To start, the drawings and calculations under review are enough.', projectType: 'Design review — third party', location: 'Miami-Dade or Broward', scope: 'Independent review of drawings and calculations, comment log, close-out tracking', structuralSystem: 'Reinforced concrete and structural steel, mixed system', deliverables: 'Review report · Prioritized comment log · Resolution record' },
 ];
 
 /* Which service page each typical profile opens, by slug — one copy for
-   both languages, like `imagery`. 03 opens condition assessments, not
-   milestone inspections (see the comment over `engagements`). A slug that
-   matches no service renders no link. */
+   both languages, like `imagery`. 02 and 03 both open the assessments page
+   and 04 opens milestone inspections (see the comment over `engagements`).
+   A slug that matches no service renders no link. */
 export const engagementServices: Record<string, readonly string[]> = {
-  '01': ['reinforced-concrete-design'],
-  '02': ['building-recertification', 'broward-bsip'],
+  '01': ['building-recertification', 'broward-bsip'],
+  '02': ['structural-condition-assessments'],
   '03': ['structural-condition-assessments'],
-  '04': ['structural-analysis'],
-  '05': ['bim-coordination'],
+  '04': ['milestone-inspections'],
+  '05': ['threshold-inspections'],
   '06': ['peer-review'],
 };
 
@@ -3074,14 +2889,14 @@ export const aboutPage = {
   /* The slogan opens it (seo.test). The written-down reasoning is the
      Approach section's to say, and "one engineer" is already its first
      sentence: the lede says each once. */
-  sub: 'Built around one accountable team. Tercero Tablada Civil and Structural Engineering Inc. designs new reinforced-concrete buildings and evaluates the ones already standing, across Miami-Dade and Broward.',
+  sub: 'Built around one accountable team. Tercero Tablada Civil and Structural Engineering Inc. inspects and assesses the buildings already standing, follows the ones going up and reviews the designs of others, across Miami-Dade and Broward.',
   /* One section on /about: the two paragraphs beside the title, then the
      five principles under their own label (`principles.eyebrow`). */
   approach: {
     eyebrow: 'Approach',
     title: 'Reviewed line by line, before it leaves.',
     body: [
-      'Two kinds of work run through this practice, and they inform each other. Designing new structures teaches you what fails in the field; inspecting buildings that have been standing for decades teaches you what to detail differently the next time.',
+      'Two kinds of work run through this practice, and they inform each other. Following a structure as it is built teaches you what fails in the field; inspecting buildings that have been standing for decades teaches you what to look for the next time.',
       'On existing buildings the field comes first: the building is checked on site before it is analyzed, and nothing is concluded from a drawing that has not been confirmed there.',
     ],
   },
@@ -3195,9 +3010,9 @@ export const servicesPage = {
     },
     new: {
       id: 'new',
-      eyebrow: 'New projects',
-      title: 'You are building something.',
-      lede: 'For owners, developers, architects and contractors with a project in design or heading to permit.',
+      eyebrow: 'New construction',
+      title: 'You are building, or reviewing a design.',
+      lede: 'For owners, developers, architects and contractors with a threshold building going up, or a structural set to be read independently before it is issued.',
     },
   },
 } as const;
@@ -3363,7 +3178,7 @@ export const contactPage = {
          step is still the inspection and the report — in other words. */
       { k: 'If the date has already passed', v: 'Write to us all the same, and attach the notice with any letter or citation that came after it. The inspection can still be done and the report filed; the sooner the engineer reads what you received, the sooner you have a plan to put before your Building Official.' },
       { k: 'If no notice has come yet', v: 'Send the address of the building and one date: in Miami-Dade, the year it was built; in Broward, the year of its certificate of occupancy. Each county counts a building’s age from that record, so with it we can tell you what applies to yours before a letter arrives.' },
-      { k: 'For any other building or project', v: 'Tell us about the building, where it is and what you need: an assessment, a repair design, the structure of a new building, or a second look at a design by others. Drawings, photographs and earlier reports are welcome, and none of them is required. The proposal for this work is free as well.' },
+      { k: 'For any other building or project', v: 'Tell us about the building, where it is and what you need: an assessment, a repair design, the special inspections of a threshold building under construction, or a second look at a design by others. Drawings, photographs and earlier reports are welcome, and none of them is required. The proposal for this work is free as well.' },
       { k: 'After you send it', v: 'When there is a notice, the engineer first reads what your Building Official is asking for. Our reply is a set of questions or a written proposal with the scope: what the work includes, what it leaves out, what you will receive and what it costs — for a recertification or a BSIP, a fixed fee. Nothing begins until you have agreed to it.' },
       { k: 'Where, and in which language', v: 'We work in Miami-Dade and Broward, in every city of both counties — from Miami, Hialeah and Coral Gables to Fort Lauderdale, Hollywood and Pompano Beach. Tell us the city, or that the building is outside city limits: that decides which office sends the notice and receives the report. The form and this site are in English and in Spanish; write in whichever is easier for you.' },
     ],

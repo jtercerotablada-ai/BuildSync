@@ -53,7 +53,7 @@ describe('county-program options', () => {
 describe('when the description is required', () => {
   const recert = option(en, 'building-recertification');
   const bsipEs = option(es, 'broward-bsip');
-  const concrete = option(en, 'reinforced-concrete-design');
+  const concrete = option(en, 'structural-condition-assessments');
 
   it('a county program with a finished upload does not need one', () => {
     expect(descriptionRequired(recert, 1)).toBe(false);

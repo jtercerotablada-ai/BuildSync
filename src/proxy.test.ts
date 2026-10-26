@@ -1151,6 +1151,12 @@ describe("next.config.ts — retired URL redirects", () => {
     // language: the Spanish URL must land on the Spanish page.
     ["/services/building-safety-inspections", "/services/milestone-inspections"],
     ["/es/services/building-safety-inspections", "/es/services/milestone-inspections"],
+    ["/services/reinforced-concrete-design", "/services"],
+    ["/es/services/reinforced-concrete-design", "/es/services"],
+    ["/services/structural-analysis", "/services"],
+    ["/es/services/structural-analysis", "/es/services"],
+    ["/services/bim-coordination", "/services"],
+    ["/es/services/bim-coordination", "/es/services"],
   ])("308s %s to %s", async (from, to) => {
     expect(await resolve(from)).toEqual({ to, permanent: true });
   });

@@ -340,15 +340,13 @@ describe('the owner’s vocabulary rules, over every string the home says (spec 
   });
 });
 
-describe('the order of the eight services (spec item 4, data part)', () => {
+describe('the order of the six services (spec item 4, data part)', () => {
   const ORDER = [
-    'reinforced-concrete-design',
     'structural-condition-assessments',
-    'structural-analysis',
+    'threshold-inspections',
     'building-recertification',
-    'bim-coordination',
-    'broward-bsip',
     'peer-review',
+    'broward-bsip',
     'milestone-inspections',
   ];
   const PROGRAMS = ['building-recertification', 'broward-bsip'];
@@ -357,28 +355,28 @@ describe('the order of the eight services (spec item 4, data part)', () => {
     const c = getContent(lang);
     const order = [...c.home.order];
 
-    it(`${lang}: names each of the eight services once, and no other`, () => {
-      expect(order).toHaveLength(8);
-      expect(new Set(order).size).toBe(8);
+    it(`${lang}: names each of the six services once, and no other`, () => {
+      expect(order).toHaveLength(6);
+      expect(new Set(order).size).toBe(6);
       expect([...order].sort()).toEqual(c.services.map((s) => s.slug).sort());
     });
 
-    it(`${lang}: Reinforced Concrete Design first, the order as decided`, () => {
+    it(`${lang}: structural assessments first, the order as decided`, () => {
       expect(order).toEqual(ORDER);
     });
 
     // Judge 1's blocker: a home that opens with the two county programs is a
-    // recertification page. They are 4th and 6th, in the middle of the list.
-    it(`${lang}: the first two are not recertification or BSIP; they are the 4th and the 6th`, () => {
+    // recertification page. They are 3rd and 5th, in the middle of the six.
+    it(`${lang}: the first two are not recertification or BSIP; they are the 3rd and the 5th`, () => {
       expect(PROGRAMS).not.toContain(order[0]);
       expect(PROGRAMS).not.toContain(order[1]);
-      expect(order.indexOf('building-recertification')).toBe(3);
-      expect(order.indexOf('broward-bsip')).toBe(5);
+      expect(order.indexOf('building-recertification')).toBe(2);
+      expect(order.indexOf('broward-bsip')).toBe(4);
     });
 
     it(`${lang}: new-building and existing-building services alternate, new first`, () => {
       const track = (slug: string) => c.services.find((s) => s.slug === slug)!.track;
-      expect(order.map(track)).toEqual(['new', 'existing', 'new', 'existing', 'new', 'existing', 'new', 'existing']);
+      expect(order.map(track)).toEqual(['existing', 'new', 'existing', 'new', 'existing', 'existing']);
     });
   }
 
@@ -402,7 +400,7 @@ describe('each service’s line on the home is its own (spec item 6)', () => {
     });
 
     it(`${lang}: no two services share a line`, () => {
-      expect(new Set(Object.values(lines).map(norm)).size).toBe(8);
+      expect(new Set(Object.values(lines).map(norm)).size).toBe(6);
     });
 
     for (const s of c.services) {
@@ -535,7 +533,6 @@ describe('each accent word is one phrase of its own heading, once (what the rend
       ['hero', h.hero.accentWord, h.hero.titleLines.join(' ')],
       ['services', h.services.accentWord, h.services.title],
       ['statement', h.statement.accentWord, h.statement.dim],
-      ['bim', h.bim.accentWord, h.bim.title],
       ['types', h.types.accentWord, h.types.title],
       ['credentials', h.credentials.accentWord, h.credentials.title],
       ['contact', h.contact.accentWord, h.contact.title],
@@ -700,11 +697,11 @@ for (const lang of LANGS) {
         expect(headings[i].level - headings[i - 1].level, `${headings[i - 1].text} → ${headings[i].text}`).toBeLessThanOrEqual(1);
       }
       // The owner's on-page check lists more than 23 headings as too many.
-      // One h1, six h2 (the sections), eight h3 (the eight services); cards
+      // One h1, five h2 (the sections), six h3 (the six services); cards
       // and credentials are not headings.
       expect(headings.length).toBeLessThanOrEqual(23);
-      expect(headings.filter((x) => x.level === 2)).toHaveLength(6);
-      expect(headings.filter((x) => x.level === 3)).toHaveLength(8);
+      expect(headings.filter((x) => x.level === 2)).toHaveLength(5);
+      expect(headings.filter((x) => x.level === 3)).toHaveLength(6);
       expect(headings.filter((x) => x.level > 3)).toEqual([]);
     });
 
@@ -775,7 +772,7 @@ for (const lang of LANGS) {
     });
   });
 
-  describe(`${lang}: the eight services (spec item 4, render part)`, () => {
+  describe(`${lang}: the six services (spec item 4, render part)`, () => {
     const servicesHtml = section(markup, 'services');
     const articles = [...servicesHtml.matchAll(/<article class="([^"]*)" style="([^"]*)">([\s\S]*?)<\/article>/g)].map((m) => ({
       cls: m[1],
@@ -788,8 +785,8 @@ for (const lang of LANGS) {
     const place = (a: (typeof articles)[number]) => Number(a.style.match(/--o:(\d+)/)?.[1]) - 1;
     const ribbonA = markup.match(/<ul class="h-rib__list h-rib__a">[\s\S]*?<\/ul>/)![0];
 
-    it('prints each of the eight services once, as a card whose title is the link', () => {
-      expect(articles).toHaveLength(8);
+    it('prints each of the six services once, as a card whose title is the link', () => {
+      expect(articles).toHaveLength(6);
       expect(articles.map((a) => a.slug).sort()).toEqual(c.services.map((s) => s.slug).sort());
       for (const a of articles) {
         const s = c.services.find((x) => x.slug === a.slug)!;
@@ -800,17 +797,18 @@ for (const lang of LANGS) {
       }
     });
 
-    it('puts them in home.order: the first two are not the county programs, which are 4th and 6th', () => {
+    it('puts them in home.order: the first two are not the county programs, which are 3rd and 5th', () => {
       const byPlace = [...articles].sort((a, b) => place(a) - place(b)).map((a) => a.slug);
       expect(byPlace).toEqual([...c.home.order]);
-      expect(byPlace.indexOf('building-recertification')).toBe(3);
-      expect(byPlace.indexOf('broward-bsip')).toBe(5);
+      expect(byPlace.indexOf('building-recertification')).toBe(2);
+      expect(byPlace.indexOf('broward-bsip')).toBe(4);
+      // Neither program opens or closes the list.
       for (const slug of ['building-recertification', 'broward-bsip']) {
         const i = byPlace.indexOf(slug);
         expect(i, `${slug}: services before it`).toBeGreaterThanOrEqual(2);
-        expect(byPlace.length - 1 - i, `${slug}: services after it`).toBeGreaterThanOrEqual(2);
+        expect(byPlace.length - 1 - i, `${slug}: services after it`).toBeGreaterThanOrEqual(1);
       }
-      // The ribbon runs the same eight, in the same order.
+      // The ribbon runs the same six, in the same order.
       const ribbon = [...ribbonA.matchAll(/href="[^"]*\/services\/([a-z-]+)"/g)].map((m) => m[1]);
       expect(ribbon).toEqual([...c.home.order]);
     });
@@ -819,8 +817,8 @@ for (const lang of LANGS) {
       expect(new Set(articles.map((a) => a.cls)).size).toBe(1);
       expect(new Set(articles.map((a) => a.h3)).size).toBe(1);
       expect(new Set(articles.map((a) => a.inner.match(/<a class="([^"]*)"/)?.[1])).size).toBe(1);
-      // …and the same type in the ribbon: one list, one item class for all eight.
-      expect([...ribbonA.matchAll(/<li>/g)]).toHaveLength(8);
+      // …and the same type in the ribbon: one list, one item class for all six.
+      expect([...ribbonA.matchAll(/<li>/g)]).toHaveLength(6);
     });
 
     it('prints the words recertification, BSIP and milestone only where the services are named', () => {
@@ -985,14 +983,6 @@ for (const lang of LANGS) {
       const lines = contact.indexOf('class="h-contact__lines"');
       expect(form).toBeGreaterThan(-1);
       expect(lines).toBeGreaterThan(form);
-    });
-
-    it('BIM: the heading and the link, then the frame and its pause switch', () => {
-      const bim = markup.slice(markup.indexOf('aria-labelledby="h-bim-title"'));
-      const text = bim.indexOf('class="h-bim__text"');
-      const media = bim.indexOf('class="h-bim__media"');
-      expect(text).toBeGreaterThan(-1);
-      expect(media).toBeGreaterThan(text);
     });
 
     it('services: each track in turn, the cards of one track in home.order (the phone shows them that way)', () => {
