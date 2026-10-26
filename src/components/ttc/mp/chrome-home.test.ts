@@ -41,31 +41,21 @@ describe('the home page chrome', () => {
     const phone = c.contact.phone!;
     const { html, header, bar, tag } = chrome('/', lang);
 
-    it(`${lang}: the header's button is "${c.home.chrome.headerCta}" to the page's own contact block`, () => {
-      const btn = header.match(/<a href="#contact" class="mp-btn mp-btn--solid mp-header__cta">[\s\S]*?<\/a>/)?.[0];
-      expect(btn).toBe(`<a href="#contact" class="mp-btn mp-btn--solid mp-header__cta"><span>${esc(c.home.chrome.headerCta)}</span></a>`);
-      // No second, site-wide button beside it: "Contact" in the nav is the
-      // nav's, and the proposal button is not printed at all.
+    // The owner, 2026-10-26: no button and no Call in the home's header; the
+    // menu's foot keeps "Get in touch", and the phone bar carries the rest.
+    it(`${lang}: the home's header has no button and no Call`, () => {
+      expect(header).not.toContain('mp-header__cta');
+      expect(header).not.toContain('mp-header__call');
       expect(header).not.toContain(esc(c.primaryCta.label));
-      expect(header.match(/mp-header__cta/g)).toHaveLength(1);
     });
 
-    it(`${lang}: a Call button sits in the header's actions, named "Call" and the number`, () => {
-      const call = header.match(/<a class="mp-header__call"[\s\S]*?<\/a>/)?.[0] ?? '';
-      expect(call).toContain(`href="${phone.href}"`);
-      expect(call).toContain(`<span class="mp-sr-only">${esc(c.home.chrome.callLabel.replace('{phone}', phone.display))}</span>`);
-      expect(call).toContain('aria-hidden="true"');
-      // …before the burger, inside the actions.
-      const actions = header.match(/<div class="mp-header__actions">[\s\S]*<\/div>/)?.[0] ?? '';
-      expect(actions.indexOf('mp-header__call')).toBeGreaterThan(actions.indexOf('mp-header__cta'));
-      expect(actions.indexOf('mp-header__call')).toBeLessThan(actions.indexOf('mp-burger'));
-    });
-
-    it(`${lang}: the phone bar says "${c.reach.formHome}" to #contact, and its WhatsApp line names no notice`, () => {
+    it(`${lang}: the phone bar says "${c.reach.formHome}" to #contact and WhatsApp, and no Call`, () => {
       expect(bar).toContain(`<a class="mp-bar__item mp-bar__item--main" href="#contact">${esc(c.reach.formHome)}</a>`);
       expect(bar).toContain(esc(whatsappHomeHref(c)!));
       for (const never of [c.reach.form, c.reach.formPlain, c.primaryCta.label]) expect(bar).not.toContain(`>${esc(never)}<`);
-      expect(bar).toContain(`href="${phone.href}"`);
+      // The owner, 2026-10-26: no Call item on a phone.
+      expect(bar).not.toContain(`href="${phone.href}"`);
+      expect(bar).not.toContain(`>${esc(c.reach.call)}<`);
     });
 
     // The footer prints no tagline and no P.E. badge on any page since

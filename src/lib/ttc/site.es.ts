@@ -1233,7 +1233,7 @@ export const es: SiteContent = {
      */
     email: 'info@ttcivilstructural.com',
     phone: { display: '(772) 265-8506', href: 'tel:+17722658506' },
-    whatsapp: { href: 'https://api.whatsapp.com/send?phone=17722658506' },
+    whatsapp: { href: 'https://api.whatsapp.com/send?phone=14423798360' },
     address: null,
     serviceAreaLabel: 'Florida, todo el estado',
     social: {
@@ -1489,7 +1489,7 @@ export const es: SiteContent = {
       counties: ['En toda Florida'],
     },
     ribbon: {
-      label: 'Lo que hacemos',
+      label: 'Lo que inspeccionamos en toda Florida',
       sideNew: 'Revisión de diseño',
       sideExisting: 'Edificios existentes',
       types: [
@@ -1511,7 +1511,7 @@ export const es: SiteContent = {
         existing: { k: 'Edificios existentes', v: 'Inspección, evaluación y diseño de reparaciones para edificios ya en pie.' },
         new: { k: 'Revisión de diseño', v: 'La revisión independiente por pares de un diseño estructural antes de emitirlo.' },
       },
-      all: 'Todos los servicios',
+      all: 'Los seis servicios',
       lines: {
         'structural-condition-assessments': 'Lo que hoy le ocurre al edificio y las reparaciones que necesita. Hallazgos que una junta puede leer, y reparaciones dibujadas para permitirse y construirse.',
         'building-recertification': 'Inspecciones e informes para el programa de recertificación del Condado de Miami-Dade. Estructural y eléctrica, en los formularios del condado, desde la primera visita hasta el informe presentado.',
@@ -1528,7 +1528,7 @@ export const es: SiteContent = {
     },
     types: {
       label: 'Tipos de edificio',
-      title: 'De una vivienda unifamiliar a un edificio de mediana altura en concreto.',
+      title: 'De una vivienda unifamiliar a un edificio de mediana altura en concreto, y las torres más allá.',
       accentWord: 'mediana altura',
       region: 'Tipos de edificio que inspeccionamos',
       sixth: { title: 'Diseño de reparaciones para estructuras existentes' },
@@ -1746,7 +1746,7 @@ export const es: SiteContent = {
     eyebrow: 'Sobre la firma',
     titleLines: ['Tercero Tablada Civil and Structural', 'Engineering Inc., en el Sur de Florida.'],
     accentWord: 'Sur de Florida.',
-    sub: 'Construida alrededor de un solo equipo responsable. Tercero Tablada Civil and Structural Engineering Inc. inspecciona y evalúa los edificios que ya están en pie, entre ellos los edificios threshold, y revisa los diseños de otros, en toda Florida.',
+    sub: 'Construida alrededor de un solo equipo responsable. Tercero Tablada Civil and Structural Engineering Inc. inspecciona y evalúa los edificios que ya están en pie, entre ellos los edificios threshold, y revisa los diseños de otros, en todo el estado de Florida.',
     approach: {
       eyebrow: 'Enfoque',
       title: 'Revisado línea por línea, antes de salir.',

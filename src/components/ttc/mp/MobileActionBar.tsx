@@ -82,9 +82,8 @@ export function MobileActionBar() {
       aria-label={home ? c.home.chrome.barLabel : r.label}
       inert={!shown}
     >
-      <a className="mp-bar__item" href={phone.href}>
-        {r.call}
-      </a>
+      {/* No Call item (the owner, 2026-10-26: on a phone, only Get in touch
+          and WhatsApp). */}
       {wa ? (
         <a className="mp-bar__item" href={wa} target="_blank" rel="noopener noreferrer">
           {r.whatsapp}

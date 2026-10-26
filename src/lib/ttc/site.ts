@@ -230,8 +230,10 @@ export const contact = {
    *  The address WhatsApp itself serves, not the short `wa.me/<number>`:
    *  that one only answers with a redirect to this one, so every page linked
    *  to a redirect. `whatsappHref` (ReachRow.tsx) appends the first line of
-   *  the message as `&text=`, which is why this already ends in a query. */
-  whatsapp: { href: 'https://api.whatsapp.com/send?phone=17722658506' } as
+   *  the message as `&text=`, which is why this already ends in a query.
+   *  The number is the owner's WhatsApp line, +1 442 379 8360 (2026-10-26),
+   *  not the voice number printed on the site. */
+  whatsapp: { href: 'https://api.whatsapp.com/send?phone=14423798360' } as
     | { href: string }
     | null,
   /** e.g. { line1: '…', city: 'Miami', state: 'FL', zip: '33131' } */
@@ -2581,7 +2583,7 @@ export const home = {
     counties: ['Across Florida'],
   },
   ribbon: {
-    label: 'What we inspect',
+    label: 'What we inspect across Florida',
     sideNew: 'Design review',
     sideExisting: 'Existing buildings',
     /* The second row, under the eight service names. */
@@ -2604,7 +2606,7 @@ export const home = {
       existing: { k: 'Existing buildings', v: 'Inspection, assessment and repair design for buildings already standing.' },
       new: { k: 'Design review', v: 'The independent peer review of a structural design before it is issued.' },
     },
-    all: 'All services',
+    all: 'All six services',
     lines: {
       'structural-condition-assessments': 'What a building is doing today, and the repairs it needs. Findings a board can read, and a repair scope drawn to be permitted and built.',
       'building-recertification': 'Inspections and reports for Miami-Dade County’s recertification program. Structural and electrical, on the county’s forms, from the first visit to the filed report.',
@@ -2624,7 +2626,7 @@ export const home = {
   },
   types: {
     label: 'Building types',
-    title: 'From a single house to a mid-rise concrete frame.',
+    title: 'From a single house to a mid-rise concrete frame, and the towers beyond it.',
     accentWord: 'mid-rise',
     /* The name of the band. */
     region: 'Building types we inspect',
@@ -2921,7 +2923,7 @@ export const aboutPage = {
   /* The slogan opens it (seo.test). The written-down reasoning is the
      Approach section's to say, and "one engineer" is already its first
      sentence: the lede says each once. */
-  sub: 'Built around one accountable team. Tercero Tablada Civil and Structural Engineering Inc. inspects and assesses the buildings already standing, the threshold buildings among them, and reviews the designs of others, across Florida.',
+  sub: 'Built around one accountable team. Tercero Tablada Civil and Structural Engineering Inc. inspects and assesses the buildings already standing, the threshold buildings among them, and reviews the designs of others, across all of Florida.',
   /* One section on /about: the two paragraphs beside the title, then the
      five principles under their own label (`principles.eyebrow`). */
   approach: {
