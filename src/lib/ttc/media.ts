@@ -281,6 +281,15 @@ const catalogue = {
   /* The threshold card, the owner, 2026-10-26: "un edificio alto, este
      inspeccionando" — a tall concrete frame going up, crews on its top slab.
      Focal point high, so the crews stay in a landscape crop. */
+  /* The owner's second pick for the threshold card (2026-10-26, "o un
+     edificio ya hecho"): a finished tower of stacked balconies seen from
+     the street (Pexels 21524786, his download). The frame with its crews
+     stays cut as a spare. */
+  thresholdTowerUp: p(
+    'threshold-tower-up', 2000, 1333,
+    'Tall condominium tower of stacked balconies against a clear sky, seen from the street',
+    'Torre alta de condominios con balcones apilados contra un cielo despejado, vista desde la calle',
+  ),
   thresholdFrameCrews: p(
     'threshold-frame-crews', 2000, 3000,
     'Tall reinforced-concrete frame under construction, crews on its top slab among the column bars',

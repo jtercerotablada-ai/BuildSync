@@ -2414,8 +2414,8 @@ export const imagery = {
     /* 2026-10-26, the owner: each photograph shows the service's own work
        — a spalled slab for the assessments, a condominium tower for the
        milestone inspection, drawings under review for the peer review, a
-       tall frame with its crews for the threshold inspections (the crane
-       alone was "not a tall building being inspected"), and for the
+       finished tower he sent for the threshold inspections (first the
+       frame with its crews, then "o un edificio ya hecho"), and for the
        recertification the inspector at the window he chose himself;
        Broward's coast stays. The towers by the water, the white
        mid-rise, the glass balconies and the fluted tower are spares now. */
@@ -2423,7 +2423,7 @@ export const imagery = {
     'broward-bsip': photo.bsipBroward,
     'milestone-inspections': photo.condoBalconiesTower,
     'structural-condition-assessments': photo.slabSpallingRebar,
-    'threshold-inspections': photo.thresholdFrameCrews,
+    'threshold-inspections': photo.thresholdTowerUp,
     'peer-review': photo.drawingsReviewDesk,
   } as Record<string, Photo>,
   /* The hero aside, the only clip left is the model in the new-buildings
