@@ -110,7 +110,7 @@ export const SEO: Record<Lang, Record<Pages, PageSeo>> = {
     services: {
       title: 'Seis servicios de ingeniería para edificios en Florida',
       description:
-        'Seis servicios de ingeniería para los edificios de Florida: recertificación, BSIP, inspecciones de hito y threshold, evaluaciones con diseño de reparaciones y revisión por pares.',
+        'Seis servicios de ingeniería para edificios en Florida: recertificación, BSIP, inspecciones de hito y threshold, evaluaciones, reparaciones y revisión por pares.',
       // People search "inspección milestone"; the page says "inspección de hito".
       keywords: ['servicios de ingeniería Florida edificios', 'recertificación de edificios Miami-Dade', 'BSIP Broward', 'inspección milestone', 'inspección de hito', 'revisión por pares estructural'],
     },
