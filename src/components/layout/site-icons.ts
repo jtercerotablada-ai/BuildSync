@@ -12,6 +12,10 @@ import type { Metadata } from "next";
    dark`, because a black mark vanishes on a dark tab strip (Chrome, Edge and
    Firefox honour the media query inside an SVG favicon; Safari takes the PNG).
    Made by scratchpad/pw/fav/make.mjs (sharp; the ICO is PNG-in-ICO, 16/32/48).
+   The `?v=2` on each URL: /ttc/* is served with max-age of 30 days, and
+   browsers hold favicons longer still; a new query is a new file to them, so
+   returning visitors see the black mark now. Bump it whenever the icons
+   change. (/favicon.ico is must-revalidate and needs none.)
      - SVG first for modern browsers, a 48px PNG (Google's search favicon
        minimum) and a 192px PNG for Android home-screen shortcuts.
      - /favicon.ico (16/32/48) for legacy agents that request it blindly.
@@ -25,10 +29,10 @@ import type { Metadata } from "next";
    layout to its own subtree. Each of the three declares this same object. */
 export const siteIcons: NonNullable<Metadata["icons"]> = {
   icon: [
-    { url: "/ttc/img/logo-icon-favicon.svg", type: "image/svg+xml" },
-    { url: "/ttc/icons/icon-48.png", sizes: "48x48", type: "image/png" },
-    { url: "/ttc/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+    { url: "/ttc/img/logo-icon-favicon.svg?v=2", type: "image/svg+xml" },
+    { url: "/ttc/icons/icon-48.png?v=2", sizes: "48x48", type: "image/png" },
+    { url: "/ttc/icons/icon-192.png?v=2", sizes: "192x192", type: "image/png" },
   ],
   shortcut: "/favicon.ico",
-  apple: { url: "/ttc/icons/apple-touch-icon.png", sizes: "180x180" },
+  apple: { url: "/ttc/icons/apple-touch-icon.png?v=2", sizes: "180x180" },
 };
