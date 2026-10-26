@@ -79,8 +79,11 @@
     animation: h-draw 1.4s var(--h-ease) calc(var(--rv-delay, 0s) + 0.3s) backwards;
   }
 
-  /* E12 · a photograph: revealed from its foot edge upward in 1.7 s while it
-     settles from 1.34 times its size in 2.4 s. The clip and the scale are on
+  /* E12 · a photograph: revealed from its foot edge upward in 1.1 s while it
+     settles from 1.34 times its size in 1.6 s (shortened from 1.7 / 2.4 s on
+     2026-10-25: the owner found the photographs slow to show; the block also
+     plays 120 px before it enters and only once its image has loaded, see
+     `usePhotoAhead` in primitives.tsx). The clip and the scale are on
      the <img> itself (and a loop's <video>), not on a box around it: the
      browser's lazy loading and VideoLoop's own observer read the image's
      geometry, and a clipped ANCESTOR would count as "not on screen" and hold
@@ -91,8 +94,8 @@
   }
   .mp-home [data-fx='img'][data-rv='in'] img {
     animation:
-      h-rv-clip 1.7s var(--h-ease) backwards,
-      h-rv-settle 2.4s var(--h-ease) backwards;
+      h-rv-clip 1.1s var(--h-ease) backwards,
+      h-rv-settle 1.6s var(--h-ease) backwards;
   }
   /* The BIM frame's four gold corner ticks come in once the picture has. */
   .mp-home .h-bim__frame[data-rv='wait']::after {

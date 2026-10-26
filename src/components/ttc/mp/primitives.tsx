@@ -70,6 +70,88 @@ function useReveal<T extends HTMLElement>(margin: number) {
   return ref;
 }
 
+/**
+ * A photograph's two extra habits (the owner, 2026-10-25, on the live home:
+ * "las imágenes cuando bajan se quedan en negro y tardan en mostrarse"):
+ *
+ *  1. IT LOADS AHEAD. The browser's own lazy loading starts a photograph
+ *     about one screen before it is needed, which on an ordinary connection,
+ *     with the hero film and the model loop downloading at the same time, is
+ *     too late: the curtain opened on a black box. Two and a half screens
+ *     before the photograph is due, its `loading` is switched to `eager`,
+ *     which starts the download at once (the same switch VideoLoop uses for
+ *     its poster).
+ *
+ *  2. IT PLAYS ONLY ONCE LOADED. The reveal engine writes `data-rv="in"` as
+ *     the block comes on screen; if the photograph has not arrived by then,
+ *     the curtain would open on nothing and the picture pop in afterwards.
+ *     So the block is held at `wait` until the image has loaded, and plays
+ *     then — the curtain always opens on a picture. A load that fails, or
+ *     takes more than six seconds, plays anyway: nothing is ever stranded
+ *     hidden (reveal.ts's own rule).
+ *
+ * Runs only for `fx="img"`, only in the browser, after hydration; the server
+ * HTML carries none of it, and a visitor without scripts gets the plain
+ * `loading="lazy"` photograph.
+ */
+function usePhotoAhead(ref: React.RefObject<HTMLElement | null>, enabled: boolean) {
+  useEffect(() => {
+    const el = ref.current;
+    if (!enabled || !el) return;
+    const imgs = Array.from(el.querySelectorAll('img'));
+    if (imgs.length === 0) return;
+    const cleanups: (() => void)[] = [];
+
+    // 1. Load ahead.
+    if (typeof IntersectionObserver === 'function') {
+      const io = new IntersectionObserver(
+        (entries) => {
+          if (!entries.some((e) => e.isIntersecting)) return;
+          for (const img of imgs) if (img.loading === 'lazy') img.loading = 'eager';
+          io.disconnect();
+        },
+        { rootMargin: '250% 0px' },
+      );
+      io.observe(el);
+      cleanups.push(() => io.disconnect());
+    }
+
+    // 2. Play only once loaded.
+    const loaded = () => imgs.every((img) => img.complete && img.naturalWidth > 0);
+    if (typeof MutationObserver === 'function' && !loaded()) {
+      let holding = false;
+      const play = () => {
+        if (!holding) return;
+        holding = false;
+        el.setAttribute('data-rv', 'in');
+      };
+      const mo = new MutationObserver(() => {
+        if (holding || el.getAttribute('data-rv') !== 'in' || loaded()) return;
+        holding = true;
+        el.setAttribute('data-rv', 'wait');
+        const timer = window.setTimeout(play, 6000);
+        const onDone = () => {
+          if (loaded() || imgs.some((img) => img.complete && img.naturalWidth === 0)) {
+            window.clearTimeout(timer);
+            play();
+          }
+        };
+        for (const img of imgs) {
+          img.addEventListener('load', onDone, { once: true });
+          img.addEventListener('error', onDone, { once: true });
+        }
+        cleanups.push(() => window.clearTimeout(timer));
+      });
+      mo.observe(el, { attributes: true, attributeFilter: ['data-rv'] });
+      cleanups.push(() => mo.disconnect());
+    }
+
+    return () => {
+      for (const c of cleanups) c();
+    };
+  }, [ref, enabled]);
+}
+
 /** Seconds → the whole-millisecond string CSS reads (0.1 + 2 × 0.07 is
  *  0.24000000000000002). */
 const ms = (seconds: number) => `${Math.round(seconds * 1000)}ms`;
@@ -136,7 +218,10 @@ export function Reveal({
 }: RevealProps) {
   // A headline is armed a little earlier than a block (60 px, like
   // RevealText's lines): its words rise as it clears the foot of the screen.
-  const ref = useReveal<HTMLDivElement>(fx === 'words' ? 60 : 40);
+  // A photograph plays 120 px BEFORE it enters (a negative margin pushes the
+  // edge out): its curtain is already opening as it comes into view.
+  const ref = useReveal<HTMLDivElement>(fx === 'words' ? 60 : fx === 'img' ? -120 : 40);
+  usePhotoAhead(ref, fx === 'img');
   // One element type for the checker; the node is whatever `as` says.
   const Tag = as as 'div';
   return (

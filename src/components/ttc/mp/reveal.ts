@@ -72,8 +72,9 @@ export type RevealEnv = {
 const NOOP = () => {};
 
 export function createRevealer(env: RevealEnv) {
-  // One observer per margin (the primitives use three: 40, 50 and 60px),
-  // shared by every block that asks for it.
+  // One observer per margin (the primitives use 40, 50 and 60 px, and -120
+  // for a photograph, which plays BEFORE it enters), shared by every block
+  // that asks for it.
   const observers = new Map<number, RevealObserver>();
   // What is being watched. `armed` is true only while THIS code has the block
   // hidden; a block leaves the map the moment its fate is settled.
@@ -133,7 +134,9 @@ export function createRevealer(env: RevealEnv) {
     if (!env.createObserver || env.prefersReducedMotion()) return NOOP;
     let observer = observers.get(margin);
     if (!observer) {
-      observer = env.createObserver(onEntries, `-${margin}px 0px`);
+      // A positive margin pulls the top and bottom edges in; a negative one
+      // pushes them out, so the block plays while still below the fold.
+      observer = env.createObserver(onEntries, `${-margin}px 0px`);
       observers.set(margin, observer);
     }
     watching.set(el, { armed: false, margin });
