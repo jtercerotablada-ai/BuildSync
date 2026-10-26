@@ -1,15 +1,14 @@
 /**
- * Every municipality of the two counties, by name. Shown on the home page
- * under each county's own logo (home/HomeWhere.tsx) in both languages: place names
- * are not translated, so the lists are shared, and the two counties stay in
- * their own lists.
+ * Every municipality of the two counties, by name. Kept for the services
+ * pages (the home page no longer lists them: the owner, 2026-10-25), in both
+ * languages: place names are not translated, so the lists are shared, and the
+ * two counties stay in their own lists.
  *
  * Miami-Dade: the County's list of municipalities (Islandia, dissolved, is
  * not listed). Broward: the 31 municipalities of the County.
  *
- * The home page shows each COUNTY's logo and, under it, every municipality
- * by name as plain text. It shows no city seal or logo (the owner, October
- * 21, 2026, after the legal audit: Fla. Stat. 165.043 makes using a
+ * Wherever the lists are shown they are plain text, never a seal or logo
+ * (the owner, October 21, 2026, after the legal audit: Fla. Stat. 165.043 makes using a
  * municipality's or county's official seal without its express approval a
  * second-degree misdemeanor, and cities' own brand pages limit their marks
  * to official business or ask for permission).

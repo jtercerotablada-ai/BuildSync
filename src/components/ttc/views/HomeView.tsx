@@ -7,11 +7,9 @@ import { HomeHero } from '@/components/ttc/mp/home/HomeHero';
 import { HomeRibbon } from '@/components/ttc/mp/home/HomeRibbon';
 import { HomeServices } from '@/components/ttc/mp/home/HomeServices';
 import { HomeStack } from '@/components/ttc/mp/home/HomeStack';
-import { StackFocus } from '@/components/ttc/mp/home/StackFocus';
 import { HomeStatement } from '@/components/ttc/mp/home/HomeStatement';
 import { HomeTools } from '@/components/ttc/mp/home/HomeTools';
 import { HomeTypes } from '@/components/ttc/mp/home/HomeTypes';
-import { HomeWhere } from '@/components/ttc/mp/home/HomeWhere';
 import { Parallax } from '@/components/ttc/mp/home/Parallax';
 import '@/app/(public)/home.css';
 import '@/app/(public)/home-lower.css';
@@ -33,9 +31,8 @@ import { HomeAddress } from './meta';
  *   HomeStatement hurricane wind, high water, decades of salt air
  *   HomeBim       the structural model, the one thing a camera cannot show
  *   HomeTypes     the kinds of building, a rail of illustrative photographs
- *   HomeStack     one photographic pause, then the plates that slide over it:
+ *   HomeStack     one photographic pause, then the plate that slides over it:
  *     HomeCredentials  the licenses, the registration, the contractor's card
- *     HomeWhere        the offices the firm files with (the one snow plate)
  *   HomeTools     the free calculators and the guides
  *   HomeContact   "Get in touch." with the real form
  *
@@ -63,7 +60,7 @@ import { HomeAddress } from './meta';
  *
  * MOTION. The reveals are `Reveal fx=…` (primitives.tsx) on the sections'
  * elements; the islands are `RibbonRows` (in HomeRibbon), `TypesRail` (in
- * HomeTypes), and `Parallax` and `StackFocus` (here, once each). Everything
+ * HomeTypes) and `Parallax` (here, once). Everything
  * else that moves is CSS.
  */
 export function HomeView({ lang }: { lang: Lang }) {
@@ -71,7 +68,6 @@ export function HomeView({ lang }: { lang: Lang }) {
     <div className="mp-home" data-lang={lang}>
       <HomeAddress lang={lang} />
       <Parallax />
-      <StackFocus />
       <HomeHero lang={lang} />
       <HomeRibbon lang={lang} />
       <HomeServices lang={lang} />
@@ -80,7 +76,6 @@ export function HomeView({ lang }: { lang: Lang }) {
       <HomeTypes lang={lang} />
       <HomeStack lang={lang}>
         <HomeCredentials lang={lang} />
-        <HomeWhere lang={lang} />
       </HomeStack>
       <HomeTools lang={lang} />
       <HomeContact lang={lang} />

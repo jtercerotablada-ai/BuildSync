@@ -172,7 +172,7 @@ export function SiteHeader() {
     // The sentinel marks the BOTTOM edge of the dark hero; the test is "has
     // that edge risen above the header?", not `isIntersecting`. Never on the
     // home: it is black from the film to the footer, and a paper bar over it
-    // (or over its one snow plate) would be wrong. It keeps the transparent
+    // would be wrong. It keeps the transparent
     // state over the film and the graphite backing (.is-floating) after.
     const update = (rect: DOMRectReadOnly | DOMRect) => {
       header.classList.toggle('is-stuck', !isHome && rect.top <= header.offsetHeight);

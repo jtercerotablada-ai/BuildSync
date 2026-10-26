@@ -15,7 +15,6 @@
      05  The slide-over stack, E15
      06  The header: the drop-in (E1), the progress line (E16) and the slide
          away on the way down on a phone (E17)
-     07  Hover on the snow plate (E18)
 
    THE RULE OF THIS FILE, the one reveal.ts keeps: NOTHING IS HIDDEN UNLESS
    `data-rv` SAYS SO, and `data-rv` is written only by the browser's script,
@@ -65,16 +64,11 @@
   .mp-home [data-fx='line'].h-pause__line[data-rv='in'] {
     animation: h-draw 1.5s var(--h-ease) var(--rv-delay, 0s) backwards;
   }
-  .mp-home .h-cred__card[data-fx='line'][data-rv='wait']::before,
-  .mp-home .h-where__county[data-rv='wait']::before {
+  .mp-home .h-cred__card[data-fx='line'][data-rv='wait']::before {
     transform: scaleX(0);
   }
   .mp-home .h-cred__card[data-fx='line'][data-rv='in']::before {
     animation: h-draw 1.5s var(--h-ease) var(--rv-delay, 0s) backwards;
-  }
-  /* A county's rule starts a beat after its block begins to slide. */
-  .mp-home .h-where__county[data-rv='in']::before {
-    animation: h-draw 1.5s var(--h-ease) calc(var(--rv-delay, 0s) + 0.25s) backwards;
   }
   .mp-home .h-label[data-rv='wait']::before,
   .mp-home [data-rv='wait'] .h-label::before {
@@ -286,24 +280,24 @@ html.js .mp-home .h-types__ctl:empty {
   }
 }
 
-/* ═══ 05 · THE SLIDE-OVER STACK (E15) ═════════════════════════════════════
-   Three plates, one pinned under the next: the pause photograph holds the
-   screen while the credentials plate slides up over it, and the snow plate
-   slides up over both. Pure CSS, no script, no per-frame writes.
+/* ═══ 05 · THE SLIDE-OVER STACK (E15) ═════════════════════════════════
+   Two plates, one pinned under the next: the pause photograph holds the
+   screen while the credentials plate slides up over it, and the page goes on
+   from there. Pure CSS, no script, no per-frame writes. (The white plate that
+   used to slide over both, "the offices we file with", was removed from the
+   home page on 2026-10-25.)
 
    ONLY AT (min-width: 901px) and (min-height: 720px), and without reduced
-   motion. Anywhere else the plates are three blocks in a column (the rules
-   in home-lower.css). A zoomed or short window that falls below the media
-   query turns the pinning off by itself, so a plate taller than the screen is
-   never pinned with its foot out of reach. 901, not 900: the phone bar is
-   shown at 900 px and below and would lie over the foot of a pinned plate.
-   (stack-math.ts holds the same condition, for StackFocus; a test keeps the
-   two together.)
+   motion. Anywhere else the plates are two blocks in a column (the rules in
+   home-lower.css). A zoomed or short window that falls below the media query
+   turns the pinning off by itself, so a plate taller than the screen is never
+   pinned with its foot out of reach. 901, not 900: the phone bar is shown at
+   900 px and below and would lie over the foot of a pinned plate.
 
    Order in the page, and what covers what:
      .h-pause   sticky at the top, one screen tall, z auto: lowest
-     .h-cred    sticky at the top, at least one screen tall, z 2: over the pause
-     .h-where   in the flow, z 3: over both, and the plate the stack ends on */
+     .h-cred    sticky at the top, at least one screen tall, z 2: over the pause;
+                the last plate of the stack, so it simply scrolls on at the end */
 
 @media (min-width: 901px) and (min-height: 720px) and (prefers-reduced-motion: no-preference) {
   .mp-home .h-stack .h-pause {
@@ -336,43 +330,22 @@ html.js .mp-home .h-types__ctl:empty {
     margin-top: 45vh;
     margin-top: max(45svh, 360px);
   }
-  .mp-home .h-stack .h-where {
-    position: relative;
-    z-index: 3;
-    /* A pause before the snow plate rises: the credentials plate stays
-       pinned and whole for 40 % of a screen of scrolling (320 px at the
-       least: the browser's own scroll to a link lands about 240 px past the
-       plate's pinning). Without it the plate was whole at one scroll position
-       only, and the snow plate began to cover it with the first wheel notch:
-       a keyboard visitor tabbing to the two license links (at the foot of the
-       plate) had the browser scroll to them and land them UNDER the snow
-       plate (QA: 1440 × 900, 1440 × 760, 900 × 720). With the pause, the
-       scroll the browser makes to reach a link ends with the plate whole. */
-    margin-top: 40vh;
-    margin-top: max(40svh, 320px);
-  }
 }
 
 /* The plate being covered dims and swells as the one over it rises, where the
    browser can tie an animation to the scroll position. The timeline is the
    COVERING plate's view progress (`entry`: from its top meeting the foot of the
-   screen to its top meeting the head of the screen — one screen of scrolling),
-   and the covered plate, which sits pinned and so never moves through the
-   view itself, is animated by it. `timeline-scope` on the stack lets an
-   earlier sibling read a later sibling's timeline. Elsewhere: plain overlap. */
+   screen to its top meeting the head of the screen: one screen of scrolling),
+   and the covered plate, which sits pinned and so never moves through the view
+   itself, is animated by it. `timeline-scope` on the stack lets the earlier
+   sibling read the later sibling's timeline. Elsewhere: plain overlap. */
 @supports (animation-timeline: view()) and (timeline-scope: --h-a) {
   @media (min-width: 901px) and (min-height: 720px) and (prefers-reduced-motion: no-preference) {
     .mp-home .h-stack {
-      timeline-scope: --h-over-cred, --h-over-where;
+      timeline-scope: --h-over-cred;
     }
     .mp-home .h-stack .h-cred {
       view-timeline: --h-over-cred block;
-      animation: h-covered linear both;
-      animation-timeline: --h-over-where;
-      animation-range: entry 0% entry 100%;
-    }
-    .mp-home .h-stack .h-where {
-      view-timeline: --h-over-where block;
     }
     .mp-home .h-stack .h-pause {
       animation: h-covered linear both;
@@ -479,20 +452,5 @@ body:has(.mp-home) .mp-header.is-menu-open::after {
   }
   body:has(.mp-home) .mp-header.is-away:not(.is-menu-open) {
     transform: translateY(-100%);
-  }
-}
-
-/* ═══ 07 · HOVER ON THE SNOW PLATE (E18) ══════════════════════════════════
-   The other hovers (a service card's photograph, ring and arrow; the ribbon's
-   words; a tool row; a contact line; the types cards) are with their
-   sections, each also on :focus-visible. A city is not a link, so it has no
-   focus state: the name the pointer rests on takes the full ink. */
-
-@media (hover: hover) and (pointer: fine) {
-  .mp-home .h-where__list li {
-    transition: color 0.4s var(--h-ease);
-  }
-  .mp-home .h-where__list li:hover {
-    color: var(--mp-ink);
   }
 }

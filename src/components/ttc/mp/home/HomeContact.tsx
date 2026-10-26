@@ -30,8 +30,8 @@ import { Words } from './Words';
  * own first line (`reach.whatsappTextHome`: "Hello, I would like to talk
  * about a building."), which names no notice and no proposal: the address is
  * `whatsappHomeHref` (ReachRow), the one the phone bar and the menu use.
- * "Where" is the service area, and it links to the plate that lists the
- * offices (#where).
+ * "Where" is the service area, a plain row: not a link (the plate that
+ * listed the offices is not on the home page).
  *
  * No reply-time promise and no free-proposal line anywhere in this section
  * (the owner's rule for the home page).
@@ -44,7 +44,7 @@ export function HomeContact({ lang }: { lang: Lang }) {
   const phone = c.contact.phone;
   const wa = whatsappHomeHref(c);
 
-  const lines: { key: string; label: string; value: string; href: string; external?: boolean }[] = [];
+  const lines: { key: string; label: string; value: string; href?: string; external?: boolean }[] = [];
   if (phone) lines.push({ key: 'call', label: h.call, value: phone.display, href: phone.href });
   if (wa) {
     lines.push({
@@ -56,7 +56,7 @@ export function HomeContact({ lang }: { lang: Lang }) {
     });
   }
   lines.push({ key: 'email', label: h.email, value: c.contact.email, href: `mailto:${c.contact.email}` });
-  lines.push({ key: 'where', label: h.where, value: c.contact.serviceAreaLabel, href: '#where' });
+  lines.push({ key: 'where', label: h.where, value: c.contact.serviceAreaLabel });
 
   return (
     <section id="contact" className="h-plate h-contact mp-surface--graphite" aria-labelledby="h-contact-h">
@@ -81,17 +81,25 @@ export function HomeContact({ lang }: { lang: Lang }) {
           <Reveal as="ul" fx="up" delay={0.2} className="h-contact__lines">
             {lines.map((line) => (
               <li key={line.key}>
-                <a
-                  className="h-contact__line"
-                  href={line.href}
-                  {...(line.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
-                >
-                  <span className="h-contact__k">{line.label}</span>{' '}
-                  <span className="h-contact__v">{line.value}</span>
-                  <span className="h-ring h-contact__go" aria-hidden="true">
-                    <Arrow up />
-                  </span>
-                </a>
+                {line.href ? (
+                  <a
+                    className="h-contact__line"
+                    href={line.href}
+                    {...(line.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+                  >
+                    <span className="h-contact__k">{line.label}</span>{' '}
+                    <span className="h-contact__v">{line.value}</span>
+                    <span className="h-ring h-contact__go" aria-hidden="true">
+                      <Arrow up />
+                    </span>
+                  </a>
+                ) : (
+                  /* A plain row: no link, no ring, not focusable. */
+                  <div className="h-contact__line h-contact__line--plain">
+                    <span className="h-contact__k">{line.label}</span>{' '}
+                    <span className="h-contact__v">{line.value}</span>
+                  </div>
+                )}
               </li>
             ))}
           </Reveal>

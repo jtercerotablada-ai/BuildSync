@@ -1751,12 +1751,6 @@ export const es: SiteContent = {
       },
       firm: { k: 'La firma' },
     },
-    where: {
-      label: 'Dónde trabajamos',
-      title: 'Las oficinas ante las que presentamos.',
-      accentWord: 'presentamos.',
-      lede: 'El Condado de Miami-Dade y el de Broward, y cada oficina municipal ante la que presentamos.',
-    },
     tools: {
       label: 'De uso gratuito',
       title: 'Ingeniería que usted puede usar.',

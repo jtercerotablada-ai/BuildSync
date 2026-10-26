@@ -49,10 +49,9 @@ import { Words } from './Words';
  * Nothing here names a person, says who signs a report, or says the firm
  * builds: the firm designs and inspects.
  *
- * At 901 x 720 and up the plate is pinned over the pause photograph and the
- * snow plate slides over it (E15, home-motion.css §05); the cards' gold rules
- * draw across (E11). `StackFocus` keeps the two license links uncovered for a
- * keyboard visitor. A SERVER COMPONENT.
+ * At 901 x 720 and up the plate slides over the pause photograph and is the
+ * last plate of the stack (E15, home-motion.css §05); the cards' gold rules
+ * draw across (E11). A SERVER COMPONENT.
  */
 /** The long mark (the Special Inspector credential) is not a badge at the end
  *  of its line: it takes a line of its own (`h-cred__tag--wide`). The short

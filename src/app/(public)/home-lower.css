@@ -11,7 +11,6 @@
      h-stack   S7  the wrapper of the three plates below the rail
      h-pause   S7  the pause photograph
      h-cred    S8  credentials: three cards, the third is the contractor's
-     h-where   S9  where we work: the ONE snow plate
      h-tools   S10 free tools: two numbered rows
      h-contact S11 contact: the huge headline, the real form, four lines
 
@@ -19,16 +18,16 @@
    specification is home-concepts/SPEC.md (§1 S6–S11, §2, §3).
 
    These are the plates' BASE rules: every plate is an ordinary block, one
-   under the other. What moves (the sticky slide-over of the pause,
-   credentials and snow plates, E15; the parallax; the reveals; the rail's
+   under the other. What moves (the sticky slide-over of the pause and
+   credentials plates, E15; the parallax; the reveals; the rail's
    island) is in home-motion.css, hooked in by the `data-fx`, `data-parallax`
    and `data-motion` attributes in the markup, and the MOTION HOOK comments
    below mark each spot.
 
    The palette is the site's: graphite plates carry `mp-surface--graphite`,
    which remaps the ink, line and gold-ink tokens for a dark surface (and
-   gives the headline's accent word its gold, home.css); the snow plate
-   carries `mp-surface--paper`. Gold is used only where the spec allows it:
+   gives the headline's accent word its gold, home.css). Gold is used only
+   where the spec allows it:
    the one italic-serif word of a heading, the ◆ ornaments, 1 px rules and
    hairlines, arrow rings on hover and focus, focus rings. Never as a field,
    as text, or as an overlay.
@@ -36,7 +35,6 @@
      01  S6 Building types
      02  S7 The pause photograph and the stack
      03  S8 Credentials
-     04  S9 Where we work (the snow plate)
      05  S10 Free tools
      06  S11 Contact (the form's dark skin)
      07  Responsive
@@ -246,8 +244,8 @@ html:not(.js) .mp-home .h-types__rail::-webkit-scrollbar {
 
 /* MOTION HOOK: E15 turns `.h-stack` into the slide-over stack, in a media
    query that holds only at (min-width: 901px) and (min-height: 720px), with
-   no reduced motion: `.h-pause` pinned, the credentials plate over it, the
-   snow plate over both. Nothing is needed here until then. */
+   no reduced motion: `.h-pause` pinned, the credentials plate over it.
+   Nothing is needed here until then. */
 .mp-home .h-stack {
   position: relative;
 }
@@ -570,100 +568,6 @@ html:not(.js) .mp-home .h-types__rail::-webkit-scrollbar {
   }
 }
 
-/* ═══ 04 · S9 WHERE WE WORK — the one snow plate ══════════════════════════ */
-
-.mp-home .h-where {
-  /* Gold on snow reads olive: the one gold-family colour here is the 1 px
-     bronze rule, and the focus ring is bronze too. */
-  --mp-gold-ink: #7a5d1c;
-  --h-hair: rgba(11, 12, 13, 0.14);
-}
-.mp-home .h-where .h-label {
-  color: var(--mp-ink-faint);
-}
-.mp-home .h-where .h-label::before {
-  background: var(--mp-gold-ink);
-}
-.mp-home .h-where__head {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 34ch);
-  align-items: end;
-  gap: 24px clamp(32px, 5vw, 96px);
-  margin-top: clamp(22px, 3vw, 44px);
-}
-.mp-home .h-where__h {
-  color: var(--mp-ink);
-  text-wrap: balance;
-}
-/* The accent word is ink, not gold (it is not on a graphite surface). */
-.mp-home .h-where__h .mp-serif {
-  color: var(--mp-ink);
-}
-.mp-home .h-where__lede {
-  color: var(--mp-ink-3);
-}
-.mp-home .h-where__counties {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: clamp(44px, 6vw, 120px);
-  margin-top: var(--h-head-gap);
-}
-/* MOTION HOOK: E10 (`data-fx="left"`) slides each county in from the left;
-   E11 draws its rule. */
-.mp-home .h-where__county {
-  position: relative;
-  padding-top: 30px;
-}
-.mp-home .h-where__county::before {
-  content: '';
-  position: absolute;
-  inset: 0 0 auto 0;
-  height: 1px;
-  background: var(--mp-gold-ink);
-  transform-origin: left;
-}
-/* The county's name, over its list of municipalities. */
-.mp-home .h-where__top {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-}
-.mp-home .h-where__name {
-  margin: 0;
-  font-size: clamp(26px, 3vw, 50px);
-  font-weight: 500;
-  line-height: 1.02;
-  letter-spacing: -0.04em;
-  color: var(--mp-ink);
-}
-/* The municipalities: plain text, each name kept whole, `/` between them,
-   the ink alternating with the faint ink so a long run can be followed. */
-.mp-home .h-where__list {
-  display: flex;
-  flex-wrap: wrap;
-  margin: clamp(24px, 3vw, 40px) 0 0;
-  padding: 0;
-  list-style: none;
-  font-size: clamp(18px, 1.6vw, 24px);
-  line-height: 1.85;
-  letter-spacing: -0.01em;
-}
-.mp-home .h-where__list li {
-  white-space: nowrap;
-  color: var(--mp-ink);
-}
-.mp-home .h-where__list li:nth-child(even) {
-  color: var(--mp-ink-faint);
-}
-.mp-home .h-where__list li::after {
-  content: '/';
-  content: '/' / '';
-  margin-inline: 0.6em;
-  color: var(--mp-ink-faint);
-}
-.mp-home .h-where__list li:last-child::after {
-  display: none;
-}
 /* ═══ 05 · S10 FREE TOOLS ═════════════════════════════════════════════════ */
 
 .mp-home .h-tools__h {
@@ -872,6 +776,10 @@ html:not(.js) .mp-home .h-types__rail::-webkit-scrollbar {
     transform: rotate(-45deg);
   }
 }
+/* The "Where" row is plain text: one column, no ring, no hover. */
+.mp-home .h-contact__line--plain {
+  grid-template-columns: minmax(0, 1fr);
+}
 .mp-home .h-contact__k {
   grid-column: 1;
   font-family: var(--mp-mono);
@@ -1046,13 +954,6 @@ html:not(.js) .mp-home .h-types__rail::-webkit-scrollbar {
 }
 
 @media (max-width: 900px) {
-  .mp-home .h-where__head {
-    grid-template-columns: minmax(0, 1fr);
-    align-items: start;
-  }
-  .mp-home .h-where__counties {
-    grid-template-columns: minmax(0, 1fr);
-  }
   /* One column, in the order of the markup: the form, then the direct lines.
      (The lines used to be moved above the form with `order`, which left the
      keyboard and a screen reader going from the form's Send button back UP to

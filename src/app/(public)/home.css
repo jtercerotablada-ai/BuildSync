@@ -193,7 +193,7 @@
   padding-inline-end: 0.04em;
 }
 /* Gold on a black plate only: `.mp-surface--graphite` is on every one of
-   them. (On the snow plate the accent keeps the ink.) */
+   them. */
 .mp-home .mp-surface--graphite :is(h1, h2) .mp-serif {
   color: var(--mp-gold);
 }

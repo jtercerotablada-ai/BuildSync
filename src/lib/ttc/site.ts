@@ -2841,12 +2841,6 @@ export const home = {
     },
     firm: { k: 'The firm' },
   },
-  where: {
-    label: 'Where we work',
-    title: 'The offices we file with.',
-    accentWord: 'file',
-    lede: 'Miami-Dade and Broward County, and every city office we file with.',
-  },
   tools: {
     label: 'Free to use',
     title: 'Engineering you can use.',
@@ -3398,8 +3392,9 @@ export const contactPage = {
 } as const;
 
 /* Kept for local SEO (`areaServed`). Not rendered as a visible list; the
-   home page names every municipality under its mark (HomeWhere),
-   and the city pages name their own. */
+   city pages name their own. (The home page no longer lists the municipalities:
+   the owner, 2026-10-25. `pricing.jurisdictions.lists` keeps the full names
+   for the services pages.) */
 export const municipalities = [
   'Miami', 'Miami Beach', 'Coral Gables', 'Hialeah', 'Miami Springs',
   'North Miami', 'North Miami Beach', 'Opa-locka', 'South Miami',

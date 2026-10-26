@@ -593,7 +593,6 @@ describe('each accent word is one phrase of its own heading, once (what the rend
       ['types', h.types.accentWord, h.types.title],
       ['pause', h.pause.accentWord, h.pause.title],
       ['credentials', h.credentials.accentWord, h.credentials.titleLines.join(' ')],
-      ['where', h.where.accentWord, h.where.title],
       ['tools', h.tools.accentWord, h.tools.title],
       ['contact', h.contact.accentWord, h.contact.title],
     ];
@@ -763,16 +762,16 @@ for (const lang of LANGS) {
         expect(headings[i].level - headings[i - 1].level, `${headings[i - 1].text} → ${headings[i].text}`).toBeLessThanOrEqual(1);
       }
       // The owner's on-page check lists more than 23 headings as too many.
-      // One h1, nine h2 (the sections), ten h3 (the eight services and the
-      // two counties); cards, credentials and tool rows are not headings.
+      // One h1, eight h2 (the sections), eight h3 (the eight services); cards,
+      // credentials and tool rows are not headings.
       expect(headings.length).toBeLessThanOrEqual(23);
-      expect(headings.filter((x) => x.level === 2)).toHaveLength(9);
-      expect(headings.filter((x) => x.level === 3)).toHaveLength(10);
+      expect(headings.filter((x) => x.level === 2)).toHaveLength(8);
+      expect(headings.filter((x) => x.level === 3)).toHaveLength(8);
       expect(headings.filter((x) => x.level > 3)).toEqual([]);
     });
 
-    it('has the five anchors the chrome points at, in order, and none of the old home’s', () => {
-      const ids = ['services', 'credentials', 'where', 'tools', 'contact'];
+    it('has the four anchors the chrome points at, in order, and none of the old home’s', () => {
+      const ids = ['services', 'credentials', 'tools', 'contact'];
       const at = ids.map((id) => markup.indexOf(`id="${id}"`));
       for (const [i, id] of ids.entries()) expect(at[i], id).toBeGreaterThan(-1);
       expect([...at].sort((a, b) => a - b)).toEqual(at);
@@ -1034,7 +1033,6 @@ for (const lang of LANGS) {
       expect(contact).toContain(esc(c.home.form.attachmentsHint));
       expect(contact).toContain(`href="${c.contact.phone!.href}"`);
       expect(contact).toContain(`href="mailto:${c.contact.email}"`);
-      expect(contact).toContain('href="#where"');
       expect(text(contact)).toContain(c.contact.phone!.display);
       expect(text(contact)).toContain(c.contact.serviceAreaLabel);
       // A different form for the home would be a different promise.
@@ -1043,17 +1041,22 @@ for (const lang of LANGS) {
     });
 
     // The owner, 2026-10-25: "es ilegal ... quiero evitar problemas de usar
-    // esos logos". The offices are named in plain text; no government logo,
-    // and so no disclaimer about one.
-    it('names the two counties and their municipalities in plain text, with no government logo', () => {
-      const where = section(markup, 'where');
-      expect(where).not.toMatch(/<img\b/);
+    // esos logos", and then "quítala" for the plate that listed the offices:
+    // the home has no government logo and no list of municipalities (the data
+    // stays in pricing.jurisdictions.lists for the services pages), and the
+    // contact section's "Where" row is plain text, not a link.
+    it('has no government logo, no plate of municipalities, and a plain "Where" row', () => {
       expect(markup).not.toContain('/ttc/img/jurisdictions/');
-      expect(body).not.toMatch(/county logos|logotipos de los condados/i);
+      expect(markup).not.toContain('id="where"');
+      expect(markup).not.toContain('href="#where"');
+      expect(body).not.toMatch(/county logos|logotipos de los condados|offices we file with|oficinas ante las que/i);
       for (const list of c.pricing.jurisdictions.lists) {
-        expect(text(where)).toContain(list.title);
-        for (const name of list.names) expect(text(where), name).toContain(name);
+        expect(body, list.title).not.toContain(list.names[1]);
       }
+      const row = section(markup, 'contact').match(/<div class="h-contact__line h-contact__line--plain">[\s\S]*?<\/div>/);
+      expect(row, 'the Where row').not.toBeNull();
+      expect(text(row![0])).toContain(c.contact.serviceAreaLabel);
+      expect(row![0]).not.toMatch(/<a\b|href=/);
     });
 
     // QA finding F1: the form lists the services in the order of the ribbon
@@ -1197,9 +1200,9 @@ describe('the client boundary of the home (spec §5.2: only the islands are clie
   const dir = join(process.cwd(), 'src/components/ttc/mp/home');
   const files = readdirSync(dir).filter((f) => f.endsWith('.tsx'));
 
-  it('has client code only in the four islands', () => {
+  it('has client code only in the three islands', () => {
     const client = files.filter((f) => /^\s*['"]use client['"]/.test(readFileSync(join(dir, f), 'utf8'))).sort();
-    expect(client).toEqual(['Parallax.tsx', 'RibbonRows.tsx', 'StackFocus.tsx', 'TypesRail.tsx']);
+    expect(client).toEqual(['Parallax.tsx', 'RibbonRows.tsx', 'TypesRail.tsx']);
   });
 
   it('reads no language from the browser: no section uses useContent or useLang', () => {
