@@ -64,21 +64,17 @@ export function ReachRow({
   plain?: boolean;
   className?: string;
 }) {
-  const phone = c.contact.phone;
-  if (!phone) return null;
+  /* WhatsApp alone since 2026-10-26 (the owner: "quita Call, no quiero ver
+     Call"); the number itself stays in the footer's contact column. */
   const wa = whatsappHref(c, plain);
+  if (!wa) return null;
   const r = c.reach;
   return (
     <div className={`mp-reach ${className}`.trim()}>
       <div className="mp-reach__links">
-        <a className="mp-reach__link" href={phone.href}>
-          {r.call} {phone.display}
+        <a className="mp-reach__link" href={wa} target="_blank" rel="noopener noreferrer">
+          {plain ? r.whatsappPlain : r.whatsappNotice}
         </a>
-        {wa ? (
-          <a className="mp-reach__link" href={wa} target="_blank" rel="noopener noreferrer">
-            {plain ? r.whatsappPlain : r.whatsappNotice}
-          </a>
-        ) : null}
       </div>
     </div>
   );

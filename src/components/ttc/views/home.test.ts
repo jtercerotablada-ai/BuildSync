@@ -563,10 +563,11 @@ describe('the chrome the home changes, and the one name for its one action', () 
       expect(c.reach.formHome).toBe(c.home.hero.cta);
     });
 
-    it(`${lang}: the call button’s name has its number placed once`, () => {
-      expect(c.home.chrome.callLabel.split('{phone}')).toHaveLength(2);
-      // The footer prints no tagline since 2026-10-26.
+    it(`${lang}: the home's chrome prints no footer tagline and no call label`, () => {
+      // Both gone on 2026-10-26: the footer prints no tagline, and no Call is
+      // printed anywhere on the home.
       expect(c.home.chrome).not.toHaveProperty('footerTag');
+      expect(c.home.chrome).not.toHaveProperty('callLabel');
     });
 
     it(`${lang}: the pause switch says motion, not video, because it stops the ribbon too`, () => {
@@ -928,14 +929,16 @@ for (const lang of LANGS) {
   });
 
   describe(`${lang}: the contact block`, () => {
-    it('has the real form, with the home’s two strings and no service preset, and four direct lines', () => {
+    it('has the real form, with the home’s two strings and no service preset, and three direct lines', () => {
       const contact = section(markup, 'contact');
       expect(contact).toContain('data-variant="home"');
       expect(contact).toContain(esc(c.home.form.messagePlaceholder));
       expect(contact).toContain(esc(c.home.form.attachmentsHint));
-      expect(contact).toContain(`href="${c.contact.phone!.href}"`);
+      // No Call line and no number (the owner, 2026-10-26): WhatsApp, email, where.
+      expect(contact).not.toContain(`href="${c.contact.phone!.href}"`);
+      expect(contact).toContain('api.whatsapp.com');
       expect(contact).toContain(`href="mailto:${c.contact.email}"`);
-      expect(text(contact)).toContain(c.contact.phone!.display);
+      expect(text(contact)).not.toContain(c.contact.phone!.display);
       expect(text(contact)).toContain(c.home.contact.whereValue);
       // A different form for the home would be a different promise.
       expect(contact).toMatch(/<form\b/);
@@ -978,7 +981,7 @@ for (const lang of LANGS) {
   // phone shows it. (home-order.test below holds that no stylesheet rule
   // moves these blocks with `order` again.)
   describe(`${lang}: the order of the markup is the order of the page`, () => {
-    it('contact: the form, then the four direct lines', () => {
+    it('contact: the form, then the direct lines', () => {
       const contact = section(markup, 'contact');
       const form = contact.indexOf('<form');
       const lines = contact.indexOf('class="h-contact__lines"');

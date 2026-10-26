@@ -469,9 +469,6 @@ export function SiteHeader() {
     </Link>
   );
 
-  const phone = c.contact.phone;
-  /* The menu's own phone line keeps the number in words ("Call (772) …"). */
-  const callLabel = phone ? c.home.chrome.callLabel.replace('{phone}', phone.display) : '';
   const whatsapp = isHome ? whatsappHomeHref(c) : null;
 
   return (
@@ -619,12 +616,8 @@ export function SiteHeader() {
           <div className="mp-menu__foot">
             {menuCta}
             <div className="mp-menu__lang">{langSwitch}</div>
-            {/* The home's phone menu rings and writes first, above the email. */}
-            {isHome && phone ? (
-              <a className="mp-menu__mail" href={phone.href}>
-                {callLabel}
-              </a>
-            ) : null}
+            {/* The home's phone menu writes first (WhatsApp), above the email;
+                no Call line since 2026-10-26. */}
             {whatsapp ? (
               <a className="mp-menu__mail" href={whatsapp} target="_blank" rel="noopener noreferrer">
                 {c.reach.whatsappPlain}

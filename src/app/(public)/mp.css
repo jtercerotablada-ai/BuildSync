@@ -1352,11 +1352,11 @@ a.mp-menu__mail {
 .mp-footer__brand-logo {
   margin-block-end: var(--mp-4);
 }
-/* 44px is the floor: the lockup's small line spells the full legal name and
-   is barely legible below it. */
+/* 44px was the floor (the lockup's small line spells the full legal name);
+   a touch larger since 2026-10-26, at the owner's word. */
 .mp-footer__brand-logo img {
   width: auto;
-  height: clamp(44px, 3.4vw, 52px);
+  height: clamp(52px, 4.2vw, 64px);
   object-fit: contain;
 }
 .mp-footer__tag {
@@ -1450,6 +1450,29 @@ a.mp-menu__mail {
   .mp-footer__social-link:hover {
     color: var(--mp-gold);
     border-color: var(--mp-gold);
+  }
+}
+/* A phone: the lockup, the profiles, the copyright and the legal links sit
+   centred (the owner, 2026-10-26); the link columns keep their grid. */
+@media (max-width: 900px) {
+  .mp-footer__brand-logo {
+    display: flex;
+    justify-content: center;
+  }
+  .mp-footer__brand-logo img {
+    height: 60px;
+  }
+  .mp-footer__social {
+    justify-content: center;
+  }
+  .mp-footer__bottom {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: var(--mp-3);
+  }
+  .mp-footer__legal {
+    justify-content: center;
   }
 }
 

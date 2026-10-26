@@ -81,7 +81,7 @@ export function ContactView({ lang, presetService }: { lang: Lang; presetService
           <div className="mp-contact__grid">
             <div>
               <ContactForm presetService={presetService} />
-              {/* Call and WhatsApp, under the form: since 2026-10-24 the hero
+              {/* WhatsApp, under the form: since 2026-10-24 the hero
                   has no side panel (the owner: "quita"), and this pair is the
                   page's direct line at every width. Links only, nothing under
                   them. The chat opens with the line that fits the visitor: the
@@ -89,11 +89,7 @@ export function ContactView({ lang, presetService }: { lang: Lang; presetService
                   reader holds no letter (`plain`, site.ts `holdsNotice`). */}
               <div className="mp-reach mp-contact__reach-after">
                 <div className="mp-reach__links">
-                  {c.contact.phone ? (
-                    <a className="mp-reach__link" href={c.contact.phone.href}>
-                      {`${c.reach.call} ${c.contact.phone.display}`}
-                    </a>
-                  ) : null}
+                  {/* WhatsApp alone since 2026-10-26: no Call link (the owner). */}
                   {waHref ? (
                     <a className="mp-reach__link" href={waHref} target="_blank" rel="noopener noreferrer">
                       {plain ? c.reach.whatsappPlain : c.reach.whatsappNotice}

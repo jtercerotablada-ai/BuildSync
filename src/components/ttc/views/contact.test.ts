@@ -56,14 +56,15 @@ describe('/contact: the direct lines and the sub follow the visitor', () => {
     const waNotice = `&amp;text=${encodeURIComponent(r.whatsappText).replace(/'/g, '%27')}`;
 
     for (const slug of PROGRAMS) {
-      it(`${lang} ?service=${slug}: Call and "Send the notice by WhatsApp" are also under the form`, () => {
+      it(`${lang} ?service=${slug}: "Send the notice by WhatsApp" is also under the form`, () => {
         const html = render(lang, slug);
         const block = after(html);
         expect(block).not.toBeNull();
         const links = hrefs(block!);
-        expect(links).toEqual([esc(c.contact.phone!.href), expect.stringContaining('api.whatsapp.com')]);
-        expect(links[1]).toContain(waNotice);
-        expect(text(block!)).toBe(`${r.call} ${c.contact.phone!.display} ${r.whatsappNotice}`);
+        // WhatsApp alone since 2026-10-26: no Call link under the form.
+        expect(links).toEqual([expect.stringContaining('api.whatsapp.com')]);
+        expect(links[0]).toContain(waNotice);
+        expect(text(block!)).toBe(r.whatsappNotice);
         // Under the form, before the guide that says "send it by WhatsApp".
         const at = html.indexOf('mp-contact__reach-after');
         expect(at).toBeGreaterThan(html.lastIndexOf('</form>'));
@@ -81,7 +82,7 @@ describe('/contact: the direct lines and the sub follow the visitor', () => {
         expect(sub(html)).toBe(p.subNew);
         expect(sub(html)).not.toMatch(lang === 'en' ? /notice|letter|late/i : /notificación|carta|tarde/i);
         // The pair is there, with the project line and no mention of a notice.
-        expect(text(after(html)!)).toBe(`${r.call} ${c.contact.phone!.display} ${r.whatsappPlain}`);
+        expect(text(after(html)!)).toBe(r.whatsappPlain);
         expect(html).not.toContain(esc(r.whatsappNotice));
       });
     }
@@ -98,7 +99,7 @@ describe('/contact: the direct lines and the sub follow the visitor', () => {
         expect(x).toContain(plain);
         expect(x).not.toContain(waNotice);
       }
-      expect(text(after(html)!)).toBe(`${r.call} ${c.contact.phone!.display} ${r.whatsappPlain}`);
+      expect(text(after(html)!)).toBe(r.whatsappPlain);
       expect(html).not.toContain(esc(r.whatsappNotice));
     });
 
@@ -113,7 +114,7 @@ describe('/contact: the direct lines and the sub follow the visitor', () => {
       const html = render(lang);
       expect(sub(html)).toBe(p.sub);
       expect(hrefs(hero(html))).not.toContain(esc(c.contact.phone!.href));
-      expect(text(after(html)!)).toBe(`${r.call} ${c.contact.phone!.display} ${r.whatsappNotice}`);
+      expect(text(after(html)!)).toBe(r.whatsappNotice);
       const form = html.match(/<form\b[\s\S]*?<\/form>/)![0];
       // The form ends with the button row: no note, no fine print after it.
       expect(form).not.toContain('mp-form__note');

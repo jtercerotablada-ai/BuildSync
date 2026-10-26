@@ -2562,7 +2562,6 @@ export const home = {
      is the name of the phone button: `{phone}` is `contact.phone.display`. */
   chrome: {
     headerCta: 'Get in touch',
-    callLabel: 'Call {phone}',
     /* The name of the phone bar, said by the firm: the page's other bars say
        "Contact the engineer" (`reach.label`), a single person. */
     barLabel: 'Contact the firm',
@@ -2678,7 +2677,6 @@ export const home = {
     title: 'Get in touch.',
     accentWord: 'touch.',
     sub: 'Tell us about the building and what you need from us. Write in English or in Spanish.',
-    call: 'Call',
     whatsapp: 'WhatsApp',
     email: 'Email',
     where: 'Where',
@@ -2934,7 +2932,7 @@ export const aboutPage = {
     title: 'Reviewed line by line, before it leaves.',
     body: [
       'Two kinds of work run through this practice, and they inform each other. Reading the designs of others teaches you what fails on paper; inspecting buildings that have been standing for decades teaches you what to look for the next time.',
-      'On existing buildings the field comes first: the building is checked on site before it is analyzed, and nothing is concluded from a drawing that has not been confirmed there.',
+      'On existing buildings the field comes first: the building is checked on site before it is analyzed, and nothing is concluded from a drawing that has not been confirmed there in person.',
     ],
   },
   principles: {

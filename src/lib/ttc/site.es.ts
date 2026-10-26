@@ -1477,7 +1477,6 @@ export const es: SiteContent = {
     ],
     chrome: {
       headerCta: 'Contáctenos',
-      callLabel: 'Llamar {phone}',
       barLabel: 'Contactar a la firma',
     },
     form: homeForm,
@@ -1545,7 +1544,6 @@ export const es: SiteContent = {
       title: 'Contáctenos.',
       accentWord: 'Contáctenos.',
       sub: 'Cuéntenos sobre el edificio y lo que necesita de nosotros. Escríbanos en inglés o en español.',
-      call: 'Llamar',
       whatsapp: 'WhatsApp',
       email: 'Correo',
       where: 'Dónde',
@@ -1752,7 +1750,7 @@ export const es: SiteContent = {
       title: 'Revisado línea por línea, antes de salir.',
       body: [
         'Por esta firma pasan dos tipos de trabajo, y cada uno enriquece al otro. Leer los diseños de otros enseña qué falla sobre el papel; inspeccionar edificios que llevan décadas en pie enseña qué buscar la próxima vez.',
-        'En edificios existentes el trabajo empieza en campo: el edificio se revisa en sitio antes de analizarse, y nada se concluye a partir de un plano que no se haya confirmado allí.',
+        'En edificios existentes el trabajo empieza en campo: el edificio se revisa en sitio antes de analizarse, y nada se concluye a partir de un plano que no se haya confirmado allí en persona.',
       ],
     },
     principles: {

@@ -580,18 +580,16 @@ describe('county program pages: no paragraph is printed twice', () => {
         expect(close).toContain(`<p class="mp-close__body">${esc(c.closingCta.body)}</p>`);
       });
 
-      // 3. Call + WhatsApp: one pair beside each of the three buttons, so
-      //    the phone is never more than a screen away. They stay — as a
-      //    pair of links, which is what they are, not as a <p> (ReachRow).
-      it(`${slug} (${lang}): Call and WhatsApp are beside each button, as links and not as a paragraph`, () => {
+      // 3. WhatsApp beside each of the three buttons, as a link and not as a
+      //    <p> (ReachRow). The Call link that stood beside it went on
+      //    2026-10-26 (the owner: "no quiero ver Call").
+      it(`${slug} (${lang}): WhatsApp is beside each button, as a link and not as a paragraph`, () => {
         const pairs = [...main.matchAll(/<(\w+) class="mp-reach__links">([\s\S]*?)<\/\1>/g)];
         expect(pairs).toHaveLength(3);
         for (const [, tag, inner] of pairs) {
           expect(tag).toBe('div');
-          expect(links(inner).map((a) => a.text)).toEqual([
-            text(esc(`${r.call} ${c.contact.phone!.display}`)),
-            text(esc(r.whatsappNotice)),
-          ]);
+          expect(links(inner).map((a) => a.text)).toEqual([text(esc(r.whatsappNotice))]);
+          expect(inner).not.toContain(c.contact.phone!.href);
         }
       });
 

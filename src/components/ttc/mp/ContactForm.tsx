@@ -708,7 +708,7 @@ export function ContactForm({
         ref={fileInput}
         id="mp-files"
         type="file"
-        className={home ? 'mp-files__native' : 'mp-sr-only'}
+        className="mp-sr-only"
         multiple
         accept={CONTACT_ACCEPT}
         aria-labelledby="mp-files-label"
@@ -717,12 +717,13 @@ export function ContactForm({
         disabled={busy}
       />
       <div className="mp-files__row">
-        {home ? null : (
-          <label htmlFor="mp-files" className="mp-btn mp-btn--line mp-files__add">
-            <span>{t.addFiles}</span>
-            <span aria-hidden="true">+</span>
-          </label>
-        )}
+        {/* The site's own button on every form, the home's too (2026-10-26):
+            the browser's native control printed its button in the browser's
+            language — "Elegir archivos" on the English page. */}
+        <label htmlFor="mp-files" className="mp-btn mp-btn--line mp-files__add">
+          <span>{t.addFiles}</span>
+          <span aria-hidden="true">+</span>
+        </label>
         {fileError ? (
           <span className="mp-field__error" id="mp-files-err" role="alert">
             {fileError}

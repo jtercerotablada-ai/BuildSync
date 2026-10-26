@@ -41,11 +41,11 @@ import { Words } from './Words';
 export function HomeContact({ lang }: { lang: Lang }) {
   const c = getContent(lang);
   const h = c.home.contact;
-  const phone = c.contact.phone;
   const wa = whatsappHomeHref(c);
 
   const lines: { key: string; label: string; value: string; href?: string; external?: boolean }[] = [];
-  if (phone) lines.push({ key: 'call', label: h.call, value: phone.display, href: phone.href });
+  /* No Call line (the owner, 2026-10-26: "no quiero ver Call"): WhatsApp,
+     email and where. */
   if (wa) {
     lines.push({
       key: 'whatsapp',
