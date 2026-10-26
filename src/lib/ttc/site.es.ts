@@ -1528,7 +1528,7 @@ export const es: SiteContent = {
     },
     statement: {
       lines: ['Viento de huracán.', 'Agua alta.', 'Décadas de aire salino.'],
-      dim: 'Diseñamos para todo eso y lo dejamos por escrito para que un propietario, un arquitecto y un revisor puedan seguirlo.',
+      dim: 'Lo inspeccionamos todo, y lo dejamos por escrito para que una junta, un propietario y un oficial de construcción puedan seguirlo.',
       accentWord: 'todo',
     },
     types: {

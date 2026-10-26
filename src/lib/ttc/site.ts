@@ -2598,7 +2598,7 @@ export const home = {
   },
   statement: {
     lines: ['Hurricane wind.', 'High water.', 'Decades of salt air.'],
-    dim: 'We engineer for all of it, and write it down so an owner, an architect and a reviewer can follow.',
+    dim: 'We inspect for all of it, and write it down so a board, an owner and a building official can follow.',
     accentWord: 'all',
   },
   types: {
