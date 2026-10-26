@@ -4,7 +4,7 @@ import React from 'react';
  * The two ornaments of the upper half of the home page. Both are glyphs, not
  * drawings: one stroke, `aria-hidden`, never the link itself.
  *
- *   Diamond  the gold ◆ between the eyebrow's disciplines, the two counties,
+ *   Diamond  the gold ◆ between the two counties,
  *            the ribbon's sides and the track tag of a service card. Drawn
  *            in CSS (a rotated square, `.h-dia`), not typed: Geist Mono has
  *            no U+25C6, so a typed one came from whichever fallback font the

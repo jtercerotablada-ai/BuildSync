@@ -2544,9 +2544,10 @@ export const home = {
   form: ui.form.home,
   hero: {
     /* The owner, 2026-10-25: "Professional Engineers PE, Structural
-       Engineers, Electrical Engineer PE: we have them" — so the three
-       disciplines are named. No "SE" (Florida has no such license). */
-    eyebrow: ['Civil Engineers', 'Structural Engineers', 'Electrical Engineers'],
+       Engineers, Electrical Engineer PE: we have them" — the three
+       disciplines are named in the credentials plate (`home.credentials`);
+       the eyebrow that also listed them over this title went on 2026-10-26,
+       at his word. No "SE" (Florida has no such license). */
     titleLines: ['Structural', 'engineers for', 'South Florida.'],
     accentWord: 'Florida.',
     sub: 'Licensed in Florida. We inspect, assess and review the structure of South Florida’s buildings, in Miami-Dade and Broward.',

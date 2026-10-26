@@ -473,31 +473,10 @@
   margin-inline: auto;
 }
 
-/* Eyebrow: a gold hairline, then the disciplines with a ◆ between them. */
-.mp-home .h-hero__eyebrow {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 14px;
-  margin: 0;
-  font-family: var(--mp-mono);
-  font-size: 12px;
-  font-weight: 400;
-  line-height: 1.5;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--mp-snow);
-}
-.mp-home .h-hero__eyebrow::before {
-  content: '';
-  flex: none;
-  width: 48px;
-  height: 1px;
-  background: var(--mp-gold);
-  transform-origin: left;
-}
-
-/* The headline. Three lines, the last word in the gold italic serif.
+/* The headline opens the copy: the eyebrow of disciplines (a gold hairline,
+   then "Civil Engineers ◆ Structural Engineers ◆ Electrical Engineers") that
+   stood over it went on 2026-10-26 at the owner's word; the credentials plate
+   still names the three. Three lines, the last word in the gold italic serif.
    DESKTOP: the size is the smaller of 12 vw and what the screen's height
    leaves once the rest of the first screen is paid for (430 px: header,
    eyebrow, foot row and bar) divided by the 2.9 line-heights the three lines
@@ -597,13 +576,8 @@
   .mp-home .h-hero__film {
     animation: h-settle 2.4s var(--h-ease) backwards;
   }
-  /* E3 — eyebrow, and its hairline. */
-  .mp-home .h-hero__eyebrow {
-    animation: h-fadeup 1s var(--h-ease) 0.35s backwards;
-  }
-  .mp-home .h-hero__eyebrow::before {
-    animation: h-draw 1.4s var(--h-ease) 0.5s backwards;
-  }
+  /* E3 was the eyebrow's fade and its hairline's draw; the eyebrow is gone
+     (2026-10-26), so the headline is the first thing that moves. */
   /* E4 — the headline's lines rise out of their masks: RevealText's own
      keyframe, slower, 140 ms apart (it writes 70 ms inline, so the delay is
      taken back here, once per line). */
@@ -704,17 +678,6 @@
       rgba(11, 12, 13, 0.94) 78%,
       var(--mp-graphite) 100%
     );
-  }
-  .mp-home .h-hero__eyebrow {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 6px;
-  }
-  .mp-home .h-hero__eyebrow .h-dia {
-    display: none;
-  }
-  .mp-home .h-hero__eyebrow::before {
-    margin-bottom: 8px;
   }
 }
 

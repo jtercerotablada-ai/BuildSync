@@ -8,13 +8,14 @@ import { accentLines } from '../text';
 import { Arrow, Diamond } from './glyphs';
 
 /**
- * S1 · HERO. What and where in five seconds, with the credential words, and
- * one action. A SERVER component: it reads its words with `getContent(lang)`
- * and ships none of the copy to the browser; only the three pieces that need
- * script are client components (`VideoLoop`, `MotionToggle`, `RevealText`).
+ * S1 · HERO. What and where in five seconds, and one action. A SERVER
+ * component: it reads its words with `getContent(lang)` and ships none of the
+ * copy to the browser; only the three pieces that need script are client
+ * components (`VideoLoop`, `MotionToggle`, `RevealText`).
  *
- *   gold hairline + eyebrow (the disciplines, a gold ◆ between them)
- *   H1, three lines, the last word in the gold italic serif
+ *   H1, three lines, the last word in the gold italic serif (the eyebrow of
+ *   disciplines that stood over it went on 2026-10-26, at the owner's word;
+ *   the credentials plate still names the three)
  *   foot row: the sub-line (36ch) on the left, the one button on the right
  *   the bar: the firm's full name · the two counties · the pause switch
  *
@@ -83,20 +84,6 @@ export function HomeHero({ lang }: { lang: Lang }) {
       <div className="h-hero__scrim" aria-hidden="true" />
 
       <div className="h-hero__copy">
-        <p className="h-hero__eyebrow">
-          {h.eyebrow.map((item, i) => (
-            <React.Fragment key={item}>
-              {i > 0 ? (
-                <>
-                  {' '}
-                  <Diamond />{' '}
-                </>
-              ) : null}
-              <span>{item}</span>
-            </React.Fragment>
-          ))}
-        </p>
-
         <RevealText
           as="h1"
           id="h-hero-title"

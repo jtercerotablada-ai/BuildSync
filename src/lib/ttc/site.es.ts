@@ -1486,7 +1486,6 @@ export const es: SiteContent = {
     },
     form: homeForm,
     hero: {
-      eyebrow: ['Ingenieros Civiles', 'Ingenieros Estructurales', 'Ingenieros Eléctricos'],
       titleLines: ['Ingenieros', 'estructurales para', 'el Sur de Florida.'],
       accentWord: 'Florida.',
       sub: 'Con licencia en Florida. Inspeccionamos, evaluamos y revisamos la estructura de los edificios del Sur de Florida, en Miami-Dade y Broward.',

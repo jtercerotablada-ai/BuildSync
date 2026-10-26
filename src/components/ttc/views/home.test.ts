@@ -224,14 +224,12 @@ describe('the owner’s vocabulary rules, over every string the home says (spec 
         lang === 'en' ? /^Licensed in Florida\./ : /^Con licencia en Florida\./,
       );
       // The owner, 2026-10-25: the firm has Professional, Structural and
-      // Electrical Engineers and the home names all three. Never an "SE"
-      // license (Florida has none): the words are disciplines, and "PE" is
-      // the only license printed anywhere.
-      expect(c.home.hero.eyebrow).toEqual(
-        lang === 'en'
-          ? ['Civil Engineers', 'Structural Engineers', 'Electrical Engineers']
-          : ['Ingenieros Civiles', 'Ingenieros Estructurales', 'Ingenieros Eléctricos'],
-      );
+      // Electrical Engineers and the home names all three — in the
+      // credentials plate alone since 2026-10-26, when he had the line of
+      // disciplines over the hero's title removed. Never an "SE" license
+      // (Florida has none): the words are disciplines, and "PE" is the only
+      // license printed anywhere.
+      expect(c.home.hero).not.toHaveProperty('eyebrow');
       expect(c.home.credentials.rows.map((r) => r.name)).toEqual(
         lang === 'en'
           ? ['Civil engineering', 'Structural engineering', 'Electrical engineering']
@@ -915,13 +913,14 @@ for (const lang of LANGS) {
       expect(body).toContain(lang === 'en' ? 'Recognized Structural Engineer' : 'Ingeniero Estructural Reconocido');
     });
 
-    it('names the electrical discipline in the hero’s eyebrow and the plate’s list, and nowhere else', () => {
+    it('names the electrical discipline in the plate’s list, and nowhere else', () => {
       const electrical = lang === 'en' ? /\belectrical engineer(?:s|ing)?\b/gi : /\bingenier(?:os|[ií]a) el[eé]ctric[oa]s?\b/gi;
-      // The eyebrow and the row; in English the paragraph's "civil,
-      // structural and electrical engineering" as well (Spanish says
-      // "ingeniería civil, estructural y eléctrica": one noun).
-      expect([...body.matchAll(electrical)]).toHaveLength(lang === 'en' ? 3 : 2);
-      expect(text(markup.match(/<p class="h-hero__eyebrow">[\s\S]*?<\/p>/)![0])).toMatch(electrical);
+      // The row; in English the paragraph's "civil, structural and
+      // electrical engineering" as well (Spanish says "ingeniería civil,
+      // estructural y eléctrica": one noun). The hero has no eyebrow of
+      // disciplines any more (the owner, 2026-10-26).
+      expect([...body.matchAll(electrical)]).toHaveLength(lang === 'en' ? 2 : 1);
+      expect(markup).not.toContain('h-hero__eyebrow');
       expect(text(plate)).toMatch(electrical);
     });
   });
