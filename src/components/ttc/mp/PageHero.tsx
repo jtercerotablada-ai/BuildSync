@@ -67,9 +67,7 @@ export function PageHero({
         <div className="mp-phero__photo mp-enter mp-enter--photo" aria-hidden="true">
           <Img photo={photo} priority sizes="100vw" />
         </div>
-      ) : (
-        <div className="mp-grid-bg" aria-hidden="true" />
-      )}
+      ) : null}
       <div className="mp-shell">
         {crumbs?.length ? (
           <nav aria-label={c.ui.breadcrumb}>

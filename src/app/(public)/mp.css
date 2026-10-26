@@ -2350,8 +2350,8 @@ a.mp-menu__mail {
 
 .mp-close {
   position: relative;
-  /* Without this the z-index:-1 .mp-grid-bg child escapes behind the section
-     background and the motif is invisible — same reason .mp-hero isolates. */
+  /* Isolated like .mp-hero (it once held a z-index:-1 grid motif; the grey
+     lines left every dark plate on 2026-10-26, at the owner's word). */
   isolation: isolate;
   overflow: clip;
 }
@@ -4091,34 +4091,6 @@ a.mp-menu__mail {
    ══════════════════════════════════════════════════════════════════════════ */
 
 /* ── Plan grid on dark surfaces ──────────────────────────────────────────── */
-.mp-grid-bg {
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background-image:
-    linear-gradient(to right, rgba(246, 244, 239, 0.07) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(246, 244, 239, 0.07) 1px, transparent 1px);
-  background-size: 72px 72px;
-  background-position: center top;
-  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.9), rgba(0, 0, 0, 0.25));
-  -webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.9), rgba(0, 0, 0, 0.25));
-}
-.mp-hero .mp-grid-bg {
-  opacity: 0.55;
-  mask-image: linear-gradient(
-    to right,
-    rgba(0, 0, 0, 0.8) 0%,
-    rgba(0, 0, 0, 0.35) 45%,
-    transparent 70%
-  );
-  -webkit-mask-image: linear-gradient(
-    to right,
-    rgba(0, 0, 0, 0.8) 0%,
-    rgba(0, 0, 0, 0.35) 45%,
-    transparent 70%
-  );
-}
 
 /* (The two client doors that lived here are gone; their service list became
    .mp-linklist, in 10.) */
@@ -7110,9 +7082,6 @@ a.mp-menu__mail {
   .mp-motion-toggle,
   .mp-hero__photo,
   .mp-phero__photo,
-  .mp-grid-bg {
-    display: none !important;
-  }
   .mp,
   .mp-surface--graphite,
   .mp-phero,

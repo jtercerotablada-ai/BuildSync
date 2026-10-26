@@ -4,7 +4,7 @@
    Imported by HomeView, after home.css (which holds the upper half, the
    `.mp-home` root, the `--h-*` tokens and the pieces both halves share:
    `.h-plate`, `.h-wrap`, `.h-label`, `.h-tag`, `.h-h2`, `.h-lede`, `.h-ring`,
-   `.h-ph`, the `.mp-grid-bg` verticals). Everything here is scoped under
+   `.h-ph`, the plate backgrounds). Everything here is scoped under
    `.mp-home` and under one of the class prefixes of this half:
 
      h-types   S6  building types: a band of six cards that drifts leftward

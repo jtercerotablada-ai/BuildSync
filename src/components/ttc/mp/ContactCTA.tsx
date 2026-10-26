@@ -81,7 +81,6 @@ export function ContactCTA({
   const primaryLabel = holds && program ? program.cta : k.primary.label;
   return (
     <section className="mp-section mp-surface--graphite mp-close" aria-labelledby="mp-close-title">
-      <div className="mp-grid-bg" aria-hidden="true" />
       <div className="mp-shell mp-close__inner">
         <div className="mp-close__lead">
           <div className="mp-eyebrow mp-close__eyebrow">{k.eyebrow}</div>

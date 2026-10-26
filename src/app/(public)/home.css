@@ -97,29 +97,10 @@
   margin-inline: auto;
 }
 
-/* The site's plan grid is a 72 px square lattice. The home wants four faint
-   verticals on the page's own margins, felt more than seen, so inside
-   `.mp-home` the same element draws those instead: a hairline at the left
-   edge of each quarter of the content width, and one at the right edge.
-   Every black plate (both halves of the page) carries `.mp-grid-bg`. */
-.mp-home .mp-grid-bg {
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  padding-inline: var(--h-pad);
-  opacity: 1;
-  background-origin: content-box;
-  background-clip: content-box;
-  background-image:
-    linear-gradient(to right, var(--h-gl) 0 1px, transparent 1px 100%),
-    linear-gradient(var(--h-gl), var(--h-gl));
-  background-size: 25% 100%, 1px 100%;
-  background-position: left top, right top;
-  background-repeat: repeat-x, no-repeat;
-  -webkit-mask-image: none;
-  mask-image: none;
-}
+/* No grid motif on the plates any more: the four faint verticals that
+   `.mp-grid-bg` drew here (and the 72 px lattice mp.css drew on the inner
+   pages' dark bands) left on 2026-10-26 — the owner: "unas líneas grises
+   vertical y horizontal, creo puedes quitar esas líneas". */
 
 /* The gold ◆: a rotated square, not a glyph (Geist Mono has none). */
 .mp-home .h-dia {

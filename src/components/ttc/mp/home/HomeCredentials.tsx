@@ -52,7 +52,6 @@ export function HomeCredentials({ lang }: { lang: Lang }) {
 
   return (
     <section id="credentials" className="h-plate h-cred mp-surface--graphite" aria-labelledby="h-cred-h">
-      <div className="mp-grid-bg" aria-hidden="true" />
       <div className="h-wrap h-cred__grid">
         <Reveal as="p" fx="up" className="h-label h-cred__label">
           {h.label}

@@ -42,7 +42,6 @@ export function HomeStatement({ lang }: { lang: Lang }) {
 
   return (
     <section className="h-plate h-stmt mp-surface--graphite" aria-labelledby="h-stmt-title">
-      <div className="mp-grid-bg" aria-hidden="true" />
       <div className="h-wrap h-stmt__grid">
         <div className="h-stmt__text">
           <Reveal as="h2" fx="words" id="h-stmt-title" className="h-stmt__title">

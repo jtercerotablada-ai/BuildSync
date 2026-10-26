@@ -69,7 +69,6 @@ export function HomeServices({ lang }: { lang: Lang }) {
       className="h-plate h-svc-plate mp-surface--graphite"
       aria-labelledby="h-svc-title"
     >
-      <div className="mp-grid-bg" aria-hidden="true" />
       <div className="h-wrap">
         <header className="h-head">
           <div className="h-head__top">

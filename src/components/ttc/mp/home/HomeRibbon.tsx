@@ -82,7 +82,6 @@ export function HomeRibbon({ lang }: { lang: Lang }) {
       aria-labelledby="h-rib-label"
       data-motion="ribbon"
     >
-      <div className="mp-grid-bg" aria-hidden="true" />
 
       <div className="h-rib__head">
         <Reveal as="p" fx="up" id="h-rib-label" className="h-label">

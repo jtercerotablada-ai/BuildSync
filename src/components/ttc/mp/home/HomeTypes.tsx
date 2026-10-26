@@ -85,7 +85,6 @@ export function HomeTypes({ lang }: { lang: Lang }) {
 
   return (
     <section className="h-plate h-types mp-surface--graphite" aria-labelledby="h-types-h">
-      <div className="mp-grid-bg" aria-hidden="true" />
       <div className="h-wrap h-types__head">
         <div className="h-head__top">
           <Reveal as="p" fx="up" className="h-label">

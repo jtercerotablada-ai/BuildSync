@@ -60,7 +60,6 @@ export function HomeContact({ lang }: { lang: Lang }) {
 
   return (
     <section id="contact" className="h-plate h-contact mp-surface--graphite" aria-labelledby="h-contact-h">
-      <div className="mp-grid-bg" aria-hidden="true" />
       <div className="h-wrap">
         <Reveal as="p" fx="up" className="h-label">
           {h.label}
