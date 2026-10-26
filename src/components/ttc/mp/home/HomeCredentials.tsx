@@ -2,6 +2,7 @@ import React from 'react';
 import { getContent } from '@/lib/ttc/content';
 import type { Lang } from '@/lib/ttc/i18n';
 import { Reveal } from '../primitives';
+import { Arrow } from './glyphs';
 import { Words } from './Words';
 
 /**
@@ -38,6 +39,12 @@ import { Words } from './Words';
  * the left 0.12 s apart (E10), the heading's words rise (E8). A SERVER
  * COMPONENT.
  */
+/* The DBPR licence search, the one outside host the site links for licenses
+   (pages.test.ts). Here and not in site.ts: the home's strings carry no digit
+   and no ampersand (home.test.ts), and an address is the same in both
+   languages. */
+const DBPR_LICENSE_SEARCH = 'https://www.myfloridalicense.com/wl11.asp?mode=0&SID=&brd=&typ=';
+
 export function HomeCredentials({ lang }: { lang: Lang }) {
   const c = getContent(lang);
   const h = c.home.credentials;
@@ -57,6 +64,14 @@ export function HomeCredentials({ lang }: { lang: Lang }) {
           </Reveal>
           <Reveal as="p" fx="up" delay={0.25} className="h-lede h-cred__p">
             {h.body}
+          </Reveal>
+          {/* The register the paragraph names, as the plate's one link: the
+              DBPR licence search, in a new tab like every outside link. */}
+          <Reveal fx="up" delay={0.35} className="h-cred__verify">
+            <a className="h-link" href={DBPR_LICENSE_SEARCH} target="_blank" rel="noopener noreferrer">
+              <span>{h.verify.label}</span>
+              <Arrow />
+            </a>
           </Reveal>
         </div>
 

@@ -196,6 +196,10 @@
 }
 /* The list: one discipline a row, its credential at the right, hairlines
    between the rows, the type a quiet grey (the heading carries the plate). */
+/* The one link of the plate, under the paragraph: the state's register. */
+.mp-home .h-cred__verify {
+  margin-top: clamp(20px, 2.4vw, 32px);
+}
 .mp-home .h-cred__list {
   grid-area: list;
   margin: clamp(56px, 8vw, 150px) 0 0;

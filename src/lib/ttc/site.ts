@@ -2638,7 +2638,11 @@ export const home = {
        does not hold; the state's register, both languages, both counties. */
     title: 'Licensed by the State of Florida.',
     accentWord: 'Florida.',
-    body: 'We stand behind the principles of engineering licensure and the ethical standards that come with it. With Professional Engineering (PE) licenses held by our team in civil, structural and electrical engineering, and a Florida Board Recognized Structural Engineer among them, all issued by the Florida Board of Professional Engineers and open to check on the state’s public register. We hold every drawing, calculation and report to the standard the profession sets, in English or in Spanish, across Miami-Dade and Broward County.',
+    body: 'We stand behind the principles of engineering licensure and the ethical standards that come with it: every drawing, calculation and report we issue is held to the standard the profession sets. Our team holds Professional Engineering (PE) licenses in civil, structural and electrical engineering, issued by the Florida Board of Professional Engineers, with a Florida Board Recognized Structural Engineer among them — the state’s own mark for the structural work it holds to a higher standard. Each license is on the state’s public register, open to any owner, board or building official. We work in English or in Spanish, across Miami-Dade and Broward County.',
+    /* The register itself, one link under the paragraph: what the paragraph
+       says is open to check, the reader can check. The address is in
+       HomeCredentials (the home's strings carry no digit and no ampersand). */
+    verify: { label: 'Check a license on Florida’s public register' },
     rows: [
       { name: 'Civil engineering', mark: 'PE' },
       { name: 'Structural engineering', mark: 'PE · Recognized Structural Engineer' },

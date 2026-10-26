@@ -260,7 +260,7 @@ describe('the owner’s vocabulary rules, over every string the home says (spec 
         'PE',
       ]);
       expect(c.home.credentials.body).toMatch(/\(PE\)/);
-      expect(c.home.credentials.body).toMatch(lang === 'en' ? /Florida Board Recognized Structural Engineer among them/ : /Reconocido por la Junta de Florida, todas/);
+      expect(c.home.credentials.body).toMatch(lang === 'en' ? /Florida Board Recognized Structural Engineer among them/ : /Reconocido por la Junta de Florida/);
       expect(JSON.stringify(c.home)).not.toMatch(/\bFRSE\b/);
       const texts = JSON.stringify(c.home);
       expect(texts).not.toMatch(/\bSE\b|\bS\.E\./);

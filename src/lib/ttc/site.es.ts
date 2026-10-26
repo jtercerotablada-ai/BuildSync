@@ -1543,7 +1543,8 @@ export const es: SiteContent = {
       label: 'Credenciales',
       title: 'Con licencia del Estado de Florida.',
       accentWord: 'Florida.',
-      body: 'Respaldamos los principios de la licencia profesional de ingeniería y las normas éticas que la acompañan. Con licencias de Ingeniería Profesional (PE) de nuestro equipo en ingeniería civil, estructural y eléctrica, y entre ellas un Ingeniero Estructural Reconocido por la Junta de Florida, todas emitidas por la Junta de Ingenieros Profesionales de Florida y verificables en el registro público del estado. Sostenemos cada plano, cálculo e informe al estándar que fija la profesión, en inglés o en español, en los condados de Miami-Dade y Broward.',
+      body: 'Respaldamos los principios de la licencia profesional de ingeniería y las normas éticas que la acompañan: cada plano, cálculo e informe que emitimos se sostiene al estándar que fija la profesión. Nuestro equipo tiene licencias de Ingeniería Profesional (PE) en ingeniería civil, estructural y eléctrica, emitidas por la Junta de Ingenieros Profesionales de Florida, y entre ellas un Ingeniero Estructural Reconocido por la Junta de Florida, la marca propia del estado para el trabajo estructural que exige un estándar más alto. Cada licencia está en el registro público del estado, abierto a cualquier propietario, junta u oficial de construcción. Trabajamos en inglés o en español, en los condados de Miami-Dade y Broward.',
+      verify: { label: 'Verifique una licencia en el registro público de Florida' },
       rows: [
         { name: 'Ingeniería civil', mark: 'PE' },
         { name: 'Ingeniería estructural', mark: 'PE · Ingeniero Estructural Reconocido' },
