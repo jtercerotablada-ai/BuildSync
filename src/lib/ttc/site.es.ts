@@ -1512,7 +1512,7 @@ export const es: SiteContent = {
       accentWord: 'estándar.',
       lede: 'Leemos los edificios que ya están en pie, seguimos los que se levantan y revisamos los diseños antes de que se emitan.',
       legend: {
-        existing: { k: 'Edificios existentes', v: 'Inspección, evaluación y diseño de reparaciones.' },
+        existing: { k: 'Edificios existentes', v: 'Inspección, evaluación y diseño de reparaciones para edificios ya en pie.' },
         new: { k: 'Obra nueva', v: 'Inspecciones threshold durante la construcción y revisión por pares de un diseño.' },
       },
       tag: 'Fotografías ilustrativas',
@@ -1543,7 +1543,7 @@ export const es: SiteContent = {
       label: 'Credenciales',
       title: 'Con licencia del Estado de Florida.',
       accentWord: 'Florida.',
-      body: 'Respaldamos los principios de la licencia profesional de ingeniería y las normas éticas que la acompañan: cada plano, cálculo e informe que emitimos se sostiene al estándar que fija la profesión. Nuestro equipo tiene licencias de Ingeniería Profesional (PE) en ingeniería civil, estructural y eléctrica, emitidas por la Junta de Ingenieros Profesionales de Florida, y entre ellas un Ingeniero Estructural Reconocido por la Junta de Florida, la marca propia del estado para el trabajo estructural que exige un estándar más alto. Cada licencia está en el registro público del estado, abierto a cualquier propietario, junta u oficial de construcción. Trabajamos en inglés o en español, en los condados de Miami-Dade y Broward.',
+      body: 'Respaldamos con firmeza los principios de la licencia profesional de ingeniería y sostenemos nuestra práctica con los más altos estándares éticos. Con licencias de Ingeniería Profesional (PE) de nuestro equipo en ingeniería civil, estructural y eléctrica, todas emitidas por la Junta de Ingenieros Profesionales de Florida, y entre ellas un Ingeniero Estructural Reconocido por la Junta de Florida, llevamos ese estándar a edificios de todo el Estado de Florida.',
       verify: { label: 'Verifique una licencia en el registro público de Florida' },
       rows: [
         { name: 'Ingeniería civil', mark: 'PE' },

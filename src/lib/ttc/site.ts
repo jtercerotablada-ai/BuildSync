@@ -2590,7 +2590,7 @@ export const home = {
     accentWord: 'standard.',
     lede: 'We read the buildings that stand, follow the ones going up, and check the designs before they are issued.',
     legend: {
-      existing: { k: 'Existing buildings', v: 'Inspection, assessment and repair design.' },
+      existing: { k: 'Existing buildings', v: 'Inspection, assessment and repair design for buildings already standing.' },
       new: { k: 'New construction', v: 'Threshold inspections during construction, and peer review of a design.' },
     },
     tag: 'Illustrative photographs',
@@ -2649,7 +2649,11 @@ export const home = {
        does not hold; the state's register, both languages, both counties. */
     title: 'Licensed by the State of Florida.',
     accentWord: 'Florida.',
-    body: 'We stand behind the principles of engineering licensure and the ethical standards that come with it: every drawing, calculation and report we issue is held to the standard the profession sets. Our team holds Professional Engineering (PE) licenses in civil, structural and electrical engineering, issued by the Florida Board of Professional Engineers, with a Florida Board Recognized Structural Engineer among them — the state’s own mark for the structural work it holds to a higher standard. Each license is on the state’s public register, open to any owner, board or building official. We work in English or in Spanish, across Miami-Dade and Broward County.',
+    /* The owner, 2026-10-26, of a longer draft: EMX's is "1000 veces mejor"
+       — short, firm, no counties (the firm serves all of Florida; only the two
+       county programs are Miami-Dade's and Broward's) and nothing about the
+       languages. So: EMX's two sentences, with our facts. */
+    body: 'We stand firmly behind the principles of engineering licensure, holding our practice to the highest ethical standards. With Professional Engineering (PE) licenses held by our team in civil, structural and electrical engineering, all issued by the Florida Board of Professional Engineers, and a Florida Board Recognized Structural Engineer among them, we bring that standard to buildings across the State of Florida.',
     /* The register itself, one link under the paragraph: what the paragraph
        says is open to check, the reader can check. The address is in
        HomeCredentials (the home's strings carry no digit and no ampersand). */
