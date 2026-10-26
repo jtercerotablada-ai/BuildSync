@@ -1,17 +1,17 @@
 'use client';
 
 import { useEffect } from 'react';
-import { heroShift, pauseShift } from './parallax-math';
+import { heroShift } from './parallax-math';
 
 /**
  * The parallax island (spec E14). It renders nothing. Mounted once by
- * `HomeView`, it finds the two boxes the markup marks —
+ * `HomeView`, it finds the box the markup marks —
  *
  *   [data-parallax="hero"]   the film's box (12 % taller than the hero)
- *   [data-parallax="pause"]  the pause photograph's frame (18 % taller than
- *                            its plate)
  *
- * — and shifts them with `translate3d` as the page scrolls. Nothing else is
+ * — and shifts it with `translate3d` as the page scrolls (the pause
+ * photograph that used to have a box of its own left the page on
+ * 2026-10-25). Nothing else is
  * written: no layout property, no class, no React state.
  *
  * ONE scroll listener, one `requestAnimationFrame` per burst of scrolling, and
@@ -40,17 +40,9 @@ export function Parallax() {
 
     const place = () => {
       raf = 0;
-      const vh = window.innerHeight;
       for (const box of seen) {
-        let y = 0;
-        if (box.dataset.parallax === 'hero') {
-          y = heroShift(window.scrollY);
-        } else {
-          const plate = box.parentElement?.getBoundingClientRect();
-          if (!plate) continue;
-          y = pauseShift(plate.top, plate.height, vh);
-        }
-        box.style.transform = `translate3d(0, ${y}px, 0)`;
+        if (box.dataset.parallax !== 'hero') continue;
+        box.style.transform = `translate3d(0, ${heroShift(window.scrollY)}px, 0)`;
       }
     };
     const schedule = () => {

@@ -1278,3 +1278,12 @@ body:has(.mp-home) .mp-header__inner {
     display: none;
   }
 }
+
+/* On a phone every service photograph is the wide frame (the owner,
+   2026-10-25: the eight tall cards one under the other were a screen too
+   many); the two shapes alternate only where the grid has two columns. */
+@media (max-width: 720px) {
+  .mp-home .h-svc .h-ph {
+    aspect-ratio: 3 / 2;
+  }
+}

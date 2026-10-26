@@ -8,8 +8,6 @@
    `.mp-home` and under one of the class prefixes of this half:
 
      h-types   S6  building types: a band of six cards that drifts leftward
-     h-stack   S7  the wrapper of the three plates below the rail
-     h-pause   S7  the pause photograph
      h-cred    S8  credentials: three cards, the third is the contractor's
      h-contact S11 contact: the huge headline, the real form, four lines
 
@@ -112,23 +110,12 @@
 .mp-home .h-types__ph {
   --ar: 4 / 5;
 }
-/* The mono caption: the photograph's own written description, sentence
-   case, 12 px, grey. */
-.mp-home .h-types__cap {
-  max-width: 44ch;
-  margin: 18px 0 0;
-  font-family: var(--mp-mono);
-  font-size: 12px;
-  line-height: 1.55;
-  letter-spacing: 0;
-  color: var(--mp-snow-3);
-}
 .mp-home .h-types__t {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: start;
   gap: 0 18px;
-  margin: 12px 0 0;
+  margin: 18px 0 0;
   font-size: clamp(21px, 1.9vw, 32px);
   font-weight: 500;
   line-height: 1.08;
@@ -177,89 +164,6 @@
   .mp-home .h-types__card:hover .h-ring svg {
     transform: rotate(-45deg);
   }
-}
-
-/* ═══ 02 · S7 THE PAUSE PHOTOGRAPH, in the stack ══════════════════════════ */
-
-/* MOTION HOOK: E15 turns `.h-stack` into the slide-over stack, in a media
-   query that holds only at (min-width: 901px) and (min-height: 720px), with
-   no reduced motion: `.h-pause` pinned, the credentials plate over it.
-   Nothing is needed here until then. */
-.mp-home .h-stack {
-  position: relative;
-}
-
-.mp-home .h-pause {
-  position: relative;
-  display: flex;
-  align-items: flex-end;
-  min-height: clamp(460px, 100vh, 980px);
-  min-height: clamp(460px, 100svh, 980px);
-  overflow: hidden;
-  isolation: isolate;
-}
-/* MOTION HOOK: E14 moves this frame ±9 % (transform only). It is 18 % taller
-   than the plate, centred, so the shift never shows an edge. */
-.mp-home .h-pause__px {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: -9%;
-  height: 118%;
-  z-index: -2;
-}
-.mp-home .h-pause__img {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  filter: grayscale(1) contrast(1.1) brightness(0.8);
-}
-/* Black over the top and the foot: the plate melts into the plates around
-   it, and the line at the bottom always reads. */
-.mp-home .h-pause::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background: linear-gradient(
-    180deg,
-    var(--mp-graphite) 0,
-    rgba(11, 12, 13, 0) 22%,
-    rgba(11, 12, 13, 0) 44%,
-    rgba(11, 12, 13, 0.9) 100%
-  );
-}
-.mp-home .h-pause__copy {
-  width: 100%;
-  padding: 0 var(--h-pad) clamp(36px, 6vw, 96px);
-}
-/* MOTION HOOK: E11 draws this rule across. */
-.mp-home .h-pause__line {
-  width: clamp(70px, 9vw, 140px);
-  height: 1px;
-  margin-bottom: clamp(20px, 2.4vw, 36px);
-  background: var(--mp-gold);
-  transform-origin: left;
-}
-.mp-home .h-pause__h {
-  max-width: 11ch;
-  margin: 0;
-  font-size: clamp(46px, 9.6vw, 184px);
-  font-weight: 500;
-  line-height: 0.9;
-  letter-spacing: -0.055em;
-  color: #fff;
-  text-wrap: balance;
-}
-/* "Donde la estructura se encuentra con la costa." is four times longer
-   than "Where structure meets the coast.": smaller, and a wider measure, so
-   it keeps to four lines. */
-.mp-home[data-lang='es'] .h-pause__h {
-  max-width: 14ch;
-  font-size: clamp(40px, 7.4vw, 144px);
 }
 
 /* ═══ 03 · S8 CREDENTIALS ═════════════════════════════════════════════════ */
@@ -514,10 +418,10 @@
 }
 .mp-home .h-contact__h {
   margin-top: clamp(16px, 2vw, 32px);
-  /* 52 px at the bottom: "Contáctenos." is 4.8 em and has to fit 280 px at
-     320 (68 px would run 24 px off the screen). */
-  font-size: clamp(52px, 17.6vw, 380px);
-  line-height: 0.84;
+  /* The scale of the other section headlines (the owner, 2026-10-25: at
+     17.6vw it was "muy grande"). "Contáctenos." is 4.8 em: 44 px fits 320. */
+  font-size: clamp(44px, 8vw, 148px);
+  line-height: 0.9;
   letter-spacing: -0.065em;
   color: #fff;
 }
@@ -801,9 +705,6 @@
   }
   .mp-home .h-types__card {
     flex-basis: 76vw;
-  }
-  .mp-home .h-pause__h {
-    max-width: none;
   }
   /* Stacked, no indentation: one card under the other. */
   .mp-home .h-cred__row {

@@ -230,8 +230,12 @@ function reveal(block: HTMLElement | null, focusTarget: HTMLElement | null = blo
  *     dropdown does not turn the labels into "photo of the notice" (see
  *     `programMode`), and the dropdown lists the services in `home.order`,
  *     where the two programs are the fourth and the sixth of eight;
- *   • no `?service=` preset: the home is not a service page, and the form
- *     starts with the dropdown on its placeholder;
+ *   • NO SERVICE DROPDOWN AND NO LOCATION FIELD (the owner, 2026-10-25, his
+ *     standing rule: ask for as little as possible). The home's form is name,
+ *     email, phone (optional), message and attachments; it sends the last
+ *     service option ("Other / not sure yet") and an empty location, and
+ *     /api/contact accepts both. No `?service=` preset either: the home is
+ *     not a service page;
  *   • the file control is the browser's own <input type="file"> with its
  *     button styled through `::file-selector-button` (home-lower.css),
  *     instead of the visually hidden input behind a label-button. Nothing
@@ -254,7 +258,9 @@ export function ContactForm({
   const home = variant === 'home';
   const [f, setF] = useState<Fields>(() => ({
     ...EMPTY,
-    service: home ? '' : presetOption(presetService, c),
+    // The home asks for no service: it sends the last option, "Other / not
+    // sure yet", which the route accepts like any other.
+    service: home ? c.contactServiceOptions[c.contactServiceOptions.length - 1] : presetOption(presetService, c),
   }));
   // Read once, on the first render, when `f.service` is still the preset.
   const [noticeFirst] = useState(() => isProgramOption(f.service));
@@ -307,8 +313,10 @@ export function ContactForm({
     else if (!EMAIL_RE.test(v.email.trim())) e.email = t.errors.emailFormat;
     // One of THIS language's options — the server accepts nothing else, and a
     // value the <select> cannot show would otherwise pass as "chosen".
-    if (!c.contactServiceOptions.includes(v.service)) e.service = t.errors.service;
-    if (!v.location.trim()) e.location = t.errors.location;
+    if (!home) {
+      if (!c.contactServiceOptions.includes(v.service)) e.service = t.errors.service;
+      if (!v.location.trim()) e.location = t.errors.location;
+    }
     // A county notice that finished uploading stands in for the description;
     // the route applies the same function. Counted from the ref: uploads
     // settle outside the render that started them.
@@ -801,6 +809,7 @@ export function ContactForm({
           <Field id="mp-phone" name="phone" label={t.phone} optional optionalLabel={t.optional} type="tel" inputMode="tel" value={f.phone} onChange={set('phone')} autoComplete="tel" maxLength={40} />
         </div>
 
+        {home ? null : (
         <div className="mp-form__row">
           <div className="mp-field" data-invalid={errors.service ? 'true' : undefined}>
             <label className="mp-field__label" htmlFor="mp-service">
@@ -831,6 +840,7 @@ export function ContactForm({
           </div>
           <Field id="mp-location" name="location" label={program ? t.program.location : t.location} value={f.location} onChange={set('location')} error={errors.location} placeholder={program ? t.program.locationPlaceholder : t.locationPlaceholder} autoComplete={program ? 'street-address' : 'address-level2'} autoCapitalize="words" maxLength={160} required />
         </div>
+        )}
 
         <div className="mp-field" data-invalid={messageError ? 'true' : undefined}>
           <label className="mp-field__label" htmlFor="mp-message">

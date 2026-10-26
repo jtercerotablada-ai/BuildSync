@@ -6,7 +6,6 @@ import { HomeCredentials } from '@/components/ttc/mp/home/HomeCredentials';
 import { HomeHero } from '@/components/ttc/mp/home/HomeHero';
 import { HomeRibbon } from '@/components/ttc/mp/home/HomeRibbon';
 import { HomeServices } from '@/components/ttc/mp/home/HomeServices';
-import { HomeStack } from '@/components/ttc/mp/home/HomeStack';
 import { HomeStatement } from '@/components/ttc/mp/home/HomeStatement';
 import { HomeTypes } from '@/components/ttc/mp/home/HomeTypes';
 import { Parallax } from '@/components/ttc/mp/home/Parallax';
@@ -30,8 +29,7 @@ import { HomeAddress } from './meta';
  *   HomeStatement hurricane wind, high water, decades of salt air
  *   HomeBim       the structural model, the one thing a camera cannot show
  *   HomeTypes     the kinds of building, a rail of illustrative photographs
- *   HomeStack     one photographic pause, then the plate that slides over it:
- *     HomeCredentials  the licenses, the registration, the contractor's card
+ *   HomeCredentials  the licenses, the registration, the contractor's card
  *   HomeContact   "Get in touch." with the real form
  *
  * EVERY SECTION IS A SERVER COMPONENT taking `{ lang }` and reading its words
@@ -39,7 +37,7 @@ import { HomeAddress } from './meta';
  * is shipped to the browser as data (the old `useContent()` pattern put both
  * languages' whole copy in the script). The client pieces are the islands
  * inside them: the film, the pause switches, the reveals, the form, the
- * ribbon, the rail, the parallax and the stack's keyboard helper.
+ * ribbon, the band's pause hook and the parallax.
  *
  * ONE ROOT, TWO LANGUAGES. `.mp-home[data-lang]` carries the language so
  * home.css can size a headline per locale (the Spanish hero is three lines of
@@ -72,9 +70,7 @@ export function HomeView({ lang }: { lang: Lang }) {
       <HomeStatement lang={lang} />
       <HomeBim lang={lang} />
       <HomeTypes lang={lang} />
-      <HomeStack lang={lang}>
-        <HomeCredentials lang={lang} />
-      </HomeStack>
+      <HomeCredentials lang={lang} />
       <HomeContact lang={lang} />
     </div>
   );

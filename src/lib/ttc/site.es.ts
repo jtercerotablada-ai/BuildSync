@@ -1673,7 +1673,7 @@ export const es: SiteContent = {
       eyebrow: ['Ingenieros Profesionales', 'Ingenieros Estructurales', 'Ingenieros Eléctricos'],
       titleLines: ['Ingenieros', 'estructurales para', 'el Sur de Florida.'],
       accentWord: 'Florida.',
-      sub: 'Ingenieros Profesionales con licencia en Florida. Diseñamos edificios nuevos y examinamos los existentes en el Sur de Florida, en Miami-Dade y Broward.',
+      sub: 'Con licencia en Florida. Diseñamos edificios nuevos y examinamos los existentes en el Sur de Florida, en Miami-Dade y Broward.',
       cta: 'Contáctenos',
       counties: ['Miami-Dade', 'Broward'],
     },
@@ -1731,10 +1731,6 @@ export const es: SiteContent = {
       tag: 'Fotografías ilustrativas',
       region: 'Tipos de edificio que diseñamos',
       sixth: { title: 'Diseño de reparaciones para estructuras existentes' },
-    },
-    pause: {
-      title: 'Donde la estructura se encuentra con la costa.',
-      accentWord: 'costa.',
     },
     credentials: {
       label: 'Credenciales',

@@ -2592,8 +2592,8 @@ export const imagery = {
   services: {
     'building-recertification': photo.recertMiamiDade,
     'broward-bsip': photo.bsipBroward,
-    'milestone-inspections': photo.inspectBalconyPair,
-    'structural-condition-assessments': photo.inspectWall,
+    'milestone-inspections': photo.midriseClean,
+    'structural-condition-assessments': photo.midriseGlassBalconies,
     'reinforced-concrete-design': photo.concreteFrameSlabs,
     'structural-analysis': photo.analysisTowersUp,
     'bim-coordination': photo.frameCraneSky,
@@ -2734,7 +2734,7 @@ export const home = {
     eyebrow: ['Professional Engineers', 'Structural Engineers', 'Electrical Engineers'],
     titleLines: ['Structural', 'engineers for', 'South Florida.'],
     accentWord: 'Florida.',
-    sub: 'Professional Engineers licensed in Florida. We design new buildings and examine existing ones across South Florida, in Miami-Dade and Broward.',
+    sub: 'Licensed in Florida. We design new buildings and examine existing ones across South Florida, in Miami-Dade and Broward.',
     cta: 'Get in touch',
     /* The two counties in the hero bar, between the firm's name and the
        pause switch. */
@@ -2799,10 +2799,6 @@ export const home = {
        repair design of existing structures, not "repairs" (a photograph of
        a worker with a trowel over "repairs" reads as the firm doing them). */
     sixth: { title: 'Repair design for existing structures' },
-  },
-  pause: {
-    title: 'Where structure meets the coast.',
-    accentWord: 'coast.',
   },
   credentials: {
     label: 'Credentials',

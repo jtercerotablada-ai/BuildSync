@@ -80,7 +80,10 @@ const contactFields = z.object({
     .regex(/^[^\s@]+@[^\s@]+\.[^\s@]+$/, "Invalid email address"),
   phone: z.string().trim().max(40).nullable().optional(),
   company: z.string().trim().max(160).nullable().optional(),
-  location: z.string().trim().min(1, "Location is required").max(160),
+  // Required on every page form; the home page's form (variant "home", the
+  // owner's "ask for as little as possible") has no location field and
+  // sends none. Decided below, once the variant is known.
+  location: z.string().trim().max(160).optional().default(""),
   service: z.string().trim().min(1, "Service is required").max(120),
   // May arrive empty — whether that is acceptable is decided below.
   message: z.string().trim().max(5000),
@@ -99,10 +102,15 @@ const contactFields = z.object({
 
 // On the object, not on the field: it depends on the service and on the
 // files. The form applies the same function before it sends.
-const contactSchema = contactFields.refine(
-  (v) => Boolean(v.message) || !descriptionRequired(v.service, v.files?.length ?? 0),
-  { path: ["message"], message: "Message is required" }
-);
+const contactSchema = contactFields
+  .refine(
+    (v) => Boolean(v.message) || !descriptionRequired(v.service, v.files?.length ?? 0),
+    { path: ["message"], message: "Message is required" }
+  )
+  .refine((v) => v.variant === "home" || Boolean(v.location), {
+    path: ["location"],
+    message: "Location is required",
+  });
 
 /**
  * What the inbox shows for a request sent with a file and no words. The
@@ -157,8 +165,9 @@ const COPY_HOME = {
   en: {
     subject: "We received your message",
     title: "Your message has been received.",
-    body: (service: string, ref: string) =>
-      `Thank you. Your message (${escapeHtml(service)}) has been received and will be read by our engineers. We will write back by email, with questions or with a written scope. Reference: ${ref}.`,
+    // The home's form asks for no service, so the confirmation names none.
+    body: (_service: string, ref: string) =>
+      `Thank you. Your message has been received and will be read by our engineers. We will write back by email, with questions or with a written scope. Reference: ${ref}.`,
     files: COPY.en.files,
     note: "Sending this does not engage us. Nothing starts until you accept a written scope.",
     footer: COPY.en.footer,
@@ -166,8 +175,8 @@ const COPY_HOME = {
   es: {
     subject: "Recibimos su mensaje",
     title: "Su mensaje ha sido recibido.",
-    body: (service: string, ref: string) =>
-      `Gracias. Su mensaje (${escapeHtml(service)}) fue recibido y será leído por nuestros ingenieros. Le escribiremos por correo electrónico, con preguntas o con un alcance de trabajo por escrito. Referencia: ${ref}.`,
+    body: (_service: string, ref: string) =>
+      `Gracias. Su mensaje fue recibido y será leído por nuestros ingenieros. Le escribiremos por correo electrónico, con preguntas o con un alcance de trabajo por escrito. Referencia: ${ref}.`,
     files: COPY.es.files,
     note: "Enviar esto no nos contrata. Nada comienza hasta que usted acepte un alcance de trabajo por escrito.",
     footer: COPY.es.footer,
@@ -243,7 +252,7 @@ export async function POST(request: Request) {
     // request's source; they ride in the message body under a divider so the
     // inbox shows everything.
     const extras = [
-      `Project location: ${location}`,
+      location ? `Project location: ${location}` : null,
       company ? `Company / association: ${company}` : null,
       `Language: ${lang}`,
       landing ? `Arrived on: ${landing}` : null,

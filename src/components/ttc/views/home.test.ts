@@ -223,7 +223,7 @@ describe('the owner’s vocabulary rules, over every string the home says (spec 
     it(`${lang}: "licensed in Florida" is said of the Professional Engineers`, () => {
       const c = getContent(lang);
       expect(c.home.hero.sub).toMatch(
-        lang === 'en' ? /^Professional Engineers licensed in Florida\./ : /^Ingenieros Profesionales con licencia en Florida\./,
+        lang === 'en' ? /^Licensed in Florida\./ : /^Con licencia en Florida\./,
       );
       // The owner, 2026-10-25: the firm has Professional, Structural and
       // Electrical Engineers and the home names all three. Never an "SE"
@@ -547,7 +547,6 @@ describe('each accent word is one phrase of its own heading, once (what the rend
       ['statement', h.statement.accentWord, h.statement.dim],
       ['bim', h.bim.accentWord, h.bim.title],
       ['types', h.types.accentWord, h.types.title],
-      ['pause', h.pause.accentWord, h.pause.title],
       ['credentials', h.credentials.accentWord, h.credentials.titleLines.join(' ')],
       ['contact', h.contact.accentWord, h.contact.title],
     ];
@@ -717,10 +716,10 @@ for (const lang of LANGS) {
         expect(headings[i].level - headings[i - 1].level, `${headings[i - 1].text} → ${headings[i].text}`).toBeLessThanOrEqual(1);
       }
       // The owner's on-page check lists more than 23 headings as too many.
-      // One h1, seven h2 (the sections), eight h3 (the eight services); cards
+      // One h1, six h2 (the sections), eight h3 (the eight services); cards
       // and credentials are not headings.
       expect(headings.length).toBeLessThanOrEqual(23);
-      expect(headings.filter((x) => x.level === 2)).toHaveLength(7);
+      expect(headings.filter((x) => x.level === 2)).toHaveLength(6);
       expect(headings.filter((x) => x.level === 3)).toHaveLength(8);
       expect(headings.filter((x) => x.level > 3)).toEqual([]);
     });
@@ -886,16 +885,22 @@ for (const lang of LANGS) {
     it('does not use the worker with the trowel, and uses the spare photographs the spec names', () => {
       const stem = (src: string) => src.replace(/\.[a-z]+$/, '');
       expect(markup).not.toContain(stem(photo.repairSoffitTrowel.src));
-      for (const p of [photo.midriseBalconies, photo.southFloridaAerial, photo.miamiTowersUp]) {
+      for (const p of [photo.midriseBalconies, photo.miamiTowersUp, photo.midriseClean, photo.midriseGlassBalconies]) {
         expect(markup, p.src).toContain(stem(p.src));
+      }
+      // The owner, 2026-10-25: no photograph of a worker on the home (it reads
+      // as the firm doing the work), and no pause photograph of the coast.
+      for (const p of [photo.inspectWall, photo.inspectBalconyPair, photo.southFloridaAerial]) {
+        expect(markup, p.src).not.toContain(stem(p.src));
       }
     });
 
-    it('captions each building type with its photograph’s own description', () => {
+    it('prints each building type as a photograph and a title, with no written description under it', () => {
       const from = markup.indexOf('class="h-types');
-      const types = text(markup.slice(from, markup.indexOf('class="h-stack', from)));
-      for (const p of [photo.houseConcreteGarden, photo.houseTownhouses, photo.frameCurvedBalconies, photo.frameCraneClean, photo.foundationMatPit, photo.midriseBalconies]) {
-        expect(types, p.src).toContain(lang === 'es' ? p.altEs : p.alt);
+      const types = markup.slice(from, markup.indexOf('id="credentials"', from));
+      expect(types).not.toContain('h-types__cap');
+      for (const p of [photo.houseConcreteGarden, photo.houseTownhouses]) {
+        expect(text(types)).not.toContain(lang === 'es' ? p.altEs : p.alt);
       }
     });
   });
@@ -993,18 +998,15 @@ for (const lang of LANGS) {
       expect(row![0]).not.toMatch(/<a\b|href=/);
     });
 
-    // QA finding F1: the form lists the services in the order of the ribbon
-    // and the cards, where the two county programs are the 4th and the 6th,
-    // not first. The same options as every other form, only the order.
-    it('lists the form’s services in home.order, the county programs 4th and 6th, "other" last', () => {
-      const select = section(markup, 'contact').match(/<select\b[\s\S]*?<\/select>/)![0];
-      const options = [...select.matchAll(/<option\b[^>]*>([\s\S]*?)<\/option>/g)].map((m) => unescape(m[1]));
-      expect(options[0]).toBe(c.ui.form.selectService);
-      const title = (slug: string) => c.services.find((s) => s.slug === slug)!.shortTitle;
-      expect(options.slice(1, 9)).toEqual(c.home.order.map(title));
-      expect(options[4]).toBe(title('building-recertification'));
-      expect(options[6]).toBe(title('broward-bsip'));
-      expect(options.slice(9)).toEqual([c.contactServiceOptions[c.contactServiceOptions.length - 1]]);
+    // The owner, 2026-10-25 ("pedir lo mínimo"): the home's form has no
+    // service dropdown and no location field. Name, email, phone (optional),
+    // message, attachments. The service it sends is the last option.
+    it('asks for no service and no location: name, email, phone, message and files only', () => {
+      const contact = section(markup, 'contact');
+      expect(contact).not.toMatch(/<select\b/);
+      expect(contact).not.toContain('id="mp-location"');
+      for (const id of ['mp-name', 'mp-email', 'mp-phone', 'mp-message']) expect(contact, id).toContain(`id="${id}"`);
+      expect(contact).toContain('class="mp-field mp-files"');
     });
   });
 

@@ -38,9 +38,9 @@ import { TypesDrift } from './TypesDrift';
  * (`repairSoffitTrowel`) is not used on the home page.
  *
  * EACH PHOTOGRAPH IS AN ILLUSTRATION OF A TYPE, NEVER A PROJECT. The tag in
- * the head says so, and each card's mono caption is the photograph's own
- * written description (`photo.alt` / `altEs`): honest, and the description
- * the `aria-hidden` image no longer speaks for a screen reader.
+ * the head says so; a card is its photograph and its title, nothing more
+ * (the written description that sat under each photograph left on
+ * 2026-10-25: it read as a catalogue entry).
  *
  * THE LINK IS THE TITLE AND THE WHOLE CARD IS THE TARGET (the pattern of
  * Typologies.tsx): the <a> holds the title alone; its `::after` is stretched
@@ -70,7 +70,6 @@ export function HomeTypes({ lang }: { lang: Lang }) {
               <Img photo={card.photo} sizes="(min-width: 900px) 27vw, 76vw" />
             </div>
           </Reveal>
-          <p className="h-types__cap">{lang === 'es' ? card.photo.altEs : card.photo.alt}</p>
           <p className="h-types__t">
             <Link href={localePath(card.href, lang)} className="h-types__link" tabIndex={-1}>
               {card.title}
