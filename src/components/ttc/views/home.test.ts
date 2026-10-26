@@ -1061,12 +1061,12 @@ function rules(css: string): { selector: string; body: string }[] {
   }));
 }
 
-describe('home-order: no stylesheet rule moves the cards, the BIM frame or the contact lines with `order`', () => {
+describe('home-order: no stylesheet rule moves the cards or the contact lines with `order`', () => {
   const dir = join(process.cwd(), 'src/app/(public)');
   for (const file of ['home.css', 'home-lower.css', 'home-motion.css']) {
     it(`${file}`, () => {
       const moved = rules(readFileSync(join(dir, file), 'utf8'))
-        .filter(({ selector }) => /h-svc|h-card|h-bim__media|h-bim__text|h-contact__lines|h-contact__form/.test(selector))
+        .filter(({ selector }) => /h-svc|h-card|h-contact__lines|h-contact__form/.test(selector))
         .filter(({ body }) => /(?:^|[;\s])order\s*:/.test(body))
         .map(({ selector }) => selector);
       expect(moved).toEqual([]);

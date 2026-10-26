@@ -36,8 +36,7 @@ import { Words } from './Words';
  * written alt is the catalogue's, always printed), and the ring at the end is
  * a glyph.
  *
- * The BIM card shows `frameCraneSky`, as on /services; the film has its own
- * block (S5).
+ * The threshold card shows `frameCraneSky`, as on /services.
  *
  * The photographs are stock and are never captioned as the firm's work: the
  * tag in the head says so ("Illustrative photographs").
