@@ -462,7 +462,7 @@ export const ui = {
     locationPlaceholder: 'e.g. Coral Gables, Miami-Dade',
     message: 'Project description',
     messagePlaceholder:
-      'Building type, number of stories, what you need engineered or inspected, and any deadline or notice you are facing.',
+      'Building type, number of stories, what you need inspected, assessed or reviewed, and any deadline or notice you are facing.',
     attachments: 'Attachments',
     attachmentsHint:
       'Municipal notice, photographs or drawings. PDF, images, DWG, DXF or ZIP — up to 25 MB each, five files.',
@@ -521,7 +521,7 @@ export const ui = {
        object: one source. */
     home: {
       messagePlaceholder:
-        'Building type, what you need engineered or inspected, and anything else we should know.',
+        'Building type, what you need inspected, assessed or reviewed, and anything else we should know.',
       attachmentsHint:
         'Photographs, drawings or reports. PDF, images, DWG, DXF or ZIP, up to 25 MB each, five files.',
       /* What the visitor reads AFTER sending, said by the firm and without
@@ -2638,7 +2638,7 @@ export const home = {
        does not hold; the state's register, both languages, both counties. */
     title: 'Licensed by the State of Florida.',
     accentWord: 'Florida.',
-    body: 'We stand behind the principles of engineering licensure and the ethical standards that come with it. With Professional Engineering (PE) licenses held by our team in civil, structural and electrical engineering, and a Florida Board Recognized Structural Engineer among them, all issued by the Florida Board of Professional Engineers and open to check on the state’s public register, we hold every drawing, calculation and report to the standard the profession sets, in English or in Spanish, across Miami-Dade and Broward County.',
+    body: 'We stand behind the principles of engineering licensure and the ethical standards that come with it. With Professional Engineering (PE) licenses held by our team in civil, structural and electrical engineering, and a Florida Board Recognized Structural Engineer among them, all issued by the Florida Board of Professional Engineers and open to check on the state’s public register. We hold every drawing, calculation and report to the standard the profession sets, in English or in Spanish, across Miami-Dade and Broward County.',
     rows: [
       { name: 'Civil engineering', mark: 'PE' },
       { name: 'Structural engineering', mark: 'PE · Recognized Structural Engineer' },

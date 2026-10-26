@@ -1138,7 +1138,7 @@ const caseStudies: SiteContent['caseStudies'] = [];
    cannot drift (the Spanish twin of `ui.form.home` in site.ts). */
 const homeForm = {
   messagePlaceholder:
-    'Tipo de edificio, lo que necesita diseñar o inspeccionar y cualquier otro dato que debamos saber.',
+    'Tipo de edificio, lo que necesita inspeccionar, evaluar o revisar y cualquier otro dato que debamos saber.',
   attachmentsHint:
     'Fotografías, planos o informes. PDF, imágenes, DWG, DXF o ZIP, hasta 25 MB cada uno, cinco archivos.',
   /* What the visitor reads after sending, said by the firm (the Spanish twin
@@ -1382,7 +1382,7 @@ export const es: SiteContent = {
       locationPlaceholder: 'p. ej. Coral Gables, Miami-Dade',
       message: 'Descripción del proyecto',
       messagePlaceholder:
-        'Tipo de edificio, número de pisos, qué necesita diseñar o inspeccionar, y cualquier plazo o notificación que tenga pendiente.',
+        'Tipo de edificio, número de pisos, qué necesita inspeccionar, evaluar o revisar, y cualquier plazo o notificación que tenga pendiente.',
       attachments: 'Archivos adjuntos',
       attachmentsHint:
         'Notificación municipal, fotografías o planos. PDF, imágenes, DWG, DXF o ZIP — hasta cinco archivos de 25 MB cada uno.',
@@ -1543,7 +1543,7 @@ export const es: SiteContent = {
       label: 'Credenciales',
       title: 'Con licencia del Estado de Florida.',
       accentWord: 'Florida.',
-      body: 'Respaldamos los principios de la licencia profesional de ingeniería y las normas éticas que la acompañan. Con licencias de Ingeniería Profesional (PE) de nuestro equipo en ingeniería civil, estructural y eléctrica, y entre ellas un Ingeniero Estructural Reconocido por la Junta de Florida, todas emitidas por la Junta de Ingenieros Profesionales de Florida y verificables en el registro público del estado, sostenemos cada plano, cálculo e informe al estándar que fija la profesión, en inglés o en español, en los condados de Miami-Dade y Broward.',
+      body: 'Respaldamos los principios de la licencia profesional de ingeniería y las normas éticas que la acompañan. Con licencias de Ingeniería Profesional (PE) de nuestro equipo en ingeniería civil, estructural y eléctrica, y entre ellas un Ingeniero Estructural Reconocido por la Junta de Florida, todas emitidas por la Junta de Ingenieros Profesionales de Florida y verificables en el registro público del estado. Sostenemos cada plano, cálculo e informe al estándar que fija la profesión, en inglés o en español, en los condados de Miami-Dade y Broward.',
       rows: [
         { name: 'Ingeniería civil', mark: 'PE' },
         { name: 'Ingeniería estructural', mark: 'PE · Ingeniero Estructural Reconocido' },
