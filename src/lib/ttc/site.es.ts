@@ -1486,9 +1486,9 @@ export const es: SiteContent = {
     },
     form: homeForm,
     hero: {
-      titleLines: ['Ingenieros', 'estructurales para', 'toda Florida.'],
+      titleLines: ['Ingenieros para', 'los edificios', 'de Florida.'],
       accentWord: 'Florida.',
-      sub: 'Con licencia en Florida. Inspeccionamos, evaluamos y revisamos la estructura de edificios en todo el estado, para los propietarios, juntas y oficiales de construcción que deben actuar sobre lo que encontramos.',
+      sub: 'Ingenieros Profesionales con licencia en ingeniería civil, estructural y eléctrica. Inspeccionamos, evaluamos y revisamos edificios en todo el estado, para los propietarios, juntas y oficiales de construcción que deben actuar sobre lo que encontramos.',
       cta: 'Contáctenos',
       counties: ['En toda Florida'],
     },

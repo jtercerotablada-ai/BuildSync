@@ -220,8 +220,12 @@ describe('the owner’s vocabulary rules, over every string the home says (spec 
     // "Registered" (spec §1 S1 wording guard). The hero says it in this order.
     it(`${lang}: "licensed in Florida" is said of the Professional Engineers`, () => {
       const c = getContent(lang);
+      // 2026-10-26: the sub-line opens with the licensed Professional
+      // Engineers and names the three disciplines (the title is the buildings).
       expect(c.home.hero.sub).toMatch(
-        lang === 'en' ? /^Licensed in Florida\./ : /^Con licencia en Florida\./,
+        lang === 'en'
+          ? /^Licensed Professional Engineers in civil, structural and electrical engineering\./
+          : /^Ingenieros Profesionales con licencia en ingeniería civil, estructural y eléctrica\./,
       );
       // The owner, 2026-10-25: the firm has Professional, Structural and
       // Electrical Engineers and the home names all three — in the
@@ -909,13 +913,13 @@ for (const lang of LANGS) {
       expect(body).toContain(lang === 'en' ? 'Recognized Structural Engineer' : 'Ingeniero Estructural Reconocido');
     });
 
-    it('names the electrical discipline in the plate’s list, and nowhere else', () => {
+    it('names the electrical discipline in the hero’s sub-line and the plate, and nowhere else', () => {
       const electrical = lang === 'en' ? /\belectrical engineer(?:s|ing)?\b/gi : /\bingenier(?:os|[ií]a) el[eé]ctric[oa]s?\b/gi;
-      // The row; in English the paragraph's "civil, structural and
-      // electrical engineering" as well (Spanish says "ingeniería civil,
-      // estructural y eléctrica": one noun). The hero has no eyebrow of
-      // disciplines any more (the owner, 2026-10-26).
-      expect([...body.matchAll(electrical)]).toHaveLength(lang === 'en' ? 2 : 1);
+      // The row; in English the hero sub-line's and the paragraph's "civil,
+      // structural and electrical engineering" as well (Spanish says
+      // "ingeniería civil, estructural y eléctrica": one noun). The hero has
+      // no eyebrow of disciplines any more (the owner, 2026-10-26).
+      expect([...body.matchAll(electrical)]).toHaveLength(lang === 'en' ? 3 : 1);
       expect(markup).not.toContain('h-hero__eyebrow');
       expect(text(plate)).toMatch(electrical);
     });

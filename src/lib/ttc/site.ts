@@ -2564,9 +2564,12 @@ export const home = {
        disciplines are named in the credentials plate (`home.credentials`);
        the eyebrow that also listed them over this title went on 2026-10-26,
        at his word. No "SE" (Florida has no such license). */
-    titleLines: ['Structural', 'engineers for', 'Florida.'],
-    accentWord: 'Florida.',
-    sub: 'Licensed in Florida. We inspect, assess and review the structure of buildings across the state, for the owners, boards and building officials who have to act on what we find.',
+    /* The owner, 2026-10-26: not "structural engineers" — the firm is civil
+       and structural, with electrical in the inspections — so the title is
+       the buildings, and the sub-line names the three disciplines. */
+    titleLines: ['Engineers for', 'Florida’s', 'buildings.'],
+    accentWord: 'buildings.',
+    sub: 'Licensed Professional Engineers in civil, structural and electrical engineering. We inspect, assess and review buildings across the state, for the owners, boards and building officials who have to act on what we find.',
     cta: 'Get in touch',
     /* The two counties in the hero bar, between the firm's name and the
        pause switch. */
