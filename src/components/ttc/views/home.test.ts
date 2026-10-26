@@ -231,13 +231,13 @@ describe('the owner’s vocabulary rules, over every string the home says (spec 
       // the only license printed anywhere.
       expect(c.home.hero.eyebrow).toEqual(
         lang === 'en'
-          ? ['Professional Engineers', 'Structural Engineers', 'Electrical Engineers']
-          : ['Ingenieros Profesionales', 'Ingenieros Estructurales', 'Ingenieros Eléctricos'],
+          ? ['Civil Engineers', 'Structural Engineers', 'Electrical Engineers']
+          : ['Ingenieros Civiles', 'Ingenieros Estructurales', 'Ingenieros Eléctricos'],
       );
       expect(c.home.credentials.titleLines).toEqual(
         lang === 'en'
-          ? ['Professional Engineers.', 'Structural Engineers.', 'Electrical Engineers.']
-          : ['Ingenieros Profesionales.', 'Ingenieros Estructurales.', 'Ingenieros Eléctricos.'],
+          ? ['Civil Engineers.', 'Structural Engineers.', 'Electrical Engineers.']
+          : ['Ingenieros Civiles.', 'Ingenieros Estructurales.', 'Ingenieros Eléctricos.'],
       );
       expect(c.home.credentials.engineers.scope).toMatch(lang === 'en' ? /structural and electrical/i : /estructural y eléctrica/i);
     });
@@ -250,9 +250,12 @@ describe('the owner’s vocabulary rules, over every string the home says (spec 
     // printed nowhere.
     it(`${lang}: the Structural Engineers line carries the Special Inspector credential, and "SE" and "FRSE" are printed nowhere`, () => {
       const c = getContent(lang);
+      // The owner, 2026-10-25, late: three disciplines, each with its PE —
+      // a civil PE, a structural PE who is also a Special Inspector of
+      // threshold buildings, and an electrical PE. No names, no counts.
       expect(c.home.credentials.marks).toEqual([
         'PE',
-        lang === 'en' ? 'Special Inspector · Threshold Buildings' : 'Inspector Especial · Edificios Threshold',
+        lang === 'en' ? 'PE · Special Inspector · Threshold Buildings' : 'PE · Inspector Especial · Edificios Threshold',
         'PE',
       ]);
       expect(JSON.stringify(c.home)).not.toMatch(/\bFRSE\b/);

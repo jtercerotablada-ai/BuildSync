@@ -1670,7 +1670,7 @@ export const es: SiteContent = {
     },
     form: homeForm,
     hero: {
-      eyebrow: ['Ingenieros Profesionales', 'Ingenieros Estructurales', 'Ingenieros Eléctricos'],
+      eyebrow: ['Ingenieros Civiles', 'Ingenieros Estructurales', 'Ingenieros Eléctricos'],
       titleLines: ['Ingenieros', 'estructurales para', 'el Sur de Florida.'],
       accentWord: 'Florida.',
       sub: 'Con licencia en Florida. Diseñamos edificios nuevos y examinamos los existentes en el Sur de Florida, en Miami-Dade y Broward.',
@@ -1734,8 +1734,8 @@ export const es: SiteContent = {
     },
     credentials: {
       label: 'Credenciales',
-      titleLines: ['Ingenieros Profesionales.', 'Ingenieros Estructurales.', 'Ingenieros Eléctricos.'],
-      marks: ['PE', 'Inspector Especial · Edificios Threshold', 'PE'],
+      titleLines: ['Ingenieros Civiles.', 'Ingenieros Estructurales.', 'Ingenieros Eléctricos.'],
+      marks: ['PE', 'PE · Inspector Especial · Edificios Threshold', 'PE'],
       accentWord: 'Estructurales',
       engineers: {
         k: 'Ingenieros',

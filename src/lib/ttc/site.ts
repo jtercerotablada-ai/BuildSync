@@ -2731,7 +2731,7 @@ export const home = {
     /* The owner, 2026-10-25: "Professional Engineers PE, Structural
        Engineers, Electrical Engineer PE: we have them" — so the three
        disciplines are named. No "SE" (Florida has no such license). */
-    eyebrow: ['Professional Engineers', 'Structural Engineers', 'Electrical Engineers'],
+    eyebrow: ['Civil Engineers', 'Structural Engineers', 'Electrical Engineers'],
     titleLines: ['Structural', 'engineers for', 'South Florida.'],
     accentWord: 'Florida.',
     sub: 'Licensed in Florida. We design new buildings and examine existing ones across South Florida, in Miami-Dade and Broward.',
@@ -2805,7 +2805,7 @@ export const home = {
     /* The three disciplines the owner named (2026-10-25): Professional,
        Structural and Electrical Engineers. The registration in Florida is
        card 2's own line, and the Florida license is card 1's. No "SE". */
-    titleLines: ['Professional Engineers.', 'Structural Engineers.', 'Electrical Engineers.'],
+    titleLines: ['Civil Engineers.', 'Structural Engineers.', 'Electrical Engineers.'],
     /* The mark printed at the end of each line (2026-10-25: "Professional
        Engineers PE, Structural Engineers SE y Electrical Engineer PE"). Florida
        has no SE license, and the structural associate's own site shows a PE
@@ -2816,7 +2816,7 @@ export const home = {
        Inspector certified under ch. 471 to inspect threshold buildings, s.
        553.71(9) F.S.). No number, no name. If the associate later receives
        the FRSE recognition (s. 471.055 F.S.), that is a separate edit. */
-    marks: ['PE', 'Special Inspector · Threshold Buildings', 'PE'],
+    marks: ['PE', 'PE · Special Inspector · Threshold Buildings', 'PE'],
     accentWord: 'Structural',
     /* Card 1 names the license, with no number, and says which engineering
        it covers ("scope": the owner's own words were that the firm has the
