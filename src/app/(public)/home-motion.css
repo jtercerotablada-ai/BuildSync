@@ -84,8 +84,6 @@
       h-rv-clip 1.1s var(--h-ease) backwards,
       h-rv-settle 1.6s var(--h-ease) backwards;
   }
-  /* The BIM frame's four gold corner ticks come in once the picture has. */
-
   /* E8 · a heading's words rise out of their masks (Words.tsx): 1.25 s, 55 ms
      apart (`--wi` is a word's index in the whole heading). Opacity is 0 while
      a word waits and comes up in the first third of its rise: the mask's ink

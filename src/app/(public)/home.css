@@ -1099,7 +1099,9 @@ html:not(.js) .mp-home .h-rib__row--rev .h-rib__track {
   .mp-home .h-hero__media,
   .mp-home .h-hero__scrim,
   .mp-home .h-rib__rows,
-  .mp-home .h-ph,
+  .mp-home .h-ph {
+    display: none !important;
+  }
 }
 
 /* ═══ 9 · THE HEADER'S CALL BUTTON ═══════════════════════════════════════
