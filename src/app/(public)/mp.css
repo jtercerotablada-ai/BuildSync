@@ -4010,20 +4010,37 @@ a.mp-menu__mail {
   .mp-form__row {
     grid-template-columns: minmax(0, 1fr);
   }
-  /* Two link columns, Navigate beside Services, and Contact full width
-     under them (its email and address are the long lines). Every link stays
-     on screen and keeps its 44px row; a long Spanish label wraps inside it. */
+  /* Two link columns, each centred: Navigate beside Services, and Contact
+     under Navigate in the first column (the owner, 2026-10-26: "Navigate y
+     Services centrados en dos columnas, y Contact centrado en la primera
+     columna siguiendo la continuidad de Navigate"). Every link keeps its
+     44px row and a long label wraps inside it. The email is the one line
+     wider than its column: the links are flex rows here, and a flex
+     `center` overflows it evenly on both sides, so it stays on the column's
+     axis (text-align would start it at the left edge), spilling a few px
+     into the gutter and the gap. */
   .mp-footer__cols {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--mp-6) var(--mp-4);
   }
-  .mp-footer__col:last-child {
-    grid-column: 1 / -1;
+  .mp-footer__col {
+    text-align: center;
   }
   .mp-footer__col a {
+    justify-content: center;
     line-height: 1.3;
     padding-block: 0.35rem;
   }
+}
+/* The narrowest phones (320–360px): the centred email would reach past the
+   left edge of the screen at body size; one step smaller keeps it inside. */
+@media (max-width: 360px) {
+  .mp-footer__col a[href^='mailto:'] {
+    font-size: 0.9rem;
+  }
+}
+
+@media (max-width: 640px) {
   /* Key · value rows and spec rows: one tighter beat on a phone. */
   .mp-pillars li {
     padding-block: var(--mp-3);
