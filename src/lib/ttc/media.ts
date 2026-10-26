@@ -246,6 +246,33 @@ const catalogue = {
      on the top deck, the crane that is building it against open sky.
      Retouched once, and only to remove a legible crane-rental name from the
      counter-jib panel and a small maker's mark — see docs/IMAGE-CREDITS.md. */
+  /* 2026-10-26, the owner: "las imágenes de cada servicio deben ser acordes
+     al servicio". Photographs of the service's own work, for the home's cards
+     and /services (`imagery.services`): a spalled slab, a condominium tower,
+     drawings under review (Pexels). A facade under rope-access inspection
+     is cut and waiting (`facadeRopeInspection`): the owner wants the
+     recertification card to show an inspector at a two- or three-storey
+     building, which Pexels does not have. */
+  facadeRopeInspection: p(
+    'facade-rope-inspection', 2000, 1125,
+    'Rope-access technicians inspecting the balconied facade of a concrete tower',
+    'Técnicos en cuerda inspeccionando la fachada con balcones de una torre de concreto',
+  ),
+  slabSpallingRebar: p(
+    'slab-spalling-rebar', 2000, 1335,
+    'Spalled concrete slab edge with its reinforcing bars exposed',
+    'Borde de losa de concreto desconchado con las barras de refuerzo a la vista',
+  ),
+  condoBalconiesTower: p(
+    'condo-balconies-tower', 2000, 2667,
+    'Condominium tower of stacked balconies, seen from below',
+    'Torre de condominios con balcones apilados, vista desde abajo',
+  ),
+  drawingsReviewDesk: p(
+    'drawings-review-desk', 2000, 1333,
+    'Hands over a set of structural drawings, one marking with a pencil',
+    'Manos sobre un juego de planos estructurales, una marcando con lápiz',
+  ),
   frameCraneSky: p(
     'frame-crane-sky', 2000, 1415,
     'Cast-in-place concrete frame of a tower under construction, the tower crane above it against a clear sky',

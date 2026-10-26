@@ -856,10 +856,13 @@ for (const lang of LANGS) {
       for (const tag of tags) expect(attr(tag, 'aria-hidden'), tag).toBe('true');
     });
 
-    it('does not use the worker with the trowel, and uses the spare photographs the spec names', () => {
+    it('does not use the worker with the trowel, and uses the photographs of the services’ own work', () => {
       const stem = (src: string) => src.replace(/\.[a-z]+$/, '');
       expect(markup).not.toContain(stem(photo.repairSoffitTrowel.src));
-      for (const p of [photo.midriseBalconies, photo.miamiTowersUp, photo.midriseClean, photo.midriseGlassBalconies]) {
+      // The owner, 2026-10-26: each service card shows the service's own work
+      // (a spalled slab, a condominium tower, drawings under review); the
+      // white mid-rise and the glass balconies left the cards that day.
+      for (const p of [photo.midriseBalconies, photo.miamiTowersUp, photo.slabSpallingRebar, photo.condoBalconiesTower, photo.drawingsReviewDesk]) {
         expect(markup, p.src).toContain(stem(p.src));
       }
       // The owner, 2026-10-25: no photograph of a worker on the home (it reads

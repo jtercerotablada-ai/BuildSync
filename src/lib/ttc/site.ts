@@ -2411,12 +2411,20 @@ export const imagery = {
      A photograph of coordination itself (sleeves through a slab before a
      pour) would fit better; none is in the catalogue yet. */
   services: {
+    /* 2026-10-26, the owner: each photograph shows the service's own work
+       — a spalled slab for the assessments, a condominium tower for the
+       milestone inspection, drawings under review for the peer review;
+       Broward's coast and the frame going up stay. The recertification
+       card keeps the towers by the water until a photograph of an
+       inspector at a two- or three-storey building is found (his words;
+       Pexels has none). The white mid-rise, the glass balconies and the
+       fluted tower are spares now. */
     'building-recertification': photo.recertMiamiDade,
     'broward-bsip': photo.bsipBroward,
-    'milestone-inspections': photo.midriseClean,
-    'structural-condition-assessments': photo.midriseGlassBalconies,
+    'milestone-inspections': photo.condoBalconiesTower,
+    'structural-condition-assessments': photo.slabSpallingRebar,
     'threshold-inspections': photo.frameCraneSky,
-    'peer-review': photo.peerTowerBw,
+    'peer-review': photo.drawingsReviewDesk,
   } as Record<string, Photo>,
   /* The hero aside, the only clip left is the model in the new-buildings
      section. The recertification band and its aerial clip are gone: the two
