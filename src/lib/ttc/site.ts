@@ -2995,7 +2995,7 @@ export const servicesPage = {
      October 20, 2026 is no "how to read this page" text. It ends on the
      step that costs nothing. Keep "structural engineering services" whole:
      it is where the H1's words are answered on the page (seo.test.ts). */
-  sub: 'Organized by what you need, not by what we do. Eight structural engineering services, for buildings already standing and for new projects. The proposal is free.',
+  sub: 'Organized by what you need, not by what we do. Six structural engineering services, for buildings already standing and for buildings going up. The proposal is free.',
   /* The label of each service row's disclosure (ServiceCard): when you need
      it, what is included, what you receive. Short, so it never wraps. */
   cardMore: 'Details',

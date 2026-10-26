@@ -20,7 +20,7 @@ import { WorkView } from './WorkView';
  * lines, duties and caveats as each other, and the old home page's two
  * program sections printed the program pages' timing rows whole (those
  * sections left with the old home page, 2026-10-25; the home is now a firm
- * presentation and names the two programs as two of eight services).
+ * presentation and names the two programs as two of six services).
  *
  * This file renders every page the way pages.test.ts does and measures the
  * same thing the report does, for those four pages: a block of text of six
