@@ -2801,21 +2801,23 @@ export const home = {
   /* THE CREDENTIALS, the way the large firms print them (the owner,
      2026-10-25, of emxse.com's block): a list of the disciplines with the
      credential behind each, a heading and one paragraph. Disciplines, not
-     people: no name, no count, no license number. "SE" is never printed
-     (Florida issues no SE license); the structural credential is the Special
-     Inspector of threshold buildings (s. 553.71(9) F.S.). Nothing of the
+     people: no name, no count, no license number. "SE" is never printed:
+     Florida issues no SE license and nobody on the team holds one from
+     another state (the owner asked for EMX's "(PE) and (SE) licenses" on
+     2026-10-25 and was told why not; the Special Inspector tag he had chosen
+     before was dropped the same day at his request). Nothing of the
      contractor or of the combined experience is here any more (the owner,
      the same day: "quitar eso de ambas empresas de la página principal");
-     those live on /about and /existing-buildings. The fourth row, the firm's
-     registration, is `company.registry` (HomeCredentials). */
+     those live on /about and /existing-buildings. The firm's own
+     registration is not listed either ("eso es lógico"). */
   credentials: {
     label: 'Credentials',
     title: 'Licensed in Florida, in every discipline we practice.',
     accentWord: 'Florida,',
-    body: 'Civil, structural and electrical engineering, each under a Florida Professional Engineer license, and the firm registered with the state as an engineering business. Structural inspections of threshold buildings by a certified Special Inspector. Every license is issued by the Florida Board of Professional Engineers and can be checked on the state’s public register.',
+    body: 'Professional Engineering (PE) licenses in civil, structural and electrical engineering, held in Florida. Every license is issued by the Florida Board of Professional Engineers and can be checked on the state’s public register. We practice across Miami-Dade and Broward County, and issue drawings, calculations and reports in English or in Spanish, as each client prefers, to the same detailing standard on every project.',
     rows: [
       { name: 'Civil engineering', mark: 'PE' },
-      { name: 'Structural engineering', mark: 'PE · Special Inspector · Threshold Buildings' },
+      { name: 'Structural engineering', mark: 'PE' },
       { name: 'Electrical engineering', mark: 'PE' },
     ],
   },

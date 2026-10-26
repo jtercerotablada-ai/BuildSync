@@ -251,11 +251,10 @@ describe('the owner’s vocabulary rules, over every string the home says (spec 
       // The owner, 2026-10-25, late: three disciplines, each with its PE —
       // a civil PE, a structural PE who is also a Special Inspector of
       // threshold buildings, and an electrical PE. No names, no counts.
-      expect(c.home.credentials.rows.map((r) => r.mark)).toEqual([
-        'PE',
-        lang === 'en' ? 'PE · Special Inspector · Threshold Buildings' : 'PE · Inspector Especial · Edificios Threshold',
-        'PE',
-      ]);
+      // ...and, later that day, the Special Inspector tag was dropped at his
+      // request: the three rows carry "PE" and nothing else.
+      expect(c.home.credentials.rows.map((r) => r.mark)).toEqual(['PE', 'PE', 'PE']);
+      expect(c.home.credentials.body).toMatch(/\(PE\)/);
       expect(JSON.stringify(c.home)).not.toMatch(/\bFRSE\b/);
       const texts = JSON.stringify(c.home);
       expect(texts).not.toMatch(/\bSE\b|\bS\.E\./);
@@ -497,7 +496,8 @@ describe('the Spanish mirror has the English home’s shape (spec item 9)', () =
       'home.ribbon.types[1]', // "Townhouses", the word Miami uses
       'home.contact.whatsapp',
       'home.credentials.accentWord', // "Florida,"
-      'home.credentials.rows[0].mark', // "PE" and "PE": credential marks
+      'home.credentials.rows[0].mark', // "PE", three times: credential marks
+      'home.credentials.rows[1].mark',
       'home.credentials.rows[2].mark',
     ]);
     const english = new Map(entries(en, 'home').map((e) => [e.path, e.text]));
@@ -890,7 +890,7 @@ for (const lang of LANGS) {
       for (const no of ['105256', '40285']) expect(body, no).not.toContain(no);
     });
 
-    it('lists the three disciplines with their marks and the firm’s registration, under the heading and the paragraph', () => {
+    it('lists the three disciplines with their marks under the heading and the paragraph, and nothing else', () => {
       const h2 = plate.match(/<h2\b[^>]*>([\s\S]*?)<\/h2>/)![1];
       expect(text(h2).replace(/\s+([.,])/g, '$1')).toBe(c.home.credentials.title);
       expect(text(plate)).toContain(c.home.credentials.body);
@@ -898,10 +898,10 @@ for (const lang of LANGS) {
         name: text(m[1].match(/<span class="h-cred__name">([\s\S]*?)<\/span>/)![1]),
         mark: text(m[1].match(/<span class="h-cred__tag">([\s\S]*?)<\/span>/)![1]),
       }));
-      expect(rows).toEqual([
-        ...c.home.credentials.rows.map((r) => ({ name: r.name, mark: r.mark })),
-        { name: c.company.registry, mark: c.partner.engineering.registered },
-      ]);
+      // Three rows and no more: the firm's own registration is not listed
+      // (the owner, 2026-10-25: "eso es lógico").
+      expect(rows).toEqual(c.home.credentials.rows.map((r) => ({ name: r.name, mark: r.mark })));
+      expect(text(plate)).not.toContain(c.company.registry);
       // Never "SE": a license Florida does not have; never "FRSE": the
       // Board's recognition, which nothing public shows the associate holds.
       expect(found(wordsExact('SE', 'S\\.E\\.'), body)).toEqual([]);

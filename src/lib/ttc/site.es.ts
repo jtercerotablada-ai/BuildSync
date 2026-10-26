@@ -1736,10 +1736,10 @@ export const es: SiteContent = {
       label: 'Credenciales',
       title: 'Con licencia en Florida, en cada disciplina que ejercemos.',
       accentWord: 'Florida,',
-      body: 'Ingeniería civil, estructural y eléctrica, cada una bajo una licencia de Ingeniero Profesional de Florida, y la firma registrada ante el estado como empresa de ingeniería. Inspecciones estructurales de edificios threshold a cargo de un Inspector Especial certificado. Cada licencia la emite la Junta de Ingenieros Profesionales de Florida y puede verificarse en el registro público del estado.',
+      body: 'Licencias de Ingeniería Profesional (PE) en ingeniería civil, estructural y eléctrica, otorgadas en Florida. Cada licencia la emite la Junta de Ingenieros Profesionales de Florida y puede verificarse en el registro público del estado. Trabajamos en los condados de Miami-Dade y Broward, y entregamos planos, cálculos e informes en inglés o en español, según prefiera cada cliente, con el mismo estándar de detallado en cada proyecto.',
       rows: [
         { name: 'Ingeniería civil', mark: 'PE' },
-        { name: 'Ingeniería estructural', mark: 'PE · Inspector Especial · Edificios Threshold' },
+        { name: 'Ingeniería estructural', mark: 'PE' },
         { name: 'Ingeniería eléctrica', mark: 'PE' },
       ],
     },

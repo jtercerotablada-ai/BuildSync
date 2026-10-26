@@ -11,19 +11,19 @@ import { Words } from './Words';
  * and one paragraph at the right.
  *
  * THE LIST is the disciplines the firm practices, each with the credential
- * behind it (`home.credentials.rows`): civil engineering — PE; structural
- * engineering — PE, and a Special Inspector of threshold buildings (Florida's
- * own term, s. 553.71(9) F.S.: a licensed engineer certified to inspect
- * threshold buildings; the owner chose it over "SE", a license Florida does
- * not issue, and over FRSE, a recognition nothing public shows); electrical
- * engineering — PE; and the firm itself, `company.registry` ("Registered
- * Florida Engineering Business"), status "Registered". DISCIPLINES, NOT
- * PEOPLE: no name, no count, no license number (the owner, 2026-10-24:
- * "quita los números de ingeniería como las grandes").
+ * behind it (`home.credentials.rows`): civil, structural and electrical
+ * engineering, each PE (no "SE": Florida issues no such license and nobody on
+ * the team holds one from another state — the owner asked for EMX's "(PE)
+ * and (SE) licenses" on 2026-10-25 and was told why not; the Special
+ * Inspector tag he had chosen before was dropped the same day at his
+ * request). Nothing else: the firm's own registration as an engineering
+ * business is not listed (the owner, the same night: "eso es lógico").
+ * DISCIPLINES, NOT PEOPLE: no name, no count, no license number (the owner,
+ * 2026-10-24: "quita los números de ingeniería como las grandes").
  *
  * THE HEADING AND THE PARAGRAPH are the firm's own words, not EMX's: licensed
- * in Florida in every discipline it practices; the firm registered with the
- * state. Nothing here names the contractor, a person, who signs what, or a
+ * in Florida in every discipline it practices, licenses the state issues and
+ * anyone can check. Nothing here names the contractor, a person, who signs what, or a
  * figure: the owner, 2026-10-25, took "lo de ambas empresas" off the home
  * page — Precision Source and the combined-experience sentence live on
  * /about and /existing-buildings, with the contractor's numbers where the
@@ -40,12 +40,7 @@ import { Words } from './Words';
 export function HomeCredentials({ lang }: { lang: Lang }) {
   const c = getContent(lang);
   const h = c.home.credentials;
-  const firm = c.company;
-
-  const rows: { name: string; mark: string }[] = [
-    ...h.rows,
-    ...(firm.registry ? [{ name: firm.registry, mark: c.partner.engineering.registered }] : []),
-  ];
+  const rows: readonly { name: string; mark: string }[] = h.rows;
 
   return (
     <section id="credentials" className="h-plate h-cred mp-surface--graphite" aria-labelledby="h-cred-h">
