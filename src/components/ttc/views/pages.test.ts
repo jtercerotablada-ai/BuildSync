@@ -214,11 +214,11 @@ describe('images: every <img> the public pages send', () => {
       const firm = esc(c.company.name);
       expect(altOf(c.company.logo.markDarkXs)).toEqual([firm]);
       expect(altOf(c.company.logo.markLightXs)).toEqual([firm]);
-      // The firm's white monogram is credentials card 2; the dark one was the
-      // old engineering card's and is no longer printed on the home.
-      expect(altOf(c.company.logo.markLightSm)).toEqual([firm]);
+      // No monogram and no contractor logo on the home since 2026-10-25: the
+      // credentials plate is a list, and the two firms are /about's.
+      expect(altOf(c.company.logo.markLightSm)).toEqual([]);
       expect(altOf(c.company.logo.markDarkSm)).toEqual([]);
-      expect(altOf(c.partner.construction.logo.src)).toEqual([esc(c.partner.construction.name)]);
+      expect(altOf(c.partner.construction.logo.src)).toEqual([]);
     }
   });
 });

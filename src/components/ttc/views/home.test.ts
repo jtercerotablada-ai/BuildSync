@@ -31,7 +31,7 @@ vi.mock('next/navigation', () => ({ usePathname: () => route.pathname }));
  *
  *   1. DATA-LEVEL GUARDS (here, since slice 1): they read the content object
  *      `home` and the few strings the home borrows (`reach.formHome`,
- *      `ui.pauseMotion`, `partner.lede`…) straight from the bundle, so they
+ *      `ui.pauseMotion`…) straight from the bundle, so they
  *      need no rendered page and they hold before any component exists.
  *      Spec items 2 and 3 (vocabulary, names, SE, headcount, builds) over
  *      every string; 4 (the order); 6 (each service's line is its own);
@@ -86,7 +86,6 @@ function homeStrings(lang: Lang): Entry[] {
     { path: 'ui.pauseMotion', text: c.ui.pauseMotion },
     { path: 'reach.formHome', text: c.reach.formHome },
     { path: 'reach.whatsappTextHome', text: c.reach.whatsappTextHome },
-    { path: 'partner.lede', text: c.partner.lede },
   ];
 }
 
@@ -100,7 +99,6 @@ function homeStrings(lang: Lang): Entry[] {
 const DIGITS_ALLOWED: Record<string, RegExp> = {
   'home.form.attachmentsHint': /25 MB/g,
   'ui.form.home.attachmentsHint': /25 MB/g,
-  'partner.lede': /\b30\b/g,
 };
 
 /* ── Matching whole words ─────────────────────────────────────────────── */
@@ -234,12 +232,12 @@ describe('the owner’s vocabulary rules, over every string the home says (spec 
           ? ['Civil Engineers', 'Structural Engineers', 'Electrical Engineers']
           : ['Ingenieros Civiles', 'Ingenieros Estructurales', 'Ingenieros Eléctricos'],
       );
-      expect(c.home.credentials.titleLines).toEqual(
+      expect(c.home.credentials.rows.map((r) => r.name)).toEqual(
         lang === 'en'
-          ? ['Civil Engineers.', 'Structural Engineers.', 'Electrical Engineers.']
-          : ['Ingenieros Civiles.', 'Ingenieros Estructurales.', 'Ingenieros Eléctricos.'],
+          ? ['Civil engineering', 'Structural engineering', 'Electrical engineering']
+          : ['Ingeniería civil', 'Ingeniería estructural', 'Ingeniería eléctrica'],
       );
-      expect(c.home.credentials.engineers.scope).toMatch(lang === 'en' ? /structural and electrical/i : /estructural y eléctrica/i);
+      expect(c.home.credentials.body).toMatch(lang === 'en' ? /structural and electrical/i : /estructural y eléctrica/i);
     });
 
     // The owner, 2026-10-25: "SE" for the structural engineers. Florida has
@@ -253,13 +251,12 @@ describe('the owner’s vocabulary rules, over every string the home says (spec 
       // The owner, 2026-10-25, late: three disciplines, each with its PE —
       // a civil PE, a structural PE who is also a Special Inspector of
       // threshold buildings, and an electrical PE. No names, no counts.
-      expect(c.home.credentials.marks).toEqual([
+      expect(c.home.credentials.rows.map((r) => r.mark)).toEqual([
         'PE',
         lang === 'en' ? 'PE · Special Inspector · Threshold Buildings' : 'PE · Inspector Especial · Edificios Threshold',
         'PE',
       ]);
       expect(JSON.stringify(c.home)).not.toMatch(/\bFRSE\b/);
-      expect(c.home.credentials.titleLines[1]).toMatch(lang === 'en' ? /^Structural Engineers\.$/ : /^Ingenieros Estructurales\.$/);
       const texts = JSON.stringify(c.home);
       expect(texts).not.toMatch(/\bSE\b|\bS\.E\./);
       expect(texts).not.toMatch(/licensed structural engineer|ingenieros? estructurales? con licencia|florida SE|SE (?:license|licen)/i);
@@ -334,24 +331,6 @@ describe('the owner’s vocabulary rules, over every string the home says (spec 
       expect(find(NOT_A_PERSON, fine), fine).toBe(false);
     }
   });
-});
-
-describe('the one sentence of the credentials plate (partner.lede)', () => {
-  for (const lang of LANGS) {
-    const c = getContent(lang);
-
-    // The owner's approved sentence, 2026-10-24, in two: the figure is the
-    // two firms TOGETHER, and it is never one person's.
-    it(`${lang}: more than 30 years of COMBINED experience, and two firms, in one text node`, () => {
-      expect(c.partner.lede).toBe(
-        lang === 'en'
-          ? 'More than 30 years of combined experience. Two licensed firms, working as one team.'
-          : 'Más de 30 años de experiencia combinada. Dos empresas con licencia, trabajando como un solo equipo.',
-      );
-      expect(c.partner.lede).toMatch(lang === 'en' ? /\bcombined\b/ : /\bcombinada\b/);
-      expect(c.partner.lede).toMatch(lang === 'en' ? /\bTwo licensed firms\b/ : /\bDos empresas con licencia\b/);
-    });
-  }
 });
 
 describe('the order of the eight services (spec item 4, data part)', () => {
@@ -499,11 +478,11 @@ describe('the Spanish mirror has the English home’s shape (spec item 9)', () =
   it('writes the three-line headings to the same line count', () => {
     for (const home of [en, es]) {
       expect(home.hero.titleLines).toHaveLength(3);
-      expect(home.credentials.titleLines).toHaveLength(3);
+      expect(home.credentials.rows).toHaveLength(3);
       expect(home.statement.lines).toHaveLength(3);
     }
     expect(es.hero.titleLines.length).toBe(en.hero.titleLines.length);
-    expect(es.credentials.titleLines.length).toBe(en.credentials.titleLines.length);
+    expect(es.credentials.rows.length).toBe(en.credentials.rows.length);
     expect(es.statement.lines.length).toBe(en.statement.lines.length);
     expect(es.ribbon.types.length).toBe(en.ribbon.types.length);
   });
@@ -517,8 +496,9 @@ describe('the Spanish mirror has the English home’s shape (spec item 9)', () =
       'home.hero.counties[1]',
       'home.ribbon.types[1]', // "Townhouses", the word Miami uses
       'home.contact.whatsapp',
-      'home.credentials.marks[0]', // "PE" and "PE": credential marks
-      'home.credentials.marks[2]',
+      'home.credentials.accentWord', // "Florida,"
+      'home.credentials.rows[0].mark', // "PE" and "PE": credential marks
+      'home.credentials.rows[2].mark',
     ]);
     const english = new Map(entries(en, 'home').map((e) => [e.path, e.text]));
     const same = entries(es, 'home')
@@ -550,7 +530,7 @@ describe('each accent word is one phrase of its own heading, once (what the rend
       ['statement', h.statement.accentWord, h.statement.dim],
       ['bim', h.bim.accentWord, h.bim.title],
       ['types', h.types.accentWord, h.types.title],
-      ['credentials', h.credentials.accentWord, h.credentials.titleLines.join(' ')],
+      ['credentials', h.credentials.accentWord, h.credentials.title],
       ['contact', h.contact.accentWord, h.contact.title],
     ];
   };
@@ -676,12 +656,6 @@ function divAt(markup: string, start: number): string {
   }
   throw new Error('unbalanced <div>');
 }
-/** The contractor's card: the one `div.mp-partner__card`. */
-function contractorCard(markup: string): string {
-  const at = [...markup.matchAll(/<div class="mp-partner__card\b/g)].map((m) => m.index!);
-  expect(at, 'one contractor card on the home page').toHaveLength(1);
-  return divAt(markup, at[0]);
-}
 /** A `<section id="…">`, whole. */
 function section(markup: string, id: string): string {
   const open = markup.indexOf(`<section id="${id}"`);
@@ -761,9 +735,9 @@ for (const lang of LANGS) {
       });
     }
 
-    // Spec item 3. The firm's own name holds "Tercero Tablada" and the
-    // contractor's card holds the contractor: the name is removed before the
-    // person patterns are read, the card before the contractor's is.
+    // Spec item 3. The firm's own name holds "Tercero Tablada": the name is
+    // removed before the person patterns are read. (The contractor's card
+    // left the home on 2026-10-25, so nothing else is exempt.)
     it('names the firm in full, and never with an ampersand', () => {
       expect(body).toContain(FIRM);
       // "Tercero Tablada" is only ever the first words of the full name.
@@ -777,19 +751,14 @@ for (const lang of LANGS) {
       // about the firm's name, held above.
       if (says === 'an ampersand') continue;
       it(`says nothing of ${says}`, () => {
-        const outside = markup.replace(contractorCard(markup), ' ');
-        expect(found(pattern, withoutFirm(text(outside)))).toEqual([]);
-        expect(attributeWords(outside).flatMap((w) => found(pattern, withoutFirm(w)))).toEqual([]);
+        expect(found(pattern, withoutFirm(body))).toEqual([]);
+        expect(attributeWords(markup).flatMap((w) => found(pattern, withoutFirm(w)))).toEqual([]);
       });
     }
 
-    it('has no digit but the phone number, the two license numbers, the 30 years and the file size', () => {
-      let rest = body;
-      for (const a of [
-        c.contact.phone!.display,
-        ...c.partner.construction.licenses.map((l) => l.number),
-      ]) rest = rest.split(a).join(' ');
-      for (const a of [/\b30\b/g, /\b25 MB\b/g]) rest = rest.replace(a, ' ');
+    it('has no digit but the phone number and the file size', () => {
+      let rest = body.split(c.contact.phone!.display).join(' ');
+      rest = rest.replace(/\b25 MB\b/g, ' ');
       expect(found(/\d/, rest)).toEqual([]);
     });
 
@@ -908,50 +877,31 @@ for (const lang of LANGS) {
     });
   });
 
-  describe(`${lang}: the credentials plate and the contractor (spec items 3 and 7)`, () => {
+  describe(`${lang}: the credentials plate (the owner, 2026-10-25: the disciplines, nothing of the two firms)`, () => {
     const plate = section(markup, 'credentials');
     const k = c.partner.construction;
-    const dbpr = esc(c.leadership.license!.url);
 
-    it('puts the Precision Source logo, the role line and both license numbers in one card, as links to the state’s search', () => {
-      const card = contractorCard(markup);
-      expect(markup.split(k.logo.src).length - 1).toBe(1);
-      expect(card).toContain(k.logo.src);
-      expect(text(card)).toContain(k.role);
-      expect(text(card)).toContain(k.name);
-      for (const l of k.licenses) {
-        const link = [...card.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/g)].filter((m) => attr(m[1], 'href') === dbpr && text(m[2]).startsWith(l.number));
-        expect(link, l.number).toHaveLength(1);
-        expect(text(link[0][2]), l.number).toContain(c.ui.engineer.verify);
-      }
-    });
-
-    it('names the contractor, and says “partner”, nowhere else', () => {
-      const card = contractorCard(markup);
-      const outside = markup.replace(card, ' ');
-      expect(outside).not.toContain(k.logo.src);
-      expect(found(words('Precision', k.licenses[0].number, k.licenses[1].number), text(outside))).toEqual([]);
-      expect(found(words('contractors?', 'contratistas?', 'partners?', 'aliad[oa]s?', 'socios?'), text(outside))).toEqual([]);
-      expect(text(card).match(lang === 'en' ? /\bpartner\b/gi : /\baliad[oa]\b/gi) ?? []).toHaveLength(1);
-    });
-
-    it('prints the sentence of the plate once, as one text node, and no engineering license number', () => {
-      expect(body.split(c.partner.lede).length - 1).toBe(1);
-      expect(markup.split(`>${esc(c.partner.lede)}<`).length - 1).toBe(1);
+    it('names neither the contractor nor its numbers, and says "partner" nowhere on the home', () => {
+      expect(markup).not.toContain(k.logo.src);
+      expect(markup).not.toContain('mp-partner__card');
+      expect(found(words('Precision', k.licenses[0].number, k.licenses[1].number), body)).toEqual([]);
+      expect(found(words('contractors?', 'contratistas?', 'partners?', 'aliad[oa]s?', 'socios?'), body)).toEqual([]);
+      expect(body).not.toMatch(/combined experience|experiencia combinada|licensed firms|empresas con licencia/i);
       for (const no of ['105256', '40285']) expect(body, no).not.toContain(no);
-      expect(text(plate)).toContain(c.company.registry);
     });
 
-    it('carries the three disciplines with their marks: PE, the Special Inspector credential and PE, and prints SE and FRSE nowhere', () => {
+    it('lists the three disciplines with their marks and the firm’s registration, under the heading and the paragraph', () => {
       const h2 = plate.match(/<h2\b[^>]*>([\s\S]*?)<\/h2>/)![1];
-      const tagTexts = [...h2.matchAll(/<span class="h-cred__tag(?: h-cred__tag--wide)?">([^<]*)<\/span>/g)].map((m) => m[1]);
-      expect(tagTexts).toEqual([...c.home.credentials.marks]);
-      // (The accent word is a span of its own: the text has a space before
-      // the full stop that follows it.)
-      const heading = text(h2).replace(/\s+([.,])/g, '$1');
-      for (const [i, line] of c.home.credentials.titleLines.entries()) {
-        expect(heading, line).toContain(`${line} ${c.home.credentials.marks[i]}`);
-      }
+      expect(text(h2).replace(/\s+([.,])/g, '$1')).toBe(c.home.credentials.title);
+      expect(text(plate)).toContain(c.home.credentials.body);
+      const rows = [...plate.matchAll(/<li class="h-cred__row"[^>]*>([\s\S]*?)<\/li>/g)].map((m) => ({
+        name: text(m[1].match(/<span class="h-cred__name">([\s\S]*?)<\/span>/)![1]),
+        mark: text(m[1].match(/<span class="h-cred__tag">([\s\S]*?)<\/span>/)![1]),
+      }));
+      expect(rows).toEqual([
+        ...c.home.credentials.rows.map((r) => ({ name: r.name, mark: r.mark })),
+        { name: c.company.registry, mark: c.partner.engineering.registered },
+      ]);
       // Never "SE": a license Florida does not have; never "FRSE": the
       // Board's recognition, which nothing public shows the associate holds.
       expect(found(wordsExact('SE', 'S\\.E\\.'), body)).toEqual([]);
@@ -959,11 +909,14 @@ for (const lang of LANGS) {
       expect(body).not.toContain('FRSE');
     });
 
-    it('names the electrical engineers in the hero’s eyebrow and the plate’s headline, and nowhere else', () => {
-      const electrical = lang === 'en' ? /\belectrical engineers?\b/gi : /\bingenieros? el[eé]ctricos?\b/gi;
-      expect([...body.matchAll(electrical)]).toHaveLength(2);
+    it('names the electrical discipline in the hero’s eyebrow and the plate’s list, and nowhere else', () => {
+      const electrical = lang === 'en' ? /\belectrical engineer(?:s|ing)?\b/gi : /\bingenier(?:os|[ií]a) el[eé]ctric[oa]s?\b/gi;
+      // The eyebrow and the row; in English the paragraph's "civil,
+      // structural and electrical engineering" as well (Spanish says
+      // "ingeniería civil, estructural y eléctrica": one noun).
+      expect([...body.matchAll(electrical)]).toHaveLength(lang === 'en' ? 3 : 2);
       expect(text(markup.match(/<p class="h-hero__eyebrow">[\s\S]*?<\/p>/)![0])).toMatch(electrical);
-      expect(text(plate.match(/<h2\b[^>]*>[\s\S]*?<\/h2>/)![0])).toMatch(electrical);
+      expect(text(plate)).toMatch(electrical);
     });
   });
 
@@ -1044,18 +997,6 @@ for (const lang of LANGS) {
     });
   });
 
-  // QA finding F2 / A8: the long credential closes its own line in the
-  // heading's accessible name, and no mark runs into the next discipline.
-  describe(`${lang}: the credentials heading, as it is read out`, () => {
-    it('closes each mark with a spoken full stop, outside the visible tag', () => {
-      const h2 = section(markup, 'credentials').match(/<h2\b[^>]*>([\s\S]*?)<\/h2>/)![1];
-      const marks = c.home.credentials.marks;
-      for (const m of marks) {
-        expect(h2, m).toContain(`${esc(m)}</span><span class="mp-sr-only">. </span>`);
-      }
-      expect(h2.match(/class="mp-sr-only"/g)).toHaveLength(marks.length);
-    });
-  });
 }
 
 /* ═══════════════════════════════════════════════════════════════════════

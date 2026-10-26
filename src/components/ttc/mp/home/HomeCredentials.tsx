@@ -2,160 +2,78 @@ import React from 'react';
 import { getContent } from '@/lib/ttc/content';
 import type { Lang } from '@/lib/ttc/i18n';
 import { Reveal } from '../primitives';
-import { PartnerCard } from './PartnerCard';
 import { Words } from './Words';
 
 /**
- * S8 · CREDENTIALS — why to trust the firm, in one screen: the license
- * words, the registration, and the contractor with its logo and both of its
- * numbers (the single place the contractor is named on the home page).
+ * S8 · CREDENTIALS — why to trust the firm, said the way the large firms say
+ * it (the owner, 2026-10-25, of emxse.com's Credentials block: "me gusta más
+ * como lo pone EMX"): a small label and a list at the left, a large heading
+ * and one paragraph at the right.
  *
- * THE OWNER'S THREE DISCIPLINES (2026-10-25). The headline is one line per
- * discipline — Professional Engineers. Structural Engineers. Electrical
- * Engineers. — with "Structural" as the one italic accent. They are
- * DISCIPLINE names beside "Professional Engineers", not a count of people and
- * not licenses: Florida licenses engineers as PE only, so no "SE" is printed
- * here or anywhere on the home page (views/home.test.ts holds it), and
- * nothing says "Licensed Structural Engineers". "Electrical engineers" is
- * allowed only in the strings of the `home` object, which are what is
- * printed here (complete-package.test.ts lets exactly those through).
+ * THE LIST is the disciplines the firm practices, each with the credential
+ * behind it (`home.credentials.rows`): civil engineering — PE; structural
+ * engineering — PE, and a Special Inspector of threshold buildings (Florida's
+ * own term, s. 553.71(9) F.S.: a licensed engineer certified to inspect
+ * threshold buildings; the owner chose it over "SE", a license Florida does
+ * not issue, and over FRSE, a recognition nothing public shows); electrical
+ * engineering — PE; and the firm itself, `company.registry` ("Registered
+ * Florida Engineering Business"), status "Registered". DISCIPLINES, NOT
+ * PEOPLE: no name, no count, no license number (the owner, 2026-10-24:
+ * "quita los números de ingeniería como las grandes").
  *
- * THE MARKS (owner, 2026-10-25, ADDENDUM C of the spec): each line ends in
- * its credential — Professional Engineers PE, Structural Engineers "Special
- * Inspector · Threshold Buildings", Electrical Engineers PE
- * (`home.credentials.marks`, one per line). Florida has no "SE" license, and
- * the FRSE recognition (s. 471.055 F.S.) is not shown for the structural
- * associate, so neither is printed: the owner chose the Special Inspector
- * credential (s. 553.71(9) F.S.), no number, no name. The long mark sits on
- * its own line under its heading line (`h-cred__tag--wide`); the short ones
- * ride the end of theirs.
+ * THE HEADING AND THE PARAGRAPH are the firm's own words, not EMX's: licensed
+ * in Florida in every discipline it practices; the firm registered with the
+ * state. Nothing here names the contractor, a person, who signs what, or a
+ * figure: the owner, 2026-10-25, took "lo de ambas empresas" off the home
+ * page — Precision Source and the combined-experience sentence live on
+ * /about and /existing-buildings, with the contractor's numbers where the
+ * law wants them, beside its name.
  *
- * THE THREE-UP ROW, left to right:
- *   1. The engineers — `home.credentials.engineers`: the Florida Professional
- *      Engineer license, what it covers (the scope line), and its status
- *      ("Licensed"). NO NUMBER: the owner, 2026-10-24, "quita los números de
- *      ingeniería como las grandes".
- *   2. The firm — its white monogram (the real file, never redrawn) and the
- *      registry line `company.registry` ("Registered Florida Engineering
- *      Business"), status "Registered". No number either (the registry
- *      number feeds only the structured data).
- *   3. The contractor — `PartnerCard`, with its logo, role line and BOTH
- *      license numbers as links to the state's registry (F.S. 489.119(5)(b)).
+ * "Electrical engineering" is allowed only in the strings of the `home`
+ * object (complete-package.test.ts lets exactly those through). No "SE" is
+ * printed here or anywhere on the home page (views/home.test.ts holds it).
  *
- * THE SENTENCE (`partner.lede`, "More than 30 years of combined experience.
- * Two licensed firms, working as one team.") is printed ONCE, as ONE text
- * node: shared-text.test.ts counts the exact string. "Combined" and "two
- * firms" are in the same breath, so it is never read as one person's.
- * Nothing here names a person, says who signs a report, or says the firm
- * builds: the firm designs and inspects.
- *
- * At 901 x 720 and up the plate slides over the pause photograph and is the
- * last plate of the stack (E15, home-motion.css §05); the cards' gold rules
- * draw across (E11). A SERVER COMPONENT.
+ * Motion: the label and the paragraph fade up (E9), the rows slide in from
+ * the left 0.12 s apart (E10), the heading's words rise (E8). A SERVER
+ * COMPONENT.
  */
-/** The long mark (the Special Inspector credential) is not a badge at the end
- *  of its line: it takes a line of its own (`h-cred__tag--wide`). The short
- *  ones are the two-letter "PE". */
-const isWideMark = (mark: string) => mark.length > 6;
-
 export function HomeCredentials({ lang }: { lang: Lang }) {
   const c = getContent(lang);
   const h = c.home.credentials;
-  const p = c.partner;
   const firm = c.company;
 
-  /* The index of each word across the three lines, so the rise of the words
-     (E8) runs on from one line to the next. */
-  const wordsBefore = h.titleLines.map((_, i) =>
-    h.titleLines.slice(0, i).reduce((n, line) => n + line.split(/\s+/).length, 0),
-  );
+  const rows: { name: string; mark: string }[] = [
+    ...h.rows,
+    ...(firm.registry ? [{ name: firm.registry, mark: c.partner.engineering.registered }] : []),
+  ];
 
   return (
-    /* E15 pins this plate (sticky, top 0, min-height 100svh, z-index 2) over
-       the pause photograph at ≥ 901 × 720. */
-    <section
-      id="credentials"
-      className="h-plate h-cred mp-surface--graphite"
-      aria-labelledby="h-cred-h"
-      data-motion="stack-credentials"
-    >
+    <section id="credentials" className="h-plate h-cred mp-surface--graphite" aria-labelledby="h-cred-h">
       <div className="mp-grid-bg" aria-hidden="true" />
-      <div className="h-wrap">
-        <Reveal as="p" fx="up" className="h-label">
+      <div className="h-wrap h-cred__grid">
+        <Reveal as="p" fx="up" className="h-label h-cred__label">
           {h.label}
         </Reveal>
 
-        <div className="h-cred__head">
-          {/* The words rise out of their masks (E8). One span per line, a
-              space between them so the heading reads in a line. */}
+        <div className="h-cred__main">
           <Reveal as="h2" fx="words" id="h-cred-h" className="h-h2 h-cred__h">
-            {h.titleLines.map((line, i) => (
-              <React.Fragment key={line}>
-                {i > 0 ? ' ' : null}
-                <span className="h-cred__line">
-                  <Words text={line} accent={h.accentWord} start={wordsBefore[i]} />
-                  {/* The credential mark of the line: a small mono tag. The
-                      short ones (PE) ride the end of their line; the long
-                      one (the Special Inspector credential) takes a line of
-                      its own under it. Not a heading, not a link. */}
-                  {h.marks[i] ? (
-                    <>
-                      {' '}
-                      <span className={isWideMark(h.marks[i]) ? 'h-cred__tag h-cred__tag--wide' : 'h-cred__tag'}>
-                        {h.marks[i]}
-                      </span>
-                      {/* Said, not shown: the heading's name is read as
-                          "Structural Engineers. Special Inspector · Threshold
-                          Buildings. Electrical Engineers.", each credential
-                          closing the sentence it belongs to, instead of
-                          running into the next discipline. */}
-                      <span className="mp-sr-only">. </span>
-                    </>
-                  ) : null}
-                </span>
-              </React.Fragment>
-            ))}
+            <Words text={h.title} accent={h.accentWord} />
           </Reveal>
-          <Reveal as="p" fx="up" delay={0.3} className="h-lede h-cred__lede">
-            {p.lede}
+          <Reveal as="p" fx="up" delay={0.25} className="h-lede h-cred__p">
+            {h.body}
           </Reveal>
         </div>
 
-        {/* Each card's gold top rule draws across, 0.2 s apart (E11): the
-            rules are the cards' `::before`. */}
-        <div className="h-cred__row">
-          <Reveal fx="line" className="h-cred__card h-cred__card--eng">
-            <p className="h-cred__kind">{h.engineers.k}</p>
-            <p className="h-cred__name">{h.engineers.name}</p>
-            <p className="h-cred__scope">{h.engineers.scope}</p>
-            <p className="h-cred__status">{p.engineering.licensed}</p>
-          </Reveal>
-
-          {firm.registry ? (
-            <Reveal fx="line" delay={0.2} className="h-cred__card h-cred__card--firm">
-              <div className="h-cred__mark">
-                {/* The firm's own white monogram. `aria-hidden`: its name is
-                    the card's own line, and a screen reader would say it
-                    twice; the alt is for whoever reads the markup. */}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={firm.logo.markLightSm}
-                  alt={firm.name}
-                  aria-hidden="true"
-                  width={firm.logo.markSmSize.w}
-                  height={firm.logo.markSmSize.h}
-                  loading="lazy"
-                  decoding="async"
-                />
-              </div>
-              <p className="h-cred__kind">{h.firm.k}</p>
-              <p className="h-cred__name">{firm.registry}</p>
-              <p className="h-cred__status">{p.engineering.registered}</p>
+        <ul className="h-cred__list">
+          {rows.map((row, i) => (
+            <Reveal key={row.name} as="li" fx="left" delay={i * 0.12} className="h-cred__row">
+              <span className="h-cred__name">{row.name}</span>
+              {/* The credential, as a small mono tag in a thin gold ring.
+                  Not a heading, not a link. */}
+              <span className="h-cred__tag">{row.mark}</span>
             </Reveal>
-          ) : null}
-
-          <PartnerCard lang={lang} />
-        </div>
+          ))}
+        </ul>
       </div>
     </section>
   );

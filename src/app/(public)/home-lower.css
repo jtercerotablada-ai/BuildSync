@@ -166,249 +166,74 @@
   }
 }
 
-/* ═══ 03 · S8 CREDENTIALS ═════════════════════════════════════════════════ */
+/* ═══ 03 · S8 CREDENTIALS ═════════════════════════════════════════════════════════
+   The way the large firms print it: the label and the list of disciplines
+   at the left, the heading and one paragraph at the right. On a phone:
+   label, heading, paragraph, then the list. */
 
-/* The plate holds one screen at 1440 × 900 and at 900 × 720: its padding
-   follows the viewport's height too. */
-.mp-home .h-cred {
-  padding-block: clamp(40px, 8.6vw, 150px);
-  padding-block: clamp(40px, min(8.6vw, 8svh), 150px);
-}
-/* The headline takes the width of its longest line (the lines never wrap:
-   each is a discipline), the sentence takes what is left, at the right. The
-   headline's size follows the viewport's width, so what is left is never
-   less than about a third of it. */
-.mp-home .h-cred__head {
+.mp-home .h-cred__grid {
   display: grid;
-  grid-template-columns: max-content minmax(0, 1fr);
-  align-items: end;
-  gap: 24px clamp(24px, 3vw, 96px);
-  margin-top: clamp(22px, 3vw, 44px);
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  grid-template-areas:
+    'label main'
+    'list main';
+  align-items: start;
+  column-gap: clamp(32px, 6vw, 120px);
+}
+.mp-home .h-cred__label {
+  grid-area: label;
+}
+.mp-home .h-cred__main {
+  grid-area: main;
 }
 .mp-home .h-cred__h {
-  font-size: clamp(34px, 5.6vw, 104px);
-  font-size: clamp(34px, min(5.6vw, 9.4svh), 104px);
+  margin-top: clamp(22px, 3vw, 44px);
+  max-width: 14ch;
 }
-.mp-home .h-cred__line {
-  display: block;
-  white-space: nowrap;
+.mp-home .h-cred__p {
+  max-width: 52ch;
+  margin-top: clamp(20px, 2.4vw, 36px);
 }
-/* "Ingenieros Profesionales." is 25 letters: a little smaller than English
-   keeps each of the three lines on one line. */
-.mp-home[data-lang='es'] .h-cred__h {
-  font-size: clamp(30px, 4.7vw, 88px);
-  font-size: clamp(30px, min(4.7vw, 9.4svh), 88px);
+/* The list: one discipline a row, its credential at the right, hairlines
+   between the rows, the type a quiet grey (the heading carries the plate). */
+.mp-home .h-cred__list {
+  grid-area: list;
+  margin: clamp(56px, 8vw, 150px) 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--h-hair);
 }
-/* The credential mark at the end of a line (PE / Special Inspector / PE): a small mono tag
-   in a thin gold ring, sitting on the heading's baseline, and held to its
-   line (the line never wraps). Not a heading and not a link. */
+.mp-home .h-cred__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 20px;
+  padding: clamp(18px, 1.9vw, 28px) 0;
+  border-bottom: 1px solid var(--h-hair);
+}
+.mp-home .h-cred__name {
+  font-size: clamp(22px, 2.3vw, 38px);
+  font-weight: 400;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  color: var(--mp-snow-2);
+}
+/* The credential: a small mono tag in a thin gold ring. Not a heading and
+   not a link. */
 .mp-home .h-cred__tag {
   display: inline-block;
-  margin-left: 0.18em;
   padding: 4px 10px 3px;
   border: 1px solid rgb(201 154 56 / 0.6);
   border-radius: 999px;
   font-family: var(--mp-mono);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 400;
   line-height: 1.3;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--mp-gold);
-  vertical-align: 0.9em;
-}
-
-/* The long mark (the Special Inspector credential) is not a badge at the end
-   of a line: it takes its own line under the heading line, left-aligned with
-   it, and wraps inside the plate on a phone. It belongs to the line ABOVE it
-   (Structural Engineers), not to the line below (Electrical Engineers): the
-   gap above is a third of the gap below, so by proximity it is a caption of
-   the structural line (measured 5-17 px above, 24-29 px below, 360 to 1440 px
-   wide, EN and ES; the descenders of the line above keep 5 px or more). */
-.mp-home .h-cred__tag--wide {
-  display: table;
-  margin: 0.6em 0 1.8em;
-  max-width: 100%;
-  vertical-align: baseline;
-  font-size: 12px;
   letter-spacing: 0.14em;
-  white-space: normal;
-}
-.mp-home .h-cred__lede {
-  justify-self: end;
-  max-width: 34ch;
-}
-
-/* The three-up row. */
-.mp-home .h-cred__row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.25fr);
-  align-items: stretch;
-  gap: clamp(16px, 2vw, 32px);
-  margin-top: clamp(28px, 5vw, 80px);
-  margin-top: clamp(28px, min(5vw, 5svh), 80px);
-}
-.mp-home .h-cred__card {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  padding: clamp(20px, 2.2vw, 36px);
-  background: var(--mp-charcoal);
-  border: 0;
-}
-/* The 1 px gold rule over each card. MOTION HOOK: E11 (`data-fx="line"` on
-   the card) draws each from the left, 0.2 s after the one before it. */
-.mp-home .h-cred__card::before {
-  content: '';
-  position: absolute;
-  inset: 0 0 auto 0;
-  height: 1px;
-  background: var(--mp-gold);
-  transform-origin: left;
-}
-.mp-home .h-cred__kind {
-  margin: 0 0 clamp(14px, 1.6vw, 24px);
-  font-family: var(--mp-mono);
-  font-size: 12px;
-  line-height: 1.4;
-  letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--mp-snow-3);
-}
-.mp-home .h-cred__name {
-  margin: 0;
-  font-size: clamp(22px, 2.1vw, 36px);
-  font-weight: 500;
-  line-height: 1.1;
-  letter-spacing: -0.035em;
-  color: var(--mp-snow);
-  text-wrap: balance;
-}
-/* The scope line: the card's quiet body line. */
-.mp-home .h-cred__scope {
-  margin: 14px 0 0;
-  font-size: clamp(16px, 1.2vw, 19px);
-  line-height: 1.5;
-  color: var(--mp-snow-2);
-}
-.mp-home .h-cred__status {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: auto 0 0;
-  padding-top: clamp(20px, 2.4vw, 36px);
-  font-family: var(--mp-mono);
-  font-size: 12px;
-  line-height: 1.4;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--mp-snow);
-}
-/* The firm's white monogram, at the card's top right: the text of the three
-   cards then starts on one line. */
-.mp-home .h-cred__mark {
-  position: absolute;
-  top: clamp(20px, 2.2vw, 36px);
-  right: clamp(20px, 2.2vw, 36px);
-}
-.mp-home .h-cred__mark img {
-  width: auto;
-  height: clamp(32px, 2.6vw, 42px);
-}
-
-/* The contractor's card: the old card's markup (tests grep it) on the dark
-   plate. Its logo sits on a snow tile at the left, the role, the name and the
-   place beside it, the two licenses across the foot. */
-.mp-home .h-cred__card.mp-partner__card {
-  display: grid;
-  grid-template-columns: clamp(64px, 5.6vw, 88px) minmax(0, 1fr);
-  grid-template-rows: auto auto 1fr auto;
-  column-gap: clamp(16px, 1.8vw, 28px);
-  align-content: stretch;
-}
-.mp-home .h-cred__card.mp-partner__card .mp-partner__logo {
-  grid-row: 1 / span 3;
-  align-self: start;
-  width: 100%;
-  height: auto;
-  margin: 0;
-  padding: 8px;
-  background: var(--mp-paper);
-  border-radius: 4px;
-}
-.mp-home .h-cred__card.mp-partner__card .mp-partner__logo img {
-  width: 100%;
-  height: auto;
-}
-.mp-home .h-cred__card.mp-partner__card .mp-partner__role,
-.mp-home .h-cred__card.mp-partner__card .mp-partner__name,
-.mp-home .h-cred__card.mp-partner__card .mp-partner__who {
-  grid-column: 2;
-}
-/* The role line, in mono, as every label of the page. "Partner" is printed
-   here and nowhere else on the page. */
-.mp-home .h-cred__card.mp-partner__card .mp-partner__role {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  margin: 0 0 clamp(10px, 1.2vw, 16px);
-  font-family: var(--mp-mono);
-  font-size: 12px;
-  font-weight: 400;
-  line-height: 1.5;
-  letter-spacing: 0.16em;
-  color: var(--mp-snow-2);
-}
-.mp-home .h-cred__card.mp-partner__card .mp-partner__role::before {
-  align-self: flex-start;
-  margin-top: 0.55em;
-}
-.mp-home .h-cred__card.mp-partner__card .mp-partner__name {
-  margin: 0;
-  font-size: clamp(22px, 2.1vw, 36px);
-  font-weight: 500;
-  line-height: 1.1;
-  letter-spacing: -0.035em;
-  color: var(--mp-snow);
-}
-.mp-home .h-cred__card.mp-partner__card .mp-partner__who {
-  align-self: start;
-  margin: 8px 0 0;
-  font-size: clamp(16px, 1.2vw, 19px);
-  color: var(--mp-snow-2);
-}
-.mp-home .h-cred__card.mp-partner__card .mp-partner__lic {
-  grid-column: 1 / -1;
-  margin-block-start: clamp(16px, 2vw, 28px);
-  padding-block-start: 12px;
-  border-block-start: 1px solid var(--h-hair);
-}
-.mp-home .h-cred__card.mp-partner__card .mp-partner__lic-label {
-  margin: 0 0 4px;
-  font-family: var(--mp-mono);
-  font-weight: 400;
-  color: var(--mp-snow-3);
-}
-.mp-home .h-cred__card.mp-partner__card .mp-partner__lic dt {
-  color: var(--mp-snow-2);
-}
-.mp-home .h-cred__card.mp-partner__card .mp-partner__lic dd {
-  font-size: clamp(15px, 1.2vw, 18px);
-  letter-spacing: 0.06em;
-  color: var(--mp-snow);
-}
-/* The two license links are the only controls of the plate and are 24-28 px
-   tall: the target is made 44 px with padding the same size as a negative
-   margin, so the layout does not move. */
-.mp-home .h-cred__card.mp-partner__card .mp-partner__lic dd a {
-  display: inline-block;
-  padding-block: 10px;
-  margin-block: -10px;
-}
-@media (hover: hover) and (pointer: fine) {
-  .mp-home .h-cred__card.mp-partner__card .mp-partner__lic dd a:hover {
-    color: var(--mp-gold);
-  }
+  white-space: nowrap;
+  color: var(--mp-gold);
 }
 
 /* ═══ 06 · S11 CONTACT ════════════════════════════════════════════════════ */
@@ -664,6 +489,16 @@
 }
 
 @media (max-width: 900px) {
+  .mp-home .h-cred__grid {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'label'
+      'main'
+      'list';
+  }
+  .mp-home .h-cred__list {
+    margin-top: clamp(32px, 6vw, 56px);
+  }
   /* One column, in the order of the markup: the form, then the direct lines.
      (The lines used to be moved above the form with `order`, which left the
      keyboard and a screen reader going from the form's Send button back UP to
@@ -692,23 +527,17 @@
   .mp-home .h-cred__h {
     font-size: clamp(20px, calc((100vw - 2 * var(--h-pad) - 50px) / 9.95), 34px);
   }
-  .mp-home[data-lang='es'] .h-cred__h {
-    font-size: clamp(18px, calc((100vw - 2 * var(--h-pad) - 50px) / 10.8), 30px);
-  }
 }
 
 @media (max-width: 720px) {
-  /* The long credential mark can wrap to two lines here: a two-line pill with
-     a 999 px radius becomes a stadium, so the corners are softened instead. */
-  .mp-home .h-cred__tag--wide {
+  /* A long credential wraps here: a two-line pill with a 999 px radius
+     becomes a stadium, so the corners are softened instead. */
+  .mp-home .h-cred__tag {
+    white-space: normal;
     border-radius: 14px;
   }
   .mp-home .h-types__card {
     flex-basis: 76vw;
-  }
-  /* Stacked, no indentation: one card under the other. */
-  .mp-home .h-cred__row {
-    grid-template-columns: minmax(0, 1fr);
   }
 }
 

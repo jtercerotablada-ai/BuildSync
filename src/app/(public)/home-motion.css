@@ -57,12 +57,6 @@
      the block IS the rule (the pause photograph's gold line), the block's
      `::before` is its rule (a credential card, a county), or the rule is a
      label's (the 34 px gold stroke before every section label). */
-  .mp-home .h-cred__card[data-fx='line'][data-rv='wait']::before {
-    transform: scaleX(0);
-  }
-  .mp-home .h-cred__card[data-fx='line'][data-rv='in']::before {
-    animation: h-draw 1.5s var(--h-ease) var(--rv-delay, 0s) backwards;
-  }
   .mp-home .h-label[data-rv='wait']::before,
   .mp-home [data-rv='wait'] .h-label::before {
     transform: scaleX(0);

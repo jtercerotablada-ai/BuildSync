@@ -415,8 +415,8 @@ describe('the whole site: conditions in words, and no word on who signs which pa
       // credential line, not a part of a package assigned to a person.
       const named = new Set<string>([
         ...c.home.hero.eyebrow,
-        ...c.home.credentials.titleLines,
-        c.home.credentials.engineers.scope,
+        c.home.credentials.body,
+        ...c.home.credentials.rows.map((r) => r.name),
       ]);
       expect(all.filter((s) => who.test(s) && !named.has(s))).toEqual([]);
       // Not by a description of the person either: the price table's list

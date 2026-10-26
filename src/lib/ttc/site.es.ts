@@ -1734,15 +1734,14 @@ export const es: SiteContent = {
     },
     credentials: {
       label: 'Credenciales',
-      titleLines: ['Ingenieros Civiles.', 'Ingenieros Estructurales.', 'Ingenieros Eléctricos.'],
-      marks: ['PE', 'PE · Inspector Especial · Edificios Threshold', 'PE'],
-      accentWord: 'Estructurales',
-      engineers: {
-        k: 'Ingenieros',
-        name: 'Licencia de Ingeniero Profesional de Florida',
-        scope: 'Ingeniería civil, estructural y eléctrica, según lo requiera cada proyecto.',
-      },
-      firm: { k: 'La firma' },
+      title: 'Con licencia en Florida, en cada disciplina que ejercemos.',
+      accentWord: 'Florida,',
+      body: 'Ingeniería civil, estructural y eléctrica, cada una bajo una licencia de Ingeniero Profesional de Florida, y la firma registrada ante el estado como empresa de ingeniería. Inspecciones estructurales de edificios threshold a cargo de un Inspector Especial certificado. Cada licencia la emite la Junta de Ingenieros Profesionales de Florida y puede verificarse en el registro público del estado.',
+      rows: [
+        { name: 'Ingeniería civil', mark: 'PE' },
+        { name: 'Ingeniería estructural', mark: 'PE · Inspector Especial · Edificios Threshold' },
+        { name: 'Ingeniería eléctrica', mark: 'PE' },
+      ],
     },
     contact: {
       label: 'Contacto',
@@ -1888,7 +1887,6 @@ export const es: SiteContent = {
     /* La frase del propietario (2026-10-24), en dos: la página de inicio
        presenta a la firma y no habla de recertificación. "Combinada" y
        "dos empresas" van en el mismo aliento. */
-    lede: 'Más de 30 años de experiencia combinada. Dos empresas con licencia, trabajando como un solo equipo.',
     licensesLabel: 'Licencias de Florida',
     engineering: {
       role: 'Ingeniería estructural',

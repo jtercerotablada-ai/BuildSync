@@ -176,16 +176,6 @@ describe('who we work with: whole on the home page, short on the other two', () 
         .filter((m) => m[1] === dbpr)
         .map((m) => text(m[2]));
 
-    it(`${lang}: the credentials plate's sentence is the home page's alone`, () => {
-      // (`partner.title` and `partner.kicker`, the old cards' headline, left
-      // with the old home page: the plate's headline is `home.credentials`.)
-      for (const line of [p.lede]) {
-        expect(count(home, line), line).toBe(1);
-        expect(count(about, line), line).toBe(0);
-        expect(count(hub, line), line).toBe(0);
-      }
-    });
-
     it(`${lang}: each short form is on its own page and nowhere else`, () => {
       for (const [own, short] of [[about, p.about], [hub, p.brief]] as const) {
         for (const line of [short.title, short.body]) {
@@ -195,43 +185,38 @@ describe('who we work with: whole on the home page, short on the other two', () 
       }
     });
 
-    // The contractor's two licenses stay checkable on the home page and on
-    // /about (the law wants its numbers in every advertisement); the
+    // The contractor's two licenses stay checkable on /about, beside its
+    // name (the law wants its numbers wherever it is advertised); the home
+    // no longer names the contractor at all (the owner, 2026-10-25), and the
     // engineering numbers are printed on no page (the owner, 2026-10-24).
     // The hub links to /about for them.
-    it(`${lang}: the contractor's two license numbers are links to the DBPR search on the home page and on /about, and no engineering number is printed`, () => {
+    it(`${lang}: the contractor's two license numbers are links to the DBPR search on /about, and no engineering number is printed`, () => {
       for (const html of [home, about, hub]) {
         for (const no of ['105256', '40285']) expect(text(html), no).not.toContain(no);
       }
       const verify = text(esc(c.ui.engineer.verify));
-      for (const html of [home, about]) {
-        const found = linked(html);
-        for (const number of licenses) {
-          expect(found.filter((t) => t === `${number} — ${verify}`), number).toHaveLength(1);
-        }
+      const found = linked(about);
+      for (const number of licenses) {
+        expect(found.filter((t) => t === `${number} — ${verify}`), number).toHaveLength(1);
       }
+      expect(linked(home)).toEqual([]);
+      for (const number of licenses) expect(text(home)).not.toContain(number);
       expect(linked(hub)).toEqual([]);
       expect(hub).toContain(`href="${localePath(p.brief.link.href, lang)}"`);
       expect(about).toContain('id="contractor"');
     });
 
-    // The owner's sentence stays where he approved it.
-    it(`${lang}: the home page keeps the sentence with the combined experience`, () => {
-      expect(p.lede).toMatch(/30/);
-      expect(count(home, p.lede)).toBe(1);
-    });
-
-    // The owner, 2026-10-24: "partner" is welcome only WHERE PRECISION
-    // SOURCE'S LOGO IS SHOWN — the contractor's card on the home page — and
-    // nowhere else; "separate company" is said nowhere on these pages.
-    it(`${lang}: "partner" is on the home page's logo card once, and on no other page of the three`, () => {
+    // The owner, 2026-10-25: nothing of the two firms on the home page — no
+    // contractor, no logo, no "partner", no combined-experience sentence.
+    // "partner" was welcome only beside the logo, and the logo is gone from
+    // the home; "separate company" is said nowhere on these pages.
+    it(`${lang}: the home names neither firm's partnership: no contractor, no "partner", no combined experience`, () => {
       const word = lang === 'en' ? /\bpartner\b/gi : /\baliad[oa]s?\b/gi;
-      const card = home.match(/<div class="mp-partner__card[^"]*"[^>]*>(?:(?!<div class="mp-partner__card)[\s\S])*?precision-source[\s\S]*?<\/div>\s*<\/div>/)?.[0] ?? '';
-      expect(card, 'the contractor card with the logo').not.toBe('');
-      expect((text(card).match(word) ?? []).length).toBe(1);
-      expect((text(home).match(word) ?? []).length).toBe(1);
-      expect(text(about)).not.toMatch(word);
-      expect(text(hub)).not.toMatch(word);
+      expect(home).not.toContain('mp-partner__card');
+      expect(home).not.toContain('precision-source');
+      expect(text(home)).not.toMatch(/Precision Source/);
+      expect(text(home)).not.toMatch(/combined experience|experiencia combinada/i);
+      for (const html of [home, about, hub]) expect(text(html)).not.toMatch(word);
       for (const html of [home, about, hub]) expect(text(html)).not.toMatch(/separate (company|firm)|empresa aparte/i);
     });
 

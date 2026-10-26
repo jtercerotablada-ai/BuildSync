@@ -2685,8 +2685,6 @@ export const typologies: Typology[] = [
    WHAT IS NOT HERE, because the page reads it from where it already lives
    (one home for each fact):
      • the firm's name — `company.name`; the registry line — `company.registry`
-     • the lede of the credentials plate — `partner.lede`; the role line and
-       the licenses of the contractor — `partner.construction`
      • the offices — `pricing.jurisdictions.lists` (names only: no county or
        city logo is shown anywhere, the owner, 2026-10-25)
      • the titles of the first five building types — `typologies[0..4]`
@@ -2800,35 +2798,26 @@ export const home = {
        a worker with a trowel over "repairs" reads as the firm doing them). */
     sixth: { title: 'Repair design for existing structures' },
   },
+  /* THE CREDENTIALS, the way the large firms print them (the owner,
+     2026-10-25, of emxse.com's block): a list of the disciplines with the
+     credential behind each, a heading and one paragraph. Disciplines, not
+     people: no name, no count, no license number. "SE" is never printed
+     (Florida issues no SE license); the structural credential is the Special
+     Inspector of threshold buildings (s. 553.71(9) F.S.). Nothing of the
+     contractor or of the combined experience is here any more (the owner,
+     the same day: "quitar eso de ambas empresas de la página principal");
+     those live on /about and /existing-buildings. The fourth row, the firm's
+     registration, is `company.registry` (HomeCredentials). */
   credentials: {
     label: 'Credentials',
-    /* The three disciplines the owner named (2026-10-25): Professional,
-       Structural and Electrical Engineers. The registration in Florida is
-       card 2's own line, and the Florida license is card 1's. No "SE". */
-    titleLines: ['Civil Engineers.', 'Structural Engineers.', 'Electrical Engineers.'],
-    /* The mark printed at the end of each line (2026-10-25: "Professional
-       Engineers PE, Structural Engineers SE y Electrical Engineer PE"). Florida
-       has no SE license, and the structural associate's own site shows a PE
-       and a Special Inspector (Threshold Building inspections) credential, not
-       an SE or the Board's FRSE recognition. So the owner chose, the same
-       day: "sí, cámbialo a Special Inspector Threshold Buildings" — the
-       structural line carries that credential (Florida's own term: a Special
-       Inspector certified under ch. 471 to inspect threshold buildings, s.
-       553.71(9) F.S.). No number, no name. If the associate later receives
-       the FRSE recognition (s. 471.055 F.S.), that is a separate edit. */
-    marks: ['PE', 'PE · Special Inspector · Threshold Buildings', 'PE'],
-    accentWord: 'Structural',
-    /* Card 1 names the license, with no number, and says which engineering
-       it covers ("scope": the owner's own words were that the firm has the
-       structural and the electrical engineers and calls on them as each
-       project requires). Card 2 is the firm itself: its name is
-       `company.registry`. Card 3 is the contractor's (`partner.construction`). */
-    engineers: {
-      k: 'Engineers',
-      name: 'Florida Professional Engineer license',
-      scope: 'Civil, structural and electrical engineering, as each project requires.',
-    },
-    firm: { k: 'The firm' },
+    title: 'Licensed in Florida, in every discipline we practice.',
+    accentWord: 'Florida,',
+    body: 'Civil, structural and electrical engineering, each under a Florida Professional Engineer license, and the firm registered with the state as an engineering business. Structural inspections of threshold buildings by a certified Special Inspector. Every license is issued by the Florida Board of Professional Engineers and can be checked on the state’s public register.',
+    rows: [
+      { name: 'Civil engineering', mark: 'PE' },
+      { name: 'Structural engineering', mark: 'PE · Special Inspector · Threshold Buildings' },
+      { name: 'Electrical engineering', mark: 'PE' },
+    ],
   },
   contact: {
     label: 'Contact',
@@ -3738,7 +3727,6 @@ export const partner = {
      "Combined" and "two firms" stay in the same breath, so it never reads
      as thirty years of one person. Printed once, as one text node
      (shared-text.test.ts counts the exact string). */
-  lede: 'More than 30 years of combined experience. Two licensed firms, working as one team.',
   licensesLabel: 'Florida licenses',
   /* The engineering card takes its name, engineer, P.E. number and business
      registry from `company` and `leadership` — one source for each fact. */
