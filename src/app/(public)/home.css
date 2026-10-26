@@ -177,7 +177,10 @@
 /* Section headings. One accent word per heading, in the italic serif. */
 .mp-home .h-h2 {
   margin: 0;
-  font-size: clamp(42px, 8vw, 148px);
+  /* One size for every section headline (the owner, 2026-10-25: the
+     credentials headline at 8vw was "muy grande"; "que tengan el mismo
+     tamaño"). The hero's H1 alone is larger. */
+  font-size: clamp(40px, 6.6vw, 120px);
   font-weight: 500;
   line-height: 0.93;
   letter-spacing: -0.05em;

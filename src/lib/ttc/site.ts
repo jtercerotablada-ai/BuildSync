@@ -2812,9 +2812,14 @@ export const home = {
      registration is not listed either ("eso es lógico"). */
   credentials: {
     label: 'Credentials',
-    title: 'Licensed in Florida, in every discipline we practice.',
-    accentWord: 'Florida,',
-    body: 'Professional Engineering (PE) licenses in civil, structural and electrical engineering, held in Florida. Every license is issued by the Florida Board of Professional Engineers and can be checked on the state’s public register. We practice across Miami-Dade and Broward County, and issue drawings, calculations and reports in English or in Spanish, as each client prefers, to the same detailing standard on every project.',
+    /* In the register of the large firms' credentials blocks (the owner,
+       2026-10-25: "me gusta mucho más el texto de EMX"), in our own words and
+       with our own facts: PE licenses only (no "SE": nobody on the team
+       holds one), the Florida Board, the state's register, both languages,
+       both counties. */
+    title: 'Licensed by the State of Florida.',
+    accentWord: 'Florida.',
+    body: 'We stand behind the principles of engineering licensure and the ethical standards that come with it. With Professional Engineering (PE) licenses held by our team in civil, structural and electrical engineering, all issued by the Florida Board of Professional Engineers and open to check on the state’s public register, we hold every drawing, calculation and report to the standard the profession sets, in English or in Spanish, across Miami-Dade and Broward County.',
     rows: [
       { name: 'Civil engineering', mark: 'PE' },
       { name: 'Structural engineering', mark: 'PE' },

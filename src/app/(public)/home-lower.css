@@ -188,7 +188,7 @@
 }
 .mp-home .h-cred__h {
   margin-top: clamp(22px, 3vw, 44px);
-  max-width: 14ch;
+  max-width: 12ch;
 }
 .mp-home .h-cred__p {
   max-width: 52ch;
@@ -243,11 +243,8 @@
 }
 .mp-home .h-contact__h {
   margin-top: clamp(16px, 2vw, 32px);
-  /* The scale of the other section headlines (the owner, 2026-10-25: at
-     17.6vw it was "muy grande"). "Contáctenos." is 4.8 em: 44 px fits 320. */
-  font-size: clamp(44px, 8vw, 148px);
-  line-height: 0.9;
-  letter-spacing: -0.065em;
+  /* The size of every other section headline (`.h-h2`; the owner,
+     2026-10-25: at 17.6vw it was "muy grande"). Pure white, as the hero. */
   color: #fff;
 }
 .mp-home .h-contact__h .mp-serif {
@@ -518,16 +515,6 @@
   }
 }
 
-/* The credentials headline is three lines that never wrap, each with its mark
-   (PE / FRSE / PE) on the end of it: on a phone the type is sized so the
-   longest line AND its mark fit the width (9.95 em of English text, 10.8 em of
-   Spanish, 50 px for the mark and its gap), and never above the 34 / 30 px the
-   rest of the page uses. */
-@media (max-width: 480px) {
-  .mp-home .h-cred__h {
-    font-size: clamp(20px, calc((100vw - 2 * var(--h-pad) - 50px) / 9.95), 34px);
-  }
-}
 
 @media (max-width: 720px) {
   /* A long credential wraps here: a two-line pill with a 999 px radius
