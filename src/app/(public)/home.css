@@ -219,13 +219,15 @@
 .mp-home .h-btn {
   display: inline-flex;
   align-items: center;
-  gap: 16px;
-  min-height: 60px;
-  padding: 0 10px 0 30px;
+  gap: 12px;
+  /* 60 → 50 px tall, the arrow ring 42 → 36 (the owner, 2026-10-26: "un
+     poco más pequeño"). */
+  min-height: 50px;
+  padding: 0 7px 0 24px;
   border-radius: 999px;
   background: var(--mp-snow);
   color: var(--mp-graphite);
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 500;
   line-height: 1;
   letter-spacing: -0.005em;
@@ -237,16 +239,16 @@
 .mp-home .h-btn__arrow {
   display: grid;
   place-items: center;
-  width: 42px;
-  height: 42px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   background: var(--mp-graphite);
   color: var(--mp-snow);
   transition: transform 0.6s var(--h-ease);
 }
 .mp-home .h-btn__arrow svg {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   display: block;
 }
 .mp-home .h-btn:focus-visible {
