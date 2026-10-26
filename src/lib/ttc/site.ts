@@ -2374,7 +2374,9 @@ export const servicesByTrack = (track: ServiceTrack) =>
 // Typed by the two fields it reads, so a service from either language's
 // bundle (whose fields are readonly) can be handed to it.
 export const holdsNotice = (s: { readonly slug: string; readonly program?: object }) =>
-  Boolean(s.program) || s.slug === 'milestone-inspections';
+  // The threshold page's reader holds the county's notice too (2026-10-26:
+  // the service is the county programs applied to a tall building).
+  Boolean(s.program) || s.slug === 'milestone-inspections' || s.slug === 'threshold-inspections';
 
 /** Service options offered in the contact form dropdown. */
 export const contactServiceOptions = [

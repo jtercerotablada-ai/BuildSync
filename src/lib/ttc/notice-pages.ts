@@ -43,7 +43,7 @@ import { GUIDES_PATH } from './guides';
 export const NO_NOTICE_GUIDES = ['is-my-building-due'] as const;
 
 /** Services (and their city pages) whose reader holds a county notice. */
-export const NOTICE_SERVICES = ['building-recertification', 'broward-bsip', 'milestone-inspections'] as const;
+export const NOTICE_SERVICES = ['building-recertification', 'broward-bsip', 'milestone-inspections', 'threshold-inspections'] as const;
 
 /** Existing-building services whose reader does not (see above). */
 export const NO_NOTICE_SERVICES = ['structural-condition-assessments'] as const;
