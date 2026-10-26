@@ -12,11 +12,12 @@ import { Words } from './Words';
  *
  * THE LIST is the disciplines the firm practices, each with the credential
  * behind it (`home.credentials.rows`): civil, structural and electrical
- * engineering, each PE, and the structural one FRSE as well — "FL Board
- * Recognized Structural Engineer", the Board's own recognition (s. 471.055
- * F.S.), which the DBPR register shows on the structural associate's PE
- * (effective 2024-02-13; verified 2026-10-25). No "SE": Florida issues no
- * such license. Nothing else: the firm's own registration as an engineering
+ * engineering, each PE, and the structural one "Recognized Structural
+ * Engineer" as well — "FL Board Recognized Structural Engineer", the Board's
+ * own recognition (s. 471.055 F.S.), which the DBPR register shows on the
+ * structural associate's PE (effective 2024-02-13; verified 2026-10-25),
+ * printed in words: the owner, "nadie dice FRSE". Never "SE", a state
+ * license he does not hold. Nothing else: the firm's own registration as an engineering
  * business is not listed (the owner, the same night: "eso es lógico").
  * DISCIPLINES, NOT PEOPLE: no name, no count, no license number (the owner,
  * 2026-10-24: "quita los números de ingeniería como las grandes").
