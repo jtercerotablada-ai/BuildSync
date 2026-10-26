@@ -1723,7 +1723,6 @@ export const es: SiteContent = {
       title: 'La estructura, modelada.',
       accentWord: 'modelada.',
       body: 'Modelamos la estructura y la verificamos contra el modelo del arquitecto y los sistemas del edificio, para resolver los conflictos en pantalla y no en obra.',
-      caption: 'Un modelo estructural ilustrativo que se arma piso por piso',
     },
     types: {
       label: 'Tipos de edificio',
@@ -1731,8 +1730,6 @@ export const es: SiteContent = {
       accentWord: 'mediana altura',
       tag: 'Fotografías ilustrativas',
       region: 'Tipos de edificio que diseñamos',
-      prev: 'Tipos de edificio anteriores',
-      next: 'Tipos de edificio siguientes',
       sixth: { title: 'Diseño de reparaciones para estructuras existentes' },
     },
     pause: {

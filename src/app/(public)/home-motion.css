@@ -10,7 +10,7 @@
 
      01  Reveals: the `Reveal fx=…` variants, E8 to E12
      02  The ribbon, E7 (the rest is in home.css and RibbonRows.tsx)
-     03  The building-types rail, E13
+     03  The building-types band: the drift (E13)
      04  Parallax, E14
      05  The slide-over stack, E15
      06  The header: the drop-in (E1), the progress line (E16) and the slide
@@ -200,77 +200,34 @@ html:not(.js) .mp-home .mp-motion-toggle {
   }
 }
 
-/* ═══ 03 · THE BUILDING-TYPES RAIL ════════════════════════════════════════
-   TypesRail.tsx adds the two ring buttons, mouse drag, the counter and the
-   bar to the native scroller. */
+/* ═══ 03 · THE BUILDING-TYPES BAND ════════════════════════════════════
+   The six cards drift endlessly from right to left (the owner, 2026-10-25:
+   "al suave, infinitamente, de derecha a izquierda"): CSS alone moves the
+   track one set of cards to the left in 70 s and starts again — about 35
+   px/s on a desktop screen, less on a phone. It holds under the pointer (a
+   pointer user can still read and click a card), while the page's pause
+   switch is pressed (`TypesDrift` writes `data-paused` on the band) and, like
+   everything else, under reduced motion (home-lower.css §08: the first set
+   alone, as a plain scroller). */
 
-/* The buttons' place is kept while the script starts, so they do not push the
-   heading down when they arrive; without a script it stays hidden (home-lower.css). */
-html.js .mp-home .h-types__ctl:empty {
-  display: flex;
-  min-width: 104px;
-  min-height: 46px;
-}
-.mp-home .h-types__btn {
-  padding: 0;
-  background: transparent;
-  font: inherit;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-.mp-home .h-types__btn--prev svg {
-  transform: scaleX(-1);
-}
-.mp-home .h-types__btn:focus-visible {
-  outline: 2px solid var(--mp-gold);
-  outline-offset: 4px;
-  border-color: var(--mp-gold);
-  color: var(--mp-gold);
-}
-/* At an end the button stays in the tab order (it would take the focus with
-   it if it disabled itself) and only looks spent. */
-.mp-home .h-types__btn[aria-disabled='true'] {
-  opacity: 0.32;
-  cursor: default;
-}
-@media (hover: hover) and (pointer: fine) {
-  .mp-home .h-types__btn:not([aria-disabled='true']):hover {
-    border-color: var(--mp-gold);
-    color: var(--mp-gold);
-  }
-  .mp-home .h-types__btn:not([aria-disabled='true']):hover svg {
-    transform: translateX(3px);
-  }
-  .mp-home .h-types__btn--prev:not([aria-disabled='true']):hover svg {
-    transform: scaleX(-1) translateX(3px);
+@keyframes h-types-drift {
+  to {
+    transform: translate3d(-50%, 0, 0);
   }
 }
-
-/* Dragging with a mouse. While it lasts the snap is off (it would pull the
-   rail back under the pointer) and so is text selection. The browser's own
-   picture and link dragging are switched off as well: they start a
-   drag-and-drop that ends the pointer events. */
-@media (hover: hover) and (pointer: fine) {
-  html.js .mp-home .h-types__rail {
-    user-select: none;
-    -webkit-user-select: none;
+@media (prefers-reduced-motion: no-preference) {
+  .mp-home .h-types__track {
+    will-change: transform;
+    animation: h-types-drift 70s linear infinite;
   }
-  html.js .mp-home .h-types__rail :is(a, img) {
-    -webkit-user-drag: none;
-    user-drag: none;
+  .mp-home .h-types__rail[data-paused] .h-types__track {
+    animation-play-state: paused;
   }
-}
-.mp-home .h-types__rail.is-dragging {
-  scroll-snap-type: none;
-  scroll-behavior: auto;
-  cursor: grabbing;
-}
-.mp-home .h-types__rail.is-dragging * {
-  cursor: grabbing;
-}
-/* The bar follows the scroll frame by frame: no transition. */
-.mp-home .h-types__bar i {
-  transition: none;
+  @media (hover: hover) and (pointer: fine) {
+    .mp-home .h-types__rail:hover .h-types__track {
+      animation-play-state: paused;
+    }
+  }
 }
 
 /* ═══ 04 · PARALLAX ═══════════════════════════════════════════════════════

@@ -7,7 +7,7 @@
    `.h-ph`, the `.mp-grid-bg` verticals). Everything here is scoped under
    `.mp-home` and under one of the class prefixes of this half:
 
-     h-types   S6  building types: a native horizontal rail of six cards
+     h-types   S6  building types: a band of six cards that drifts leftward
      h-stack   S7  the wrapper of the three plates below the rail
      h-pause   S7  the pause photograph
      h-cred    S8  credentials: three cards, the third is the contractor's
@@ -72,66 +72,39 @@
 .mp-home .h-types .h-label {
   white-space: nowrap;
 }
-/* The tag, and where the island puts its two buttons. */
-.mp-home .h-types__aside {
-  display: flex;
-  align-items: center;
-  gap: 12px 24px;
-}
-/* MOTION HOOK: the TypesRail island mounts the prev / next ring buttons
-   here. */
-.mp-home .h-types__ctl {
-  display: flex;
-  gap: 12px;
-}
-.mp-home .h-types__ctl:empty {
-  display: none;
-}
 .mp-home .h-types__h {
   max-width: 15ch;
 }
 
-/* The scroller: native, with a snap that only proposes. No scrollbar; with
-   script off a thin one is shown, because a mouse-only visitor then has
-   nothing else to scroll it with. */
+/* The band: clipped at the screen's edges (`clip`, not `hidden`: a hidden
+   overflow is still a scroll container, and a focus inside it would scroll
+   it under the drift). The track holds the six cards twice, one set after the
+   other, and drifts one set to the left (home-motion.css §03); the sets are
+   identical, each with the gap after its last card, so one set is exactly
+   half the track and the join is never seen. The track's left margin is the
+   content's edge: a margin is outside the box a transform's percentage
+   measures, so −50 % stays one set. */
 .mp-home .h-types__rail {
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
-  scroll-snap-type: x proximity;
-  scroll-padding-inline: var(--l-gutter);
+  overflow: clip;
   padding-block: clamp(40px, 6vw, 96px) 12px;
-  scrollbar-width: none;
 }
-.mp-home .h-types__rail::-webkit-scrollbar {
-  display: none;
+.mp-home .h-types__track {
+  display: flex;
+  width: max-content;
+  margin-inline-start: var(--l-gutter);
 }
-html:not(.js) .mp-home .h-types__rail {
-  scrollbar-width: thin;
-  scrollbar-color: var(--mp-snow-3) transparent;
-}
-html:not(.js) .mp-home .h-types__rail::-webkit-scrollbar {
-  display: block;
-  height: 8px;
-}
-/* The focus ring sits inside the scroller: it is full-width, and a ring
-   outside it would be cut by the edge of the screen. */
-.mp-home .h-types__rail:focus-visible {
-  outline: 2px solid var(--mp-gold);
-  outline-offset: -6px;
-}
-.mp-home .h-types__list {
+.mp-home .h-types__set {
   display: flex;
   align-items: flex-start;
   gap: clamp(14px, 1.8vw, 30px);
-  width: max-content;
-  min-width: 100%;
-  padding-inline: var(--l-gutter);
+  margin: 0;
+  padding: 0 clamp(14px, 1.8vw, 30px) 0 0;
+  list-style: none;
 }
 
 .mp-home .h-types__card {
   position: relative;
   flex: 0 0 clamp(268px, 27vw, 470px);
-  scroll-snap-align: start;
 }
 .mp-home .h-types__card:nth-child(even) {
   margin-top: clamp(32px, 5.4vw, 96px);
@@ -204,39 +177,6 @@ html:not(.js) .mp-home .h-types__rail::-webkit-scrollbar {
   .mp-home .h-types__card:hover .h-ring svg {
     transform: rotate(-45deg);
   }
-}
-
-/* MOTION HOOK: the island writes the counter and scales the bar to the
-   visible fraction and the position. Static: the first card, a third of the
-   way. */
-.mp-home .h-types__foot {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  padding: clamp(26px, 3vw, 48px) var(--l-gutter) 0;
-}
-.mp-home .h-types__count {
-  min-width: 7ch;
-  font-family: var(--mp-mono);
-  font-size: 12px;
-  letter-spacing: 0.16em;
-  color: var(--mp-snow-3);
-}
-.mp-home .h-types__bar {
-  position: relative;
-  flex: 1;
-  height: 1px;
-  background: var(--h-hair);
-}
-.mp-home .h-types__bar i {
-  position: absolute;
-  left: 0;
-  top: -0.5px;
-  width: 100%;
-  height: 2px;
-  background: var(--mp-gold);
-  transform: scaleX(0.3);
-  transform-origin: left;
 }
 
 /* ═══ 02 · S7 THE PAUSE PHOTOGRAPH, in the stack ══════════════════════════ */
@@ -862,9 +802,6 @@ html:not(.js) .mp-home .h-types__rail::-webkit-scrollbar {
   .mp-home .h-types__card {
     flex-basis: 76vw;
   }
-  .mp-home .h-types__foot {
-    gap: 16px;
-  }
   .mp-home .h-pause__h {
     max-width: none;
   }
@@ -881,7 +818,18 @@ html:not(.js) .mp-home .h-types__rail::-webkit-scrollbar {
   .mp-home .h-types__card:has(.h-types__link:focus-visible) .h-ph__in img {
     transform: none;
   }
+  /* No drift: the first set alone, as a native horizontal scroller. */
   .mp-home .h-types__rail {
-    scroll-behavior: auto;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--mp-snow-3) transparent;
+  }
+  .mp-home .h-types__track {
+    margin-inline-start: 0;
+    padding-inline-start: var(--l-gutter);
+  }
+  .mp-home .h-types__set[aria-hidden='true'] {
+    display: none;
   }
 }

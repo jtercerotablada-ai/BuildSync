@@ -57,7 +57,7 @@ import { HomeAddress } from './meta';
  * the home is the only route that loads them; mp.css is untouched.
  *
  * MOTION. The reveals are `Reveal fx=…` (primitives.tsx) on the sections'
- * elements; the islands are `RibbonRows` (in HomeRibbon), `TypesRail` (in
+ * elements; the islands are `RibbonRows` (in HomeRibbon), `TypesDrift` (in
  * HomeTypes) and `Parallax` (here, once). Everything
  * else that moves is CSS.
  */

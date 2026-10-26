@@ -7,19 +7,28 @@ import { Img } from '../media';
 import { Reveal } from '../primitives';
 import { Arrow } from './glyphs';
 import { Words } from './Words';
-import { TypesRail } from './TypesRail';
+import { TypesDrift } from './TypesDrift';
 
 /**
  * S6 · BUILDING TYPES — the kinds of building the firm engineers, honestly
  * labelled as illustrations (it replaces the named-project portfolio the
  * firm cannot have).
  *
- * A SERVER COMPONENT: static markup for a native horizontal scroller. It
- * scrolls with a trackpad, a finger, the arrow keys (the region is
- * focusable) and shift + wheel, with no script at all. The client island
- * (`TypesRail`: prev / next buttons, mouse drag, the progress bar, the
- * counter, and bringing a card the keyboard lands on whole into view) reads
- * the elements marked `data-motion` below.
+ * A BAND THAT DRIFTS, endlessly, from right to left (the owner, 2026-10-25:
+ * "que se mueva al suave infinitamente de derecha a izquierda"). The six
+ * cards are printed TWICE, one set after the other; a CSS keyframe
+ * (home-lower.css §01) moves the track one set to the left and starts again,
+ * so the join is never seen. The second set is `aria-hidden`: a screen reader
+ * meets each card once. The pointer over the band holds it, the page's pause
+ * switch holds it (`TypesDrift`, the one script here, writes `data-paused`),
+ * and under reduced motion it does not move: the first set alone, as a
+ * native horizontal scroller.
+ *
+ * THE CARDS' LINKS ARE NOT IN THE TAB ORDER (`tabIndex={-1}`), as the
+ * ribbon's are not: a link that slides away under the keyboard focus leaves
+ * an invisible stop. Every destination is reachable by keyboard elsewhere on
+ * the page — the five services in the services grid, Existing Buildings in
+ * the header — and a pointer can still click a card while it holds.
  *
  * SIX CARDS. The first five are `typologies[0..4]`, so their titles and links
  * are the ones /services prints; the sixth is new — "Repair design for
@@ -38,6 +47,8 @@ import { TypesRail } from './TypesRail';
  * over the card in home-lower.css, so the link text is a name and never a
  * paragraph. Nothing else in a card may become a link. The cards are not
  * headings: the home page's outline has no h3 here.
+ *
+ * A SERVER COMPONENT; `TypesDrift` is its only client code.
  */
 export function HomeTypes({ lang }: { lang: Lang }) {
   const c = getContent(lang);
@@ -47,8 +58,31 @@ export function HomeTypes({ lang }: { lang: Lang }) {
     ...c.typologies.slice(0, 5).map((t) => ({ title: t.title, href: t.href, photo: t.photo })),
     { title: h.sixth.title, href: '/existing-buildings', photo: photo.midriseBalconies },
   ];
-  /* "06": how many cards there are, zero-padded — counted, never typed. */
-  const total = String(cards.length).padStart(2, '0');
+
+  const set = (copy: boolean) => (
+    <ul className="h-types__set" aria-hidden={copy ? true : undefined}>
+      {cards.map((card) => (
+        <li key={card.title} className="h-types__card">
+          {/* The photograph reveals from its foot while it settles (E12),
+              once as the card first comes into view. */}
+          <Reveal fx="img" className="h-ph h-types__ph">
+            <div className="h-ph__in">
+              <Img photo={card.photo} sizes="(min-width: 900px) 27vw, 76vw" />
+            </div>
+          </Reveal>
+          <p className="h-types__cap">{lang === 'es' ? card.photo.altEs : card.photo.alt}</p>
+          <p className="h-types__t">
+            <Link href={localePath(card.href, lang)} className="h-types__link" tabIndex={-1}>
+              {card.title}
+            </Link>
+            <span className="h-ring" aria-hidden="true">
+              <Arrow up />
+            </span>
+          </p>
+        </li>
+      ))}
+    </ul>
+  );
 
   return (
     <section className="h-plate h-types mp-surface--graphite" aria-labelledby="h-types-h">
@@ -58,58 +92,21 @@ export function HomeTypes({ lang }: { lang: Lang }) {
           <Reveal as="p" fx="up" className="h-label">
             {h.label}
           </Reveal>
-          <div className="h-types__aside">
-            <p className="h-tag">{h.tag}</p>
-            {/* The island: the two ring buttons (aria-labels `home.types.prev`
-                / `.next`), once the script has run; the container is empty,
-                and hidden, before it and without it. */}
-            <TypesRail prev={h.prev} next={h.next} />
-          </div>
+          <p className="h-tag">{h.tag}</p>
         </div>
         <Reveal as="h2" fx="words" id="h-types-h" className="h-h2 h-h2--m h-types__h">
           <Words text={h.title} accent={h.accentWord} />
         </Reveal>
       </div>
 
-      {/* The scroller. `role="region"` + `tabIndex={0}`: a keyboard user can
-          focus it and scroll it with the arrow keys, which is what a focused
-          scrollable region does natively.
-          MOTION HOOK: `TypesRail` reads this element (`data-motion="rail"`)
-          for drag, the prev / next step and the progress. */}
-      <div className="h-types__rail" role="region" aria-label={h.region} tabIndex={0} data-motion="rail">
-        <ul className="h-types__list">
-          {cards.map((card) => (
-            <li key={card.title} className="h-types__card" data-motion="rail-card">
-              {/* The photograph reveals from its foot while it settles (E12). */}
-              <Reveal fx="img" className="h-ph h-types__ph">
-                <div className="h-ph__in">
-                  <Img photo={card.photo} sizes="(min-width: 900px) 27vw, 76vw" />
-                </div>
-              </Reveal>
-              <p className="h-types__cap">{lang === 'es' ? card.photo.altEs : card.photo.alt}</p>
-              <p className="h-types__t">
-                <Link href={localePath(card.href, lang)} className="h-types__link">
-                  {card.title}
-                </Link>
-                <span className="h-ring" aria-hidden="true">
-                  <Arrow up />
-                </span>
-              </p>
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      {/* MOTION HOOK: `TypesRail` writes the counter ("02 / 06") from the
-          card nearest the left edge and scales the bar to the visible
-          fraction + position. Static: the first card, a third in view. */}
-      <div className="h-types__foot" aria-hidden="true">
-        <span className="h-types__count" data-motion="rail-count">
-          {`01 / ${total}`}
-        </span>
-        <span className="h-types__bar">
-          <i data-motion="rail-bar" />
-        </span>
+      {/* The band. MOTION HOOK: `TypesDrift` writes `data-paused` here while
+          the page's pause switch is pressed; the CSS drift reads it. */}
+      <div className="h-types__rail" aria-label={h.region} data-motion="types-drift">
+        <TypesDrift />
+        <div className="h-types__track">
+          {set(false)}
+          {set(true)}
+        </div>
       </div>
     </section>
   );

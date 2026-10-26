@@ -781,23 +781,13 @@ for (const lang of LANGS) {
       });
     }
 
-    it('has no digit but the phone number, the two license numbers, the 30 years, the file size and the numerals of the tools and the rail', () => {
+    it('has no digit but the phone number, the two license numbers, the 30 years and the file size', () => {
       let rest = body;
       for (const a of [
         c.contact.phone!.display,
         ...c.partner.construction.licenses.map((l) => l.number),
       ]) rest = rest.split(a).join(' ');
-      // The numerals the page prints are the counts, not typed: the tool rows
-      // and the rail's counter ("01 / NN", NN the cards it holds). A new card
-      // changes it; that does not make this test cry wolf.
-      const pad = (n: number) => String(n).padStart(2, '0');
-      const cards = (markup.match(/data-motion="rail-card"/g) ?? []).length;
-      expect(cards).toBeGreaterThanOrEqual(1);
-      for (const a of [
-        /\b30\b/g,
-        /\b25 MB\b/g,
-        new RegExp(`\\b01 / ${pad(cards)}\\b`, 'g'),
-      ]) rest = rest.replace(a, ' ');
+      for (const a of [/\b30\b/g, /\b25 MB\b/g]) rest = rest.replace(a, ' ');
       expect(found(/\d/, rest)).toEqual([]);
     });
 
@@ -1146,7 +1136,7 @@ describe('the client boundary of the home (spec §5.2: only the islands are clie
 
   it('has client code only in the three islands', () => {
     const client = files.filter((f) => /^\s*['"]use client['"]/.test(readFileSync(join(dir, f), 'utf8'))).sort();
-    expect(client).toEqual(['Parallax.tsx', 'RibbonRows.tsx', 'TypesRail.tsx']);
+    expect(client).toEqual(['Parallax.tsx', 'RibbonRows.tsx', 'TypesDrift.tsx']);
   });
 
   it('reads no language from the browser: no section uses useContent or useLang', () => {

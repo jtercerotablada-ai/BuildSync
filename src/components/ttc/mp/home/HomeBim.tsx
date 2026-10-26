@@ -68,8 +68,9 @@ export function HomeBim({ lang }: { lang: Lang }) {
           <Reveal fx="img" className="h-bim__frame">
             <VideoLoop clip={imagery.clips.bim} />
           </Reveal>
+          {/* Under the frame: the pause switch alone (the caption that sat
+              beside it was dropped on 2026-10-25, the owner's call). */}
           <Reveal fx="up" className="h-bim__cap">
-            <p className="h-mono">{b.caption}</p>
             <MotionToggle className="h-bim__toggle" />
           </Reveal>
         </div>

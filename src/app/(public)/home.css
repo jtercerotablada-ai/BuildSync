@@ -1128,12 +1128,9 @@ html:not(.js) .mp-home .h-rib__row--rev .h-rib__track {
 .mp-home .h-bim__cap {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 16px;
   margin-top: 16px;
-}
-.mp-home .h-bim__cap .h-mono {
-  color: var(--mp-snow-3);
 }
 
 /* Phones: the text, then the frame, the order of the markup (the frame used

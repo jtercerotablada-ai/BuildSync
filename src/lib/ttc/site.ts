@@ -2787,17 +2787,14 @@ export const home = {
     title: 'The structure, modeled.',
     accentWord: 'modeled.',
     body: 'We model the structure and check it against the architect’s model and the building’s systems, so conflicts are settled on screen, not on site.',
-    caption: 'An illustrative structural model, assembling floor by floor',
   },
   types: {
     label: 'Building types',
     title: 'From a single house to a mid-rise concrete frame.',
     accentWord: 'mid-rise',
     tag: 'Illustrative photographs',
-    /* Names of the rail and of its two buttons. */
+    /* The name of the band. */
     region: 'Building types we engineer',
-    prev: 'Previous building types',
-    next: 'Next building types',
     /* The first five cards are `typologies[0..4]`; the sixth is new: the
        repair design of existing structures, not "repairs" (a photograph of
        a worker with a trowel over "repairs" reads as the firm doing them). */
