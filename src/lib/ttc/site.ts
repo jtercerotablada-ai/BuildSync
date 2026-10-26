@@ -2692,10 +2692,6 @@ export const typologies: Typology[] = [
      • the titles of the first five building types — `typologies[0..4]`
      • the phone, the email and the service area — `contact`; the WhatsApp
        link text — `reach.whatsappPlain` and `reach.whatsappTextHome`
-     • the names of the open calculators — `calculatorFamilies`; the two
-       counts — `openCalculatorCount` and `guideSlugs.length`, said in words
-       by `numberWord` (lib/ttc/number-words.ts); a `{n}` below is where the
-       word goes. The count is never typed.
 
    `services.lines` are the one line under each card's title. Each differs
    from that service's `summary`, `heroSub` and `card.*` — those are printed
@@ -2738,7 +2734,7 @@ export const home = {
     eyebrow: ['Professional Engineers', 'Structural Engineers', 'Electrical Engineers'],
     titleLines: ['Structural', 'engineers for', 'South Florida.'],
     accentWord: 'Florida.',
-    sub: 'Professional Engineers licensed in Florida. We design new buildings and examine existing ones, in Miami-Dade and Broward.',
+    sub: 'Professional Engineers licensed in Florida. We design new buildings and examine existing ones across South Florida, in Miami-Dade and Broward.',
     cta: 'Get in touch',
     /* The two counties in the hero bar, between the firm's name and the
        pause switch. */
@@ -2840,16 +2836,6 @@ export const home = {
       scope: 'Civil, structural and electrical engineering, as each project requires.',
     },
     firm: { k: 'The firm' },
-  },
-  tools: {
-    label: 'Free to use',
-    title: 'Engineering you can use.',
-    accentWord: 'use.',
-    calc: { title: '{n} free engineering calculators' },
-    guides: {
-      title: '{n} guides for building owners',
-      line: 'In plain words, in English and in Spanish.',
-    },
   },
   contact: {
     label: 'Contact',

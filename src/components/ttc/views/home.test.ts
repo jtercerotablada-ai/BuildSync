@@ -3,15 +3,10 @@ import { join } from 'node:path';
 import { createElement as h } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { openCalculatorPaths } from '@/lib/ttc/calculator-paths';
-import { calculatorFamilies, openCalculatorCount } from '@/lib/ttc/calculators';
 import { getContent } from '@/lib/ttc/content';
-import { getGuides } from '@/lib/ttc/guide-content';
-import { guideSlugs } from '@/lib/ttc/guides';
 import type { Lang } from '@/lib/ttc/i18n';
 import { localePath } from '@/lib/ttc/i18n';
 import { photo, video } from '@/lib/ttc/media';
-import { NUMBER_WORD_MAX, numberWord, withNumberWord } from '@/lib/ttc/number-words';
 import { HomeView } from './HomeView';
 import { SEO } from './seo';
 
@@ -482,45 +477,6 @@ describe('a sentence of the home is printed once in the bundle (the site’s rul
   }
 });
 
-describe('the counts are said in words, never typed (spec item 8, data part)', () => {
-  for (const lang of LANGS) {
-    const c = getContent(lang);
-
-    it(`${lang}: the two counts are real, and inside the words the page can say`, () => {
-      const openEntries = calculatorFamilies.flatMap((f) => f.items).filter((i) => i.href);
-      expect(openCalculatorCount).toBe(openEntries.length);
-      expect(openCalculatorCount).toBe(openCalculatorPaths.length);
-      expect(guideSlugs.length).toBe(getGuides(lang).length);
-      for (const n of [openCalculatorCount, guideSlugs.length]) {
-        expect(n).toBeGreaterThanOrEqual(1);
-        // Past twelve the page would print a numeral where a word belongs.
-        expect(n, 'add the next number word to number-words.ts').toBeLessThanOrEqual(NUMBER_WORD_MAX);
-        expect(numberWord(n, lang)).not.toMatch(/\d/);
-      }
-    });
-
-    it(`${lang}: each title is a sentence with the count where {n} is, at its start`, () => {
-      for (const title of [c.home.tools.calc.title, c.home.tools.guides.title]) {
-        expect(title.split('{n}')).toHaveLength(2);
-        expect(title.startsWith('{n} ')).toBe(true);
-        expect(title).not.toMatch(/\d/);
-      }
-      const calc = withNumberWord(c.home.tools.calc.title, openCalculatorCount, lang);
-      const guides = withNumberWord(c.home.tools.guides.title, guideSlugs.length, lang);
-      expect(calc).toMatch(/^\p{Lu}\p{Ll}+ /u);
-      expect(guides).toMatch(/^\p{Lu}\p{Ll}+ /u);
-      expect(calc.toLowerCase().startsWith(numberWord(openCalculatorCount, lang))).toBe(true);
-      expect(guides.toLowerCase().startsWith(numberWord(guideSlugs.length, lang))).toBe(true);
-    });
-
-    it(`${lang}: the calculators’ names the row lists are the open ones, each with a name in this language`, () => {
-      const names = calculatorFamilies.flatMap((f) => f.items).filter((i) => i.href).map((i) => i.name[lang]);
-      expect(names).toHaveLength(openCalculatorCount);
-      for (const n of names) expect(n.trim(), n).not.toBe('');
-    });
-  }
-});
-
 describe('the Spanish mirror has the English home’s shape (spec item 9)', () => {
   const en = getContent('en').home;
   const es = getContent('es').home;
@@ -593,7 +549,6 @@ describe('each accent word is one phrase of its own heading, once (what the rend
       ['types', h.types.accentWord, h.types.title],
       ['pause', h.pause.accentWord, h.pause.title],
       ['credentials', h.credentials.accentWord, h.credentials.titleLines.join(' ')],
-      ['tools', h.tools.accentWord, h.tools.title],
       ['contact', h.contact.accentWord, h.contact.title],
     ];
   };
@@ -762,16 +717,16 @@ for (const lang of LANGS) {
         expect(headings[i].level - headings[i - 1].level, `${headings[i - 1].text} → ${headings[i].text}`).toBeLessThanOrEqual(1);
       }
       // The owner's on-page check lists more than 23 headings as too many.
-      // One h1, eight h2 (the sections), eight h3 (the eight services); cards,
-      // credentials and tool rows are not headings.
+      // One h1, seven h2 (the sections), eight h3 (the eight services); cards
+      // and credentials are not headings.
       expect(headings.length).toBeLessThanOrEqual(23);
-      expect(headings.filter((x) => x.level === 2)).toHaveLength(8);
+      expect(headings.filter((x) => x.level === 2)).toHaveLength(7);
       expect(headings.filter((x) => x.level === 3)).toHaveLength(8);
       expect(headings.filter((x) => x.level > 3)).toEqual([]);
     });
 
-    it('has the four anchors the chrome points at, in order, and none of the old home’s', () => {
-      const ids = ['services', 'credentials', 'tools', 'contact'];
+    it('has the three anchors the chrome points at, in order, and none of the old home’s', () => {
+      const ids = ['services', 'credentials', 'contact'];
       const at = ids.map((id) => markup.indexOf(`id="${id}"`));
       for (const [i, id] of ids.entries()) expect(at[i], id).toBeGreaterThan(-1);
       expect([...at].sort((a, b) => a - b)).toEqual(at);
@@ -833,16 +788,14 @@ for (const lang of LANGS) {
         ...c.partner.construction.licenses.map((l) => l.number),
       ]) rest = rest.split(a).join(' ');
       // The numerals the page prints are the counts, not typed: the tool rows
-      // (the open calculators, the guides) and the rail's counter ("01 / NN",
-      // NN the cards it holds). A new calculator changes the first, a new
-      // card the last; neither makes this test cry wolf.
+      // and the rail's counter ("01 / NN", NN the cards it holds). A new card
+      // changes it; that does not make this test cry wolf.
       const pad = (n: number) => String(n).padStart(2, '0');
       const cards = (markup.match(/data-motion="rail-card"/g) ?? []).length;
       expect(cards).toBeGreaterThanOrEqual(1);
       for (const a of [
         /\b30\b/g,
         /\b25 MB\b/g,
-        new RegExp(`\\b(?:${pad(openCalculatorCount)}|${pad(guideSlugs.length)})\\b`, 'g'),
         new RegExp(`\\b01 / ${pad(cards)}\\b`, 'g'),
       ]) rest = rest.replace(a, ' ');
       expect(found(/\d/, rest)).toEqual([]);
@@ -1016,16 +969,7 @@ for (const lang of LANGS) {
     });
   });
 
-  describe(`${lang}: the tools, the offices and the contact block (spec item 8, numerals printed)`, () => {
-    it('prints the count of calculators and of guides as a numeral and in words, equal to the real counts', () => {
-      const tools = text(section(markup, 'tools'));
-      const pad = (n: number) => String(n).padStart(2, '0');
-      expect(tools).toContain(`${pad(openCalculatorCount)} ${withNumberWord(c.home.tools.calc.title, openCalculatorCount, lang)}`);
-      expect(tools).toContain(`${pad(guideSlugs.length)} ${withNumberWord(c.home.tools.guides.title, guideSlugs.length, lang)}`);
-      const names = calculatorFamilies.flatMap((f) => f.items).filter((i) => i.href).map((i) => i.name[lang]);
-      for (const n of names) expect(tools, n).toContain(n);
-    });
-
+  describe(`${lang}: the contact block`, () => {
     it('has the real form, with the home’s two strings and no service preset, and four direct lines', () => {
       const contact = section(markup, 'contact');
       expect(contact).toContain('data-variant="home"');

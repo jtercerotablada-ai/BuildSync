@@ -1673,7 +1673,7 @@ export const es: SiteContent = {
       eyebrow: ['Ingenieros Profesionales', 'Ingenieros Estructurales', 'Ingenieros Eléctricos'],
       titleLines: ['Ingenieros', 'estructurales para', 'el Sur de Florida.'],
       accentWord: 'Florida.',
-      sub: 'Ingenieros Profesionales con licencia en Florida. Diseñamos edificios nuevos y examinamos los existentes, en Miami-Dade y Broward.',
+      sub: 'Ingenieros Profesionales con licencia en Florida. Diseñamos edificios nuevos y examinamos los existentes en el Sur de Florida, en Miami-Dade y Broward.',
       cta: 'Contáctenos',
       counties: ['Miami-Dade', 'Broward'],
     },
@@ -1750,16 +1750,6 @@ export const es: SiteContent = {
         scope: 'Ingeniería civil, estructural y eléctrica, según lo requiera cada proyecto.',
       },
       firm: { k: 'La firma' },
-    },
-    tools: {
-      label: 'De uso gratuito',
-      title: 'Ingeniería que usted puede usar.',
-      accentWord: 'usar.',
-      calc: { title: '{n} calculadoras de ingeniería gratuitas' },
-      guides: {
-        title: '{n} guías para propietarios de edificios',
-        line: 'En palabras sencillas, en inglés y en español.',
-      },
     },
     contact: {
       label: 'Contacto',

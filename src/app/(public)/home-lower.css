@@ -11,7 +11,6 @@
      h-stack   S7  the wrapper of the three plates below the rail
      h-pause   S7  the pause photograph
      h-cred    S8  credentials: three cards, the third is the contractor's
-     h-tools   S10 free tools: two numbered rows
      h-contact S11 contact: the huge headline, the real form, four lines
 
    The words and the markup are in src/components/ttc/mp/home/*.tsx; the
@@ -568,139 +567,6 @@ html:not(.js) .mp-home .h-types__rail::-webkit-scrollbar {
   }
 }
 
-/* ═══ 05 · S10 FREE TOOLS ═════════════════════════════════════════════════ */
-
-.mp-home .h-tools__h {
-  margin-top: clamp(22px, 3vw, 44px);
-}
-.mp-home .h-tools__list {
-  margin: clamp(48px, 6vw, 96px) 0 0;
-  padding: 0;
-  border-bottom: 1px solid var(--h-hair);
-}
-/* The row is a lifted surface on hover: its `::before` reaches 16 px past the
-   content on each side, so the content and the hairlines stay on the page's
-   grid. MOTION HOOK: E10 (`data-fx="left"`) slides each row in from the
-   left. */
-.mp-home .h-tools__row {
-  position: relative;
-  isolation: isolate;
-  display: grid;
-  grid-template-columns: clamp(80px, 12vw, 200px) minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 10px clamp(16px, 3vw, 56px);
-  padding-block: clamp(28px, 3.6vw, 56px);
-  border-top: 1px solid var(--h-hair);
-}
-.mp-home .h-tools__row::before {
-  content: '';
-  position: absolute;
-  inset: 0 -16px;
-  z-index: -1;
-  background: var(--mp-charcoal);
-  opacity: 0;
-  transition: opacity 0.6s var(--h-ease);
-}
-.mp-home .h-tools__row:has(.h-tools__link:focus-visible)::before {
-  opacity: 1;
-}
-.mp-home .h-tools__row:has(.h-tools__link:focus-visible) .h-ring {
-  border-color: var(--mp-gold);
-  color: var(--mp-gold);
-}
-.mp-home .h-tools__row:has(.h-tools__link:focus-visible) .h-ring svg {
-  transform: rotate(-45deg);
-}
-@media (hover: hover) and (pointer: fine) {
-  .mp-home .h-tools__row:hover::before {
-    opacity: 1;
-  }
-  .mp-home .h-tools__row:hover .h-ring {
-    border-color: var(--mp-gold);
-    color: var(--mp-gold);
-  }
-  .mp-home .h-tools__row:hover .h-ring svg {
-    transform: rotate(-45deg);
-  }
-}
-.mp-home .h-tools__num {
-  font-size: clamp(60px, 9vw, 168px);
-  font-weight: 300;
-  line-height: 0.85;
-  letter-spacing: -0.06em;
-  color: var(--mp-snow);
-  font-variant-numeric: tabular-nums;
-}
-.mp-home .h-tools__title {
-  margin: 0;
-  font-size: clamp(26px, 3.8vw, 68px);
-  font-weight: 500;
-  line-height: 1;
-  letter-spacing: -0.045em;
-  color: var(--mp-snow);
-  text-wrap: balance;
-}
-.mp-home .h-tools__link {
-  color: inherit;
-  text-decoration: none;
-}
-.mp-home .h-tools__link::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-}
-.mp-home .h-tools__link:focus-visible {
-  outline: none;
-}
-.mp-home .h-tools__link:focus-visible::after {
-  outline: 2px solid var(--mp-gold);
-  outline-offset: -2px;
-}
-/* The names of the open calculators, with a gold dot between them. */
-.mp-home .h-tools__names {
-  display: flex;
-  flex-wrap: wrap;
-  max-width: 70ch;
-  margin: 16px 0 0;
-  padding: 0;
-  list-style: none;
-  font-size: clamp(15px, 1.2vw, 18px);
-  line-height: 1.7;
-  color: var(--mp-snow-2);
-}
-.mp-home .h-tools__names li {
-  white-space: nowrap;
-}
-.mp-home .h-tools__names li::after {
-  content: '';
-  display: inline-block;
-  width: 4px;
-  height: 4px;
-  margin-inline: 0.7em;
-  border-radius: 50%;
-  background: var(--mp-gold);
-  vertical-align: middle;
-  transform: translateY(-0.1em);
-}
-.mp-home .h-tools__names li:last-child::after {
-  display: none;
-}
-.mp-home .h-tools__line {
-  max-width: 70ch;
-  margin: 16px 0 0;
-  font-size: clamp(15px, 1.2vw, 18px);
-  line-height: 1.55;
-  color: var(--mp-snow-2);
-}
-.mp-home .h-tools__go {
-  width: clamp(52px, 5vw, 76px);
-  height: clamp(52px, 5vw, 76px);
-}
-.mp-home .h-tools__go svg {
-  width: 24px;
-  height: 24px;
-}
-
 /* ═══ 06 · S11 CONTACT ════════════════════════════════════════════════════ */
 
 .mp-home .h-contact {
@@ -1005,15 +871,6 @@ html:not(.js) .mp-home .h-types__rail::-webkit-scrollbar {
   /* Stacked, no indentation: one card under the other. */
   .mp-home .h-cred__row {
     grid-template-columns: minmax(0, 1fr);
-  }
-  .mp-home .h-tools__row {
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-  .mp-home .h-tools__row::before {
-    inset-inline: -12px;
-  }
-  .mp-home .h-tools__num {
-    display: none;
   }
 }
 

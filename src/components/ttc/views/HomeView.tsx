@@ -8,7 +8,6 @@ import { HomeRibbon } from '@/components/ttc/mp/home/HomeRibbon';
 import { HomeServices } from '@/components/ttc/mp/home/HomeServices';
 import { HomeStack } from '@/components/ttc/mp/home/HomeStack';
 import { HomeStatement } from '@/components/ttc/mp/home/HomeStatement';
-import { HomeTools } from '@/components/ttc/mp/home/HomeTools';
 import { HomeTypes } from '@/components/ttc/mp/home/HomeTypes';
 import { Parallax } from '@/components/ttc/mp/home/Parallax';
 import '@/app/(public)/home.css';
@@ -33,7 +32,6 @@ import { HomeAddress } from './meta';
  *   HomeTypes     the kinds of building, a rail of illustrative photographs
  *   HomeStack     one photographic pause, then the plate that slides over it:
  *     HomeCredentials  the licenses, the registration, the contractor's card
- *   HomeTools     the free calculators and the guides
  *   HomeContact   "Get in touch." with the real form
  *
  * EVERY SECTION IS A SERVER COMPONENT taking `{ lang }` and reading its words
@@ -77,7 +75,6 @@ export function HomeView({ lang }: { lang: Lang }) {
       <HomeStack lang={lang}>
         <HomeCredentials lang={lang} />
       </HomeStack>
-      <HomeTools lang={lang} />
       <HomeContact lang={lang} />
     </div>
   );
