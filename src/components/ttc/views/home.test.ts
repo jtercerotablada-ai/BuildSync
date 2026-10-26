@@ -563,11 +563,10 @@ describe('the chrome the home changes, and the one name for its one action', () 
       expect(c.reach.formHome).toBe(c.home.hero.cta);
     });
 
-    it(`${lang}: the call button’s name has its number placed once, and the footer tagline names the place`, () => {
+    it(`${lang}: the call button’s name has its number placed once`, () => {
       expect(c.home.chrome.callLabel.split('{phone}')).toHaveLength(2);
-      // The owner, 2026-10-26: the home says the state, not the two counties.
-      expect(c.home.chrome.footerTag).toMatch(/Florida/);
-      expect(c.home.chrome.footerTag).not.toMatch(/Miami-Dade|Broward/);
+      // The footer prints no tagline since 2026-10-26.
+      expect(c.home.chrome).not.toHaveProperty('footerTag');
     });
 
     it(`${lang}: the pause switch says motion, not video, because it stops the ribbon too`, () => {

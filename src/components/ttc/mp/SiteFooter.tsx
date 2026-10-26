@@ -2,8 +2,7 @@
 
 import React, { useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { htmlLang, stripLang } from '@/lib/ttc/i18n';
+import { htmlLang } from '@/lib/ttc/i18n';
 import { useContent, useL, useLang } from './lang';
 
 /**
@@ -54,12 +53,9 @@ const ICON: Record<'linkedin' | 'facebook' | 'instagram', string> = {
 
 export function SiteFooter() {
   const c = useContent();
-  /* The tagline under the logo is the firm's one-line description on every
-     page. On the home alone it is the home's own line (`home.chrome.footerTag`):
-     the description names the two county programs and recertification, and
-     the home is a presentation of the firm, not about either. */
-  const onHome = stripLang(usePathname() ?? '/') === '/';
-  const tagline = onHome ? c.home.chrome.footerTag : c.company.description;
+  /* No tagline under the logo and no P.E. badge any more (the owner,
+     2026-10-26: "eso ya lo dejamos claro en la web"): the first column is
+     the lockup and the three profiles. */
   const social = [
     { href: c.contact.social.linkedin, label: c.ui.footer.linkedin, icon: ICON.linkedin },
     { href: c.contact.social.facebook, label: c.ui.footer.facebook, icon: ICON.facebook },
@@ -90,7 +86,6 @@ export function SiteFooter() {
                 decoding="async"
               />
             </div>
-            <p className="mp-footer__tag">{tagline}</p>
             {/* The firm's profiles as icons. Each link keeps its network's
                 name as visually hidden text, so it still reads "LinkedIn"
                 to a screen reader and to the link checks. */}
@@ -106,16 +101,6 @@ export function SiteFooter() {
                 ))}
               </div>
             ) : null}
-            <p className="mp-footer__pe">
-              <span className="mp-footer__pe-mark" aria-hidden="true">
-                P.E.
-              </span>
-              {/* The credential alone: the registry line under it went on
-                  2026-10-26 (the owner: "eso es lógico"); `company.registry`
-                  still names the firm's registration in the Organization schema
-                  and on /about. */}
-              <span>{c.leadership.credential}</span>
-            </p>
           </div>
 
           {/* Column titles are labels, not headings: as h2s they added

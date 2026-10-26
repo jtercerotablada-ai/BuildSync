@@ -2558,10 +2558,6 @@ export const home = {
   chrome: {
     headerCta: 'Get in touch',
     callLabel: 'Call {phone}',
-    /* The owner, 2026-10-26: the firm works across Florida; only the two
-       county programs are Miami-Dade's and Broward's, and the home says the
-       state, not the counties (the counties stay on the program pages). */
-    footerTag: 'Civil and structural engineering across Florida.',
     /* The name of the phone bar, said by the firm: the page's other bars say
        "Contact the engineer" (`reach.label`), a single person. */
     barLabel: 'Contact the firm',
@@ -2603,7 +2599,7 @@ export const home = {
     label: 'Services',
     title: 'Six services. One standard.',
     accentWord: 'standard.',
-    lede: 'We read the buildings that stand, the tall ones included, and check the designs of others before they are issued — anywhere in Florida.',
+    lede: 'We read the buildings that stand, the tall ones included, and check the designs of others before they are issued — anywhere in Florida. Each service has a page of its own.',
     legend: {
       existing: { k: 'Existing buildings', v: 'Inspection, assessment and repair design for buildings already standing.' },
       new: { k: 'Design review', v: 'The independent peer review of a structural design before it is issued.' },
@@ -3216,6 +3212,8 @@ export const contactPage = {
       { k: 'If the date has already passed', v: 'Write to us all the same, and attach the notice with any letter or citation that came after it. The inspection can still be done and the report filed; the sooner the engineer reads what you received, the sooner you have a plan to put before your Building Official.' },
       { k: 'If no notice has come yet', v: 'Send the address of the building and one date: in Miami-Dade, the year it was built; in Broward, the year of its certificate of occupancy. Each county counts a building’s age from that record, so with it we can tell you what applies to yours before a letter arrives.' },
       { k: 'For any other building or project', v: 'Tell us about the building, where it is and what you need: an assessment, a repair design, the county inspection of a threshold building, or a second look at a design by others. Drawings, photographs and earlier reports are welcome, and none of them is required. The proposal for this work is free as well.' },
+      { k: 'For a building over three stories', v: 'Tell us the number of stories or the height as well. Past three stories, or fifty feet of height, the county asks more of the report — an engineer with the structural specialization the state recognizes, and a letter that says so — and the proposal has to account for it from the start.' },
+      { k: 'If you write for a board or an association', v: 'One person can write for the whole board. We send the proposal in a form that can be shared with the directors, and we answer their questions on a call if that helps the vote.' },
       { k: 'After you send it', v: 'When there is a notice, the engineer first reads what your Building Official is asking for. Our reply is a set of questions or a written proposal with the scope: what the work includes, what it leaves out, what you will receive and what it costs — for a recertification or a BSIP, a fixed fee. Nothing begins until you have agreed to it.' },
       { k: 'Where, and in which language', v: 'We work in Miami-Dade and Broward, in every city of both counties — from Miami, Hialeah and Coral Gables to Fort Lauderdale, Hollywood and Pompano Beach. Tell us the city, or that the building is outside city limits: that decides which office sends the notice and receives the report. The form and this site are in English and in Spanish; write in whichever is easier for you.' },
     ],

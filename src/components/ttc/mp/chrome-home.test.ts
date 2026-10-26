@@ -68,8 +68,11 @@ describe('the home page chrome', () => {
       expect(bar).toContain(`href="${phone.href}"`);
     });
 
-    it(`${lang}: the footer's tagline is the home's own line, not the firm's description`, () => {
-      expect(tag).toBe(`<p class="mp-footer__tag">${esc(c.home.chrome.footerTag)}</p>`);
+    // The footer prints no tagline and no P.E. badge on any page since
+    // 2026-10-26 (the owner: "eso ya lo dejamos claro en la web").
+    it(`${lang}: the footer carries no tagline and no P.E. badge`, () => {
+      expect(tag).toBe('');
+      expect(html).not.toContain('mp-footer__pe');
       expect(html).not.toContain(esc(c.company.description));
     });
   }
@@ -79,15 +82,15 @@ describe('every other page keeps the chrome it had', () => {
   for (const lang of LANGS) {
     const c = getContent(lang);
     for (const path of INNER) {
-      it(`${lang} ${path}: "${c.primaryCta.label}" to ${c.primaryCta.href}, no Call button, the firm's description`, () => {
+      it(`${lang} ${path}: "${c.primaryCta.label}" to ${c.primaryCta.href}, no Call button, no footer tagline`, () => {
         const { html, header, tag } = chrome(path, lang);
         expect(header).toContain(
           `<a class="mp-btn mp-btn--solid mp-header__cta" href="${localePath(c.primaryCta.href, lang)}"><span>${esc(c.primaryCta.label)}</span></a>`,
         );
         expect(header).not.toContain(esc(c.home.chrome.headerCta));
         expect(html).not.toContain('mp-header__call');
-        expect(tag).toBe(`<p class="mp-footer__tag">${esc(c.company.description)}</p>`);
-        expect(html).not.toContain(esc(c.home.chrome.footerTag));
+        expect(tag).toBe('');
+        expect(html).not.toContain('mp-footer__pe');
       });
     }
   }
