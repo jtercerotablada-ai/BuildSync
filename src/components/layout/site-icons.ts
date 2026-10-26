@@ -3,11 +3,21 @@ import type { Metadata } from "next";
 /* One icon set for BOTH hosts, all cut from the real TT monogram (never
    redrawn). Everything lives under /ttc/ or at /favicon.ico, which the host
    split serves in place on either host.
+
+   The owner, 2026-10-26: the mark in BLACK and gold on a transparent ground
+   (no black square) — "lo blanco en negro y dorado y quitar el fondo negro".
+   So every raster is cut from public/ttc/img/logo-square.png (black + gold,
+   transparent), and the SVG favicon carries both marks: the black one by
+   default, the white one (logo-white@256.png) under `prefers-color-scheme:
+   dark`, because a black mark vanishes on a dark tab strip (Chrome, Edge and
+   Firefox honour the media query inside an SVG favicon; Safari takes the PNG).
+   Made by scratchpad/pw/fav/make.mjs (sharp; the ICO is PNG-in-ICO, 16/32/48).
      - SVG first for modern browsers, a 48px PNG (Google's search favicon
        minimum) and a 192px PNG for Android home-screen shortcuts.
      - /favicon.ico (16/32/48) for legacy agents that request it blindly.
-     - A 180px OPAQUE PNG for iOS, which ignores SVG touch icons and would
-       otherwise screenshot the page for the home-screen tile.
+     - A 180px OPAQUE PNG for iOS (white tile, the mark on it): iOS ignores
+       SVG touch icons, paints transparency black, and would otherwise
+       screenshot the page for the home-screen tile.
 
    It lives here, not in a layout, because there is no single root layout any
    more: the app, the English site and the Spanish site each render their own
