@@ -28,7 +28,8 @@ describe('site-wide graph: the firm', () => {
   for (const lang of LANGS) {
     it(`(${lang}) carries the phone the site prints, in E.164`, () => {
       const org = organization(lang);
-      expect(org.telephone).toBe('+17722658506');
+      // The firm's line since 2026-10-26; the owner's personal number is gone.
+      expect(org.telephone).toBe('+14423798360');
       // Never typed twice: it is the number behind the site's own tel: links.
       expect(`tel:${org.telephone}`).toBe(contact.phone?.href);
       expect(org.contactPoint.telephone).toBe(org.telephone);

@@ -220,7 +220,10 @@ export const contact = {
   email: 'info@ttcivilstructural.com',
   /** The owner's own line, supplied by him on October 6, 2026. `href` is
    *  E.164 so the link dials from any country; `display` is the US form. */
-  phone: { display: '(772) 265-8506', href: 'tel:+17722658506' } as
+  /* The firm's line, +1 442 379 8360 (the owner, 2026-10-26: the (772)
+     number was his personal phone and is printed nowhere now). The same
+     number answers WhatsApp (`whatsapp.href`). */
+  phone: { display: '(442) 379-8360', href: 'tel:+14423798360' } as
     | { display: string; href: string }
     | null,
   /** WhatsApp on the same line. The owner confirmed on October 6, 2026 that

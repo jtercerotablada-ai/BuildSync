@@ -1232,7 +1232,7 @@ export const es: SiteContent = {
      * assumed they had reached us. Before changing this, dig the MX.
      */
     email: 'info@ttcivilstructural.com',
-    phone: { display: '(772) 265-8506', href: 'tel:+17722658506' },
+    phone: { display: '(442) 379-8360', href: 'tel:+14423798360' },
     whatsapp: { href: 'https://api.whatsapp.com/send?phone=14423798360' },
     address: null,
     serviceAreaLabel: 'Florida, todo el estado',
