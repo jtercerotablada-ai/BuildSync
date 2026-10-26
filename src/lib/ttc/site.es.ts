@@ -701,7 +701,6 @@ const services: SiteContent['services'] = [
        the five below: with "Condados de…" (`serviceAreaLabel`) the fact was
        a six-word line on six pages. Spanish only — the English label is
        short enough as it is. */
-    coverage: 'Miami-Dade y Broward, Florida',
     card: {
       when: 'La junta directiva no sabe qué inspección debe el edificio, un informe exige investigación adicional, o hay un motivo para revisar y ninguna notificación.',
       receive: 'Un informe de inspección con los hallazgos por orden de prioridad y, en condominios y cooperativas, un resumen que la junta puede enviar a los propietarios.',
@@ -874,7 +873,6 @@ const services: SiteContent['services'] = [
     track: 'existing',
     summary:
       'Cómo se está comportando realmente el edificio hoy — deterioro evaluado, capacidad verificada, reparaciones diseñadas para que puedan cotizarse y construirse.',
-    coverage: 'Miami-Dade y Broward, Florida',
     card: {
       when: 'Un informe enumera reparaciones, han aparecido grietas o desprendimientos, o va a comprar o modificar un edificio.',
       receive: 'Un informe de evaluación con el deterioro mapeado y, cuando se diseñan las reparaciones, planos y especificaciones que un contratista puede cotizar.',
@@ -964,6 +962,7 @@ const services: SiteContent['services'] = [
     title: 'Inspecciones de edificios threshold',
     shortTitle: 'Inspecciones threshold',
     track: 'existing',
+    coverage: 'Condados de Miami-Dade y Broward, Florida',
     summary:
       'Los programas de inspección del condado aplicados a un edificio threshold — de más de tres pisos o cincuenta pies — con el informe estructural, la carta de autocalificación y la revisión de fachada que su tamaño exige.',
     card: {
@@ -1051,7 +1050,6 @@ const services: SiteContent['services'] = [
     track: 'new',
     summary:
       'Una segunda lectura independiente del diseño estructural — cumplimiento de código, trayectoria de carga, constructibilidad y calidad de la documentación.',
-    coverage: 'Miami-Dade y Broward, Florida',
     card: {
       when: 'Un prestamista o una aseguradora pide una revisión independiente, un juego de planos está por emitirse, o algo en la estructura le preocupa.',
       receive: 'Un informe de revisión y un registro de comentarios priorizados, con seguimiento hasta cerrar cada uno.',
@@ -1237,7 +1235,7 @@ export const es: SiteContent = {
     phone: { display: '(772) 265-8506', href: 'tel:+17722658506' },
     whatsapp: { href: 'https://api.whatsapp.com/send?phone=17722658506' },
     address: null,
-    serviceAreaLabel: 'Condados de Miami-Dade y Broward, Florida',
+    serviceAreaLabel: 'Florida, todo el estado',
     social: {
       linkedin: 'https://www.linkedin.com/company/ttcivilstructural/',
       facebook: 'https://www.facebook.com/ttcivilstructural/',
@@ -1271,7 +1269,6 @@ export const es: SiteContent = {
         { href: '/guides', label: 'Guías' },
         { href: '/resources', label: 'Recursos' },
         { href: '/about', label: 'Nosotros' },
-        { href: '/about#team', label: 'Conozca al equipo' },
         { href: '/contact', label: 'Solicitar propuesta' },
       ],
     },
@@ -1481,7 +1478,7 @@ export const es: SiteContent = {
     chrome: {
       headerCta: 'Contáctenos',
       callLabel: 'Llamar {phone}',
-      footerTag: 'Ingeniería estructural en toda Florida.',
+      footerTag: 'Ingeniería civil y estructural en toda Florida.',
       barLabel: 'Contactar a la firma',
     },
     form: homeForm,

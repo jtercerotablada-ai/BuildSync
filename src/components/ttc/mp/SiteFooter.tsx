@@ -110,15 +110,11 @@ export function SiteFooter() {
               <span className="mp-footer__pe-mark" aria-hidden="true">
                 P.E.
               </span>
-              <span>
-                {c.leadership.credential}
-                {c.company.registry ? (
-                  <>
-                    <br />
-                    <span className="mp-footer__reg">{c.company.registry}</span>
-                  </>
-                ) : null}
-              </span>
+              {/* The credential alone: the registry line under it went on
+                  2026-10-26 (the owner: "eso es lógico"); `company.registry`
+                  still names the firm's registration in the Organization schema
+                  and on /about. */}
+              <span>{c.leadership.credential}</span>
             </p>
           </div>
 

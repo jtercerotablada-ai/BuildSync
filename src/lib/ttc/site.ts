@@ -242,7 +242,9 @@ export const contact = {
     state: string;
     zip: string;
   } | null,
-  serviceAreaLabel: 'Miami-Dade & Broward County, Florida',
+  /* The owner, 2026-10-26: the firm works statewide; the two county programs
+     and the threshold page carry their own `coverage`. */
+  serviceAreaLabel: 'Florida, statewide',
   /** Social profiles — only add a URL once the profile actually exists. */
   /* The firm's public profiles, created by the owner on October 17, 2026.
      The footer links LinkedIn, Facebook and Instagram; all of them go into the
@@ -308,7 +310,6 @@ export const footerNav: { title: string; items: NavItem[] }[] = [
       { href: '/guides', label: 'Guides' },
       { href: '/resources', label: 'Resources' },
       { href: '/about', label: 'About' },
-      { href: '/about#team', label: 'Meet the Team' },
       { href: '/contact', label: 'Request a Proposal' },
     ],
   },
@@ -2174,6 +2175,7 @@ export const services: Service[] = [
     title: 'Threshold Building Inspections',
     shortTitle: 'Threshold Inspections',
     track: 'existing',
+    coverage: 'Miami-Dade & Broward County, Florida',
     summary:
       'The county inspection programs applied to a threshold building — over three stories or fifty feet — with the structural report, the self-qualification letter and the façade review its size requires.',
     card: {
@@ -2559,7 +2561,7 @@ export const home = {
     /* The owner, 2026-10-26: the firm works across Florida; only the two
        county programs are Miami-Dade's and Broward's, and the home says the
        state, not the counties (the counties stay on the program pages). */
-    footerTag: 'Structural engineering across Florida.',
+    footerTag: 'Civil and structural engineering across Florida.',
     /* The name of the phone bar, said by the firm: the page's other bars say
        "Contact the engineer" (`reach.label`), a single person. */
     barLabel: 'Contact the firm',
@@ -2674,7 +2676,7 @@ export const home = {
     label: 'Contact',
     title: 'Get in touch.',
     accentWord: 'touch.',
-    sub: 'Tell us about the building. Write in English or in Spanish.',
+    sub: 'Tell us about the building and what you need from us. Write in English or in Spanish.',
     call: 'Call',
     whatsapp: 'WhatsApp',
     email: 'Email',
