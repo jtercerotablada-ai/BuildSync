@@ -1527,8 +1527,8 @@ export const es: SiteContent = {
       },
     },
     statement: {
-      lines: ['Viento de huracán.', 'Agua alta.', 'Décadas de aire salino.'],
-      dim: 'Lo inspeccionamos todo, y lo dejamos por escrito para que una junta, un propietario y un oficial de construcción puedan seguirlo.',
+      lines: ['Inspeccionamos.', 'Evaluamos.', 'Revisamos.'],
+      dim: 'Edificios existentes, edificios en construcción y los diseños detrás de ellos, en Miami-Dade y Broward — y lo dejamos todo por escrito para que una junta, un propietario y un oficial de construcción puedan seguirlo.',
       accentWord: 'todo',
     },
     types: {

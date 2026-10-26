@@ -2605,8 +2605,11 @@ export const home = {
     },
   },
   statement: {
-    lines: ['Hurricane wind.', 'High water.', 'Decades of salt air.'],
-    dim: 'We inspect for all of it, and write it down so a board, an owner and a building official can follow.',
+    /* The owner, 2026-10-26: "un mejor título a lo que ofrecemos, no
+       entiendo" — the three conditions of the coast (hurricane wind, high
+       water, salt air) gave way to the three verbs of the work. */
+    lines: ['We inspect.', 'We assess.', 'We review.'],
+    dim: 'Existing buildings, buildings going up and the designs behind them, across Miami-Dade and Broward — and we write it all down so a board, an owner and a building official can follow.',
     accentWord: 'all',
   },
   types: {
