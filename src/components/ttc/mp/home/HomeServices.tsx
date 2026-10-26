@@ -113,15 +113,15 @@ export function HomeServices({ lang }: { lang: Lang }) {
 
         <div className="h-svc__grid">
           {cards.map(({ s, i, photo, line }) => {
-            /* One frame shape per row — 3/2, then 4/5, then 3/2 — so the two
-               columns stay in step and the dropped right column keeps its
-               spacing (home.css). */
-            const tall = Math.floor(i / 2) % 2 === 1;
+            /* One frame shape for all six, 3/2 (the owner, 2026-10-26: the
+               rows must not differ in height — the middle row used to be
+               4/5), so the two columns stay in step and the dropped right
+               column keeps its spacing (home.css). */
             return (
               <article
                 key={s.slug}
                 className="h-card h-svc"
-                style={{ '--ar': tall ? '4 / 5' : '3 / 2', '--o': i + 1 } as React.CSSProperties}
+                style={{ '--ar': '3 / 2', '--o': i + 1 } as React.CSSProperties}
               >
                 <Reveal fx="img" className="h-ph">
                   <div className="h-ph__in">

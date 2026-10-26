@@ -831,7 +831,8 @@ html:not(.js) .mp-home .h-rib__row--rev .h-rib__track {
    in the markup and on the screen. The right column is dropped by `--h-drop`
    with a TRANSFORM, not by layout: the markup (and the keyboard) keep the
    reading order, the rows keep their height, and the drop reads as a column
-   because every row holds one frame shape (HomeServices sets `--ar` per row).
+   because every card is one shape, 3/2 (HomeServices; the owner, 2026-10-26:
+   no row taller than another).
    The last right card hangs below the grid by the drop: the padding holds
    the room for it. */
 .mp-home .h-svc__grid {
