@@ -2562,7 +2562,7 @@ export const home = {
     counties: ['Miami-Dade', 'Broward'],
   },
   ribbon: {
-    label: 'What we engineer',
+    label: 'What we inspect',
     sideNew: 'New construction',
     sideExisting: 'Existing buildings',
     /* The second row, under the eight service names. */
@@ -2607,7 +2607,7 @@ export const home = {
     accentWord: 'mid-rise',
     tag: 'Illustrative photographs',
     /* The name of the band. */
-    region: 'Building types we engineer',
+    region: 'Building types we inspect',
     /* The first five cards are `typologies[0..4]`; the sixth is new: the
        repair design of existing structures, not "repairs" (a photograph of
        a worker with a trowel over "repairs" reads as the firm doing them). */

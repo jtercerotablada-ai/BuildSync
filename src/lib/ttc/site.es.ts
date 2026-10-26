@@ -1536,7 +1536,7 @@ export const es: SiteContent = {
       title: 'De una vivienda unifamiliar a un edificio de mediana altura en concreto.',
       accentWord: 'mediana altura',
       tag: 'Fotografías ilustrativas',
-      region: 'Tipos de edificio que diseñamos',
+      region: 'Tipos de edificio que inspeccionamos',
       sixth: { title: 'Diseño de reparaciones para estructuras existentes' },
     },
     credentials: {
