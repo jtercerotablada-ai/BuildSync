@@ -2413,8 +2413,9 @@ export const imagery = {
   services: {
     /* 2026-10-26, the owner: each photograph shows the service's own work
        — a spalled slab for the assessments, a condominium tower for the
-       milestone inspection, drawings under review for the peer review;
-       Broward's coast and the frame going up stay. The recertification
+       milestone inspection, drawings under review for the peer review, a
+       tall frame with its crews for the threshold inspections (the crane
+       alone was "not a tall building being inspected"); Broward's coast stays. The recertification
        card keeps the towers by the water until a photograph of an
        inspector at a two- or three-storey building is found (his words;
        Pexels has none). The white mid-rise, the glass balconies and the
@@ -2423,7 +2424,7 @@ export const imagery = {
     'broward-bsip': photo.bsipBroward,
     'milestone-inspections': photo.condoBalconiesTower,
     'structural-condition-assessments': photo.slabSpallingRebar,
-    'threshold-inspections': photo.frameCraneSky,
+    'threshold-inspections': photo.thresholdFrameCrews,
     'peer-review': photo.drawingsReviewDesk,
   } as Record<string, Photo>,
   /* The hero aside, the only clip left is the model in the new-buildings

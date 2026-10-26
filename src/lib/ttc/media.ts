@@ -273,6 +273,15 @@ const catalogue = {
     'Hands over a set of structural drawings, one marking with a pencil',
     'Manos sobre un juego de planos estructurales, una marcando con lápiz',
   ),
+  /* The threshold card, the owner, 2026-10-26: "un edificio alto, este
+     inspeccionando" — a tall concrete frame going up, crews on its top slab.
+     Focal point high, so the crews stay in a landscape crop. */
+  thresholdFrameCrews: p(
+    'threshold-frame-crews', 2000, 3000,
+    'Tall reinforced-concrete frame under construction, crews on its top slab among the column bars',
+    'Estructura alta de concreto reforzado en construcción, cuadrillas en la losa superior entre las barras de las columnas',
+    '50% 25%',
+  ),
   frameCraneSky: p(
     'frame-crane-sky', 2000, 1415,
     'Cast-in-place concrete frame of a tower under construction, the tower crane above it against a clear sky',
