@@ -862,7 +862,7 @@ for (const lang of LANGS) {
       // The owner, 2026-10-26: each service card shows the service's own work
       // (a spalled slab, a condominium tower, drawings under review); the
       // white mid-rise and the glass balconies left the cards that day.
-      for (const p of [photo.midriseBalconies, photo.miamiTowersUp, photo.slabSpallingRebar, photo.condoBalconiesTower, photo.drawingsReviewDesk]) {
+      for (const p of [photo.midriseBalconies, photo.miamiTowersUp, photo.recertInspectorWindow, photo.slabSpallingRebar, photo.condoBalconiesTower, photo.thresholdFrameCrews, photo.drawingsReviewDesk]) {
         expect(markup, p.src).toContain(stem(p.src));
       }
       // The owner, 2026-10-25: no photograph of a worker on the home (it reads

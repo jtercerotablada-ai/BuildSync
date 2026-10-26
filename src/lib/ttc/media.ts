@@ -249,10 +249,15 @@ const catalogue = {
   /* 2026-10-26, the owner: "las imágenes de cada servicio deben ser acordes
      al servicio". Photographs of the service's own work, for the home's cards
      and /services (`imagery.services`): a spalled slab, a condominium tower,
-     drawings under review (Pexels). A facade under rope-access inspection
-     is cut and waiting (`facadeRopeInspection`): the owner wants the
-     recertification card to show an inspector at a two- or three-storey
-     building, which Pexels does not have. */
+     drawings under review, and — the owner's own pick, sent that night —
+     an inspector reading the drawings at the window of a building under
+     inspection (Pexels 8482555). The facade under rope-access inspection
+     is cut and unplaced (`facadeRopeInspection`). */
+  recertInspectorWindow: p(
+    'recert-inspector-window', 2000, 1333,
+    'Inspector in a hard hat reading the drawings at the window of a building under inspection',
+    'Inspector con casco leyendo los planos junto a la ventana de un edificio en inspección',
+  ),
   facadeRopeInspection: p(
     'facade-rope-inspection', 2000, 1125,
     'Rope-access technicians inspecting the balconied facade of a concrete tower',

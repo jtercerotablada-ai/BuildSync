@@ -2415,12 +2415,14 @@ export const imagery = {
        — a spalled slab for the assessments, a condominium tower for the
        milestone inspection, drawings under review for the peer review, a
        tall frame with its crews for the threshold inspections (the crane
-       alone was "not a tall building being inspected"); Broward's coast stays. The recertification
+       alone was "not a tall building being inspected"), and for the
+       recertification the inspector at the window he chose himself;
+       Broward's coast stays. The recertification
        card keeps the towers by the water until a photograph of an
        inspector at a two- or three-storey building is found (his words;
        Pexels has none). The white mid-rise, the glass balconies and the
        fluted tower are spares now. */
-    'building-recertification': photo.recertMiamiDade,
+    'building-recertification': photo.recertInspectorWindow,
     'broward-bsip': photo.bsipBroward,
     'milestone-inspections': photo.condoBalconiesTower,
     'structural-condition-assessments': photo.slabSpallingRebar,
