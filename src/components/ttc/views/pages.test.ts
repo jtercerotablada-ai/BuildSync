@@ -641,11 +641,16 @@ describe('county program pages: no paragraph is printed twice', () => {
 
       // 4. No engineer's name anywhere on the page (the owner, 2026-10-26:
       //    "no pongas mi nombre, somos empresa"): the credential block that
-      //    stood under the hero and in "Next step" is gone.
+      //    stood under the hero and in "Next step" is gone. The one exception
+      //    is a client's own words: the reviews band quotes them as written,
+      //    and two of them name the owner (the owner, 2026-10-27: "pon
+      //    Juan"). Everything the firm itself says names nobody.
       it(`${slug} (${lang}): no engineer is named — the firm answers`, () => {
+        const ours = main.replace(/<section class="[^"]*\bh-rev\b[^"]*"[\s\S]*?<\/section>/g, ' ');
+        expect(ours).not.toBe(main);
         expect(main.match(/<dl class="mp-cred[^"]*">[\s\S]*?<\/dl>/g) ?? []).toHaveLength(0);
-        expect(text(main)).not.toContain(c.leadership.name);
-        expect(text(main)).not.toContain(c.leadership.firstName);
+        expect(text(ours)).not.toContain(c.leadership.name);
+        expect(text(ours)).not.toContain(c.leadership.firstName);
       });
 
       /* ZERO, with nothing set aside: counted over every <p>, <dd> and <li>

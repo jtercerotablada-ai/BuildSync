@@ -1608,6 +1608,87 @@ body:has(.mp-dark) .mp-header.is-stuck:not(.is-menu-open) {
   }
 }
 
+/* What clients say (ServiceReviews): each review under a gold hairline, a
+   large italic quotation mark, the words at reading size, the name in mono.
+   Three to a row; four as two by two; one column from 899px down. */
+.mp-dark .h-rev__list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(28px, 3vw, 48px) clamp(20px, 2.6vw, 44px);
+  margin: clamp(28px, 3.4vw, 48px) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.mp-dark .h-rev__list[data-count='2'],
+.mp-dark .h-rev__list[data-count='4'] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.mp-dark .h-rev__item {
+  padding-block-start: clamp(20px, 2vw, 28px);
+  border-top: 1px solid var(--mp-gold);
+}
+.mp-dark .h-rev__fig {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  height: 100%;
+  margin: 0;
+}
+.mp-dark .h-rev__q {
+  position: relative;
+  margin: 0;
+  padding: 0;
+}
+.mp-dark .h-rev__q::before {
+  content: '“';
+  content: '“' / '';
+  display: block;
+  height: 0.5em;
+  margin-block-end: 6px;
+  font-family: var(--mp-serif, Georgia, serif);
+  font-style: italic;
+  font-size: clamp(56px, 5vw, 80px);
+  line-height: 1;
+  color: var(--mp-gold);
+}
+.mp-dark .h-rev__q p {
+  margin: 0;
+  max-width: 46ch;
+  font-size: clamp(17px, 1.3vw, 20px);
+  line-height: 1.55;
+  letter-spacing: -0.01em;
+  color: var(--mp-snow);
+  text-wrap: pretty;
+}
+.mp-dark .h-rev__by {
+  margin-block-start: auto;
+  font-family: var(--mp-mono);
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--mp-snow-2);
+}
+.mp-dark .h-rev__by::before {
+  content: '— ';
+  content: '— ' / '';
+  color: var(--mp-gold);
+}
+.mp-dark .h-rev__note {
+  margin: clamp(24px, 2.6vw, 36px) 0 0;
+  font-family: var(--mp-mono);
+  font-size: 11.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--mp-snow-3);
+}
+@media (max-width: 899px) {
+  .mp-dark .h-rev__list,
+  .mp-dark .h-rev__list[data-count='2'],
+  .mp-dark .h-rev__list[data-count='4'] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 /* Under the clock: where to look the first number up. */
 .mp-dark .h-clock__look {
   display: flex;

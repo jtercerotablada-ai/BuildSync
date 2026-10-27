@@ -15,6 +15,7 @@ import { ServiceFee } from '@/components/ttc/mp/plates/ServiceFee';
 import { ServiceFlow } from '@/components/ttc/mp/plates/ServiceFlow';
 import { ServiceGlance } from '@/components/ttc/mp/plates/ServiceGlance';
 import { ServiceIncludes } from '@/components/ttc/mp/plates/ServiceIncludes';
+import { ServiceReviews } from '@/components/ttc/mp/plates/ServiceReviews';
 import { HomeContact } from '@/components/ttc/mp/home/HomeContact';
 import { JUMP_ID, JumpLinks } from '@/components/ttc/mp/JumpLinks';
 import { ReachRow } from '@/components/ttc/mp/ReachRow';
@@ -42,7 +43,8 @@ import { breadcrumbLd, JsonLd } from './meta';
  *   scope line by line, folded) → what you receive (+ the package, part by
  *   part, folded) → how it runs (on the two county programs, who does what
  *   at each step — ServiceFlow — with the steps folded under it) → the fee
- *   (ServiceFee, the two county programs) → when it applies (the rows; the
+ *   (ServiceFee, the two county programs) → what clients say
+ *   (ServiceReviews) → when it applies (the rows; the
  *   board's duties folded) → the questions → who sent your notice (folded)
  *   → good to know (folded) → related services. The order of the
  *   competitor's page the owner called "bien claro" (2026-10-27): what it
@@ -656,6 +658,13 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
 
         {/* The fee — the two county programs (ServiceFee). */}
         {program ? <ServiceFee lang={lang} slug={service.slug} href={contactHref} cta={cta} surface={surface()} /> : null}
+
+        {/* What clients say (ServiceReviews, 2026-10-27): after the fee on a
+            county program, after the steps on the others — where a reader
+            decides. */}
+        {c.serviceReviews[service.slug]?.items.length ? (
+          <ServiceReviews lang={lang} slug={service.slug} surface={surface()} />
+        ) : null}
 
         {/* When it applies — regulated services only. The notes, the button
             and the links stand in the column beside the card. */}

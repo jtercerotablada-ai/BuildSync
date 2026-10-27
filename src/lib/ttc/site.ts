@@ -3485,6 +3485,78 @@ export const serviceFlow: Record<string, ServiceFlow> = {
   },
 };
 
+/* What clients say, on each service page (2026-10-27). The owner sent the
+   reviews in "Resenas_Tercero_Tablada.docx", whose first line says the names
+   and the experiences are 100% real. Printed WORD FOR WORD, under the
+   client's first name and the initial of the last (their privacy), on the
+   page of the service each one names. Four of the twenty name the owner,
+   and keep his name: the owner, 2026-10-27, "no las excluyas, Juan es parte
+   de Tercero Tablada… pon Juan". The firm still speaks without a name
+   everywhere else; only a client's own words may name him. No
+   stars, no rating, no Review markup — Google does not show a firm's own
+   reviews of itself, and nothing here is a rating. On the Spanish pages the
+   reviews are translated, and say so. */
+export type ServiceReviews = {
+  label: string;
+  /** One short line under the reviews, where one is needed (the Spanish
+   *  pages: the reviews are translated). */
+  note?: string;
+  items: readonly { quote: string; name: string }[];
+};
+
+export const serviceReviews: Record<string, ServiceReviews> = {
+  'building-recertification': {
+    label: 'What clients say',
+    items: [
+      { name: 'Daniel B.', quote: 'We received the recertification notice and honestly didn’t know where to begin. Tercero Tablada explained what we needed to have ready and how the inspection would work. There were a few items to address, but having photos and a clear explanation made the next steps much easier.' },
+      { name: 'Gabriela M.', quote: 'The hardest part for us was coordinating access with the tenants. Juan explained which areas the team needed to inspect, so we could notify everyone ahead of time. That preparation saved us a lot of back and forth.' },
+      { name: 'Michael T.', quote: 'Clear report, useful photos, and someone available when we had questions. I appreciated being able to understand the findings without having an engineering background.' },
+      { name: 'Andrés M.', quote: 'This was my first time handling recertification as a building owner. I thought the inspection and the repairs were all one service, so I had quite a few questions. They explained the process patiently and helped me understand what I needed to coordinate with a contractor.' },
+    ],
+  },
+  'broward-bsip': {
+    label: 'What clients say',
+    items: [
+      { name: 'Heather C.', quote: 'I’m on our association’s board, and we had several different opinions about what the Broward inspection involved. Their explanation gave us something clear to work from. We were able to discuss the findings at our next meeting without spending the whole evening trying to interpret the report.' },
+      { name: 'Ricardo S.', quote: 'What I liked about Tercero Tablada was the follow-up. After the inspection, I still had questions about the paperwork and what came next. They answered those questions and kept me informed while we worked through the remaining items.' },
+      { name: 'Lauren M.', quote: 'We needed help organizing the structural and electrical inspection requirements for our property. Communication was straightforward, and I knew what documents they needed from me. A good experience overall.' },
+      { name: 'Camila R.', quote: 'I called Juan after reading the report because I wasn’t sure how to explain one of the findings to the other owners. He walked me through it in plain English. That conversation was probably the most helpful part of the entire process for me.' },
+    ],
+  },
+  'milestone-inspections': {
+    label: 'What clients say',
+    items: [
+      { name: 'Daniela P.', quote: 'Our board had been going back and forth over the milestone inspection for weeks. We finally had a call with their team and got our questions organized. Having the scope explained before scheduling the visit made the whole thing feel less overwhelming.' },
+      { name: 'Thomas B.', quote: 'I manage the property, so access and resident notices were my main concerns. They explained where access would be needed, and we planned around that. The inspection day went smoothly.' },
+      { name: 'Mariana D.', quote: 'The report was detailed, and there were a couple of terms I didn’t understand at first. I emailed my questions and received an explanation I could share with the rest of our board. I appreciated that Tercero Tablada took the time to help us understand what we were reading.' },
+    ],
+  },
+  'structural-condition-assessments': {
+    label: 'What clients say',
+    items: [
+      { name: 'Brandon H.', quote: 'We had cracks near a balcony that concerned us. The engineer took time to look at the area and explain what could be determined from the assessment and what needed further attention. I appreciated that the answers were specific to our building.' },
+      { name: 'Patricia V.', quote: 'Before working with Tercero Tablada, we were getting repair proposals that described completely different work. Having a defined repair scope helped us ask better questions and compare the contractors’ proposals. It made a confusing decision much more manageable.' },
+      { name: 'Kevin S.', quote: 'We had patched the same area before, and the problem came back. Juan helped us understand why we needed to look beyond the surface damage. The repair drawings gave our contractor a much clearer starting point.' },
+    ],
+  },
+  'threshold-inspections': {
+    label: 'What clients say',
+    items: [
+      { name: 'Ryan W.', quote: 'From the contractor’s side, clear inspection notes make a big difference. Their observations identified the locations and items that needed attention, so our superintendent could follow up with the right crew. We weren’t left guessing what the notes referred to.' },
+      { name: 'Sergio C.', quote: 'Our construction schedule changed a couple of times, and we had to coordinate new inspection dates. We stayed in contact and worked out the visits around the updated schedule. I appreciated having someone who understood that things move around on an active job.' },
+      { name: 'Allison R.', quote: 'I handled the project paperwork. The inspection records were organized and easy to share with our construction team. That might sound like a small thing, but it saved me a lot of chasing documents.' },
+    ],
+  },
+  'peer-review': {
+    label: 'What clients say',
+    items: [
+      { name: 'Esteban M.', quote: 'The review comments were specific enough that our design team could respond without a lot of clarification calls. We could track what had been answered and what was still open. It was a constructive review process.' },
+      { name: 'Scott H.', quote: 'We brought in Tercero Tablada for an independent review as part of our project’s financing process. I’m on the ownership side, so I needed a summary I could actually follow. Their report helped me understand the outstanding questions and discuss them with our design team.' },
+      { name: 'Natalia C.', quote: 'I appreciated the way Juan handled questions with our engineer. The discussion stayed focused on the drawings and the reasoning behind the details. We came away with clearer documentation and a better understanding of the items that needed clarification.' },
+    ],
+  },
+};
+
 export const servicesPage = {
   eyebrow: 'Services',
   /* The firm's six services for the whole state (the owner, 2026-10-26: the
@@ -3679,7 +3751,7 @@ export const contactPage = {
      confusión"): what the visitor does, what comes back, what follows. The
      reply time is the owner's ("usually"); no figure is typed. */
   steps: [
-    { t: 'Tell us about the building', v: 'Fill in the form: who you are, the service, where the building is and a few lines about it. Attach the notice, photos or drawings if you have them; none is required.' },
+    { t: 'Tell us about the building', v: 'Fill in the form: the service, where the building is, who you are and a few lines about it. Attach the notice, photos or drawings if you have them; none is required.' },
     { t: 'We read it and reply', v: 'Usually within two hours on a working day, with our questions or a written proposal: what the work includes, what you receive, and the fee.' },
     { t: 'You approve, we begin', v: 'Nothing starts until you agree to the proposal. The visit is booked for a day the building can be opened, and the report follows it.' },
   ],
@@ -4218,6 +4290,7 @@ export const en = {
   serviceLook,
   serviceIncludes,
   serviceFlow,
+  serviceReviews,
   existingPage,
   workPage,
   contactPage,

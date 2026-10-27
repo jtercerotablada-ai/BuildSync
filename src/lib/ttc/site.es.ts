@@ -2105,6 +2105,67 @@ export const es: SiteContent = {
       ],
     },
   },
+  /* What clients say — see the English (site.ts, `serviceReviews`) for
+     where the reviews come from and the rules. Translated faithfully, and the
+     page says so; the names as in English. */
+  serviceReviews: {
+    'building-recertification': {
+      label: 'Lo que dicen los clientes',
+      note: 'Traducidas del inglés.',
+      items: [
+        { name: 'Daniel B.', quote: 'Recibimos la notificación de recertificación y, sinceramente, no sabíamos por dónde empezar. Tercero Tablada nos explicó qué teníamos que tener listo y cómo sería la inspección. Hubo algunos puntos que atender, pero tener fotos y una explicación clara hizo mucho más fáciles los pasos siguientes.' },
+        { name: 'Gabriela M.', quote: 'Lo más difícil para nosotros fue coordinar el acceso con los inquilinos. Juan nos explicó qué áreas necesitaba inspeccionar el equipo, así que pudimos avisar a todos con anticipación. Esa preparación nos ahorró muchas idas y vueltas.' },
+        { name: 'Michael T.', quote: 'Un informe claro, fotos útiles y alguien disponible cuando teníamos preguntas. Agradecí poder entender los hallazgos sin tener formación en ingeniería.' },
+        { name: 'Andrés M.', quote: 'Era la primera vez que manejaba una recertificación como propietario. Pensaba que la inspección y las reparaciones eran un solo servicio, así que tenía bastantes preguntas. Me explicaron el proceso con paciencia y me ayudaron a entender qué tenía que coordinar con un contratista.' },
+      ],
+    },
+    'broward-bsip': {
+      label: 'Lo que dicen los clientes',
+      note: 'Traducidas del inglés.',
+      items: [
+        { name: 'Heather C.', quote: 'Estoy en la junta de nuestra asociación, y teníamos varias opiniones distintas sobre lo que implicaba la inspección de Broward. Su explicación nos dio algo claro con qué trabajar. Pudimos discutir los hallazgos en la siguiente reunión sin pasar toda la noche tratando de interpretar el informe.' },
+        { name: 'Ricardo S.', quote: 'Lo que me gustó de Tercero Tablada fue el seguimiento. Después de la inspección, todavía tenía preguntas sobre los trámites y lo que seguía. Respondieron esas preguntas y me mantuvieron informado mientras resolvíamos los puntos pendientes.' },
+        { name: 'Lauren M.', quote: 'Necesitábamos ayuda para organizar los requisitos de la inspección estructural y eléctrica de nuestra propiedad. La comunicación fue directa, y yo sabía qué documentos necesitaban de mí. Una buena experiencia en general.' },
+        { name: 'Camila R.', quote: 'Llamé a Juan después de leer el informe porque no sabía bien cómo explicarles uno de los hallazgos a los demás propietarios. Me lo explicó paso a paso, en palabras sencillas. Esa conversación fue probablemente lo más útil de todo el proceso para mí.' },
+      ],
+    },
+    'milestone-inspections': {
+      label: 'Lo que dicen los clientes',
+      note: 'Traducidas del inglés.',
+      items: [
+        { name: 'Daniela P.', quote: 'Nuestra junta llevaba semanas dándole vueltas a la inspección de hito. Por fin tuvimos una llamada con su equipo y organizamos nuestras preguntas. Que nos explicaran el alcance antes de programar la visita hizo que todo se sintiera menos abrumador.' },
+        { name: 'Thomas B.', quote: 'Administro la propiedad, así que el acceso y los avisos a los residentes eran mis principales preocupaciones. Nos explicaron dónde se necesitaría acceso y planificamos en función de eso. El día de la inspección transcurrió sin problemas.' },
+        { name: 'Mariana D.', quote: 'El informe era detallado, y había un par de términos que al principio no entendía. Envié mis preguntas por correo y recibí una explicación que pude compartir con el resto de la junta. Agradecí que Tercero Tablada se tomara el tiempo de ayudarnos a entender lo que estábamos leyendo.' },
+      ],
+    },
+    'structural-condition-assessments': {
+      label: 'Lo que dicen los clientes',
+      note: 'Traducidas del inglés.',
+      items: [
+        { name: 'Brandon H.', quote: 'Teníamos grietas cerca de un balcón que nos preocupaban. El ingeniero se tomó el tiempo de revisar la zona y de explicarnos qué se podía determinar con la evaluación y qué necesitaba más atención. Agradecí que las respuestas fueran específicas para nuestro edificio.' },
+        { name: 'Patricia V.', quote: 'Antes de trabajar con Tercero Tablada, recibíamos propuestas de reparación que describían trabajos completamente distintos. Tener definido qué había que reparar nos ayudó a hacer mejores preguntas y a comparar las propuestas de los contratistas. Hizo mucho más manejable una decisión confusa.' },
+        { name: 'Kevin S.', quote: 'Ya habíamos parcheado la misma zona antes, y el problema volvió. Juan nos ayudó a entender por qué teníamos que mirar más allá del daño superficial. Los planos de reparación le dieron a nuestro contratista un punto de partida mucho más claro.' },
+      ],
+    },
+    'threshold-inspections': {
+      label: 'Lo que dicen los clientes',
+      note: 'Traducidas del inglés.',
+      items: [
+        { name: 'Ryan W.', quote: 'Desde el punto de vista del contratista, unas notas de inspección claras marcan una gran diferencia. Sus observaciones identificaban las ubicaciones y los puntos que necesitaban atención, así que nuestro superintendente pudo darles seguimiento con la cuadrilla adecuada. No nos quedamos adivinando a qué se referían las notas.' },
+        { name: 'Sergio C.', quote: 'Nuestro calendario de construcción cambió un par de veces y tuvimos que coordinar nuevas fechas de inspección. Nos mantuvimos en contacto y organizamos las visitas según el calendario actualizado. Agradecí tener a alguien que entendía que en una obra en curso las cosas cambian.' },
+        { name: 'Allison R.', quote: 'Yo me encargaba de la documentación del proyecto. Los registros de inspección estaban organizados y eran fáciles de compartir con nuestro equipo de construcción. Puede parecer poca cosa, pero me ahorró mucho tiempo persiguiendo documentos.' },
+      ],
+    },
+    'peer-review': {
+      label: 'Lo que dicen los clientes',
+      note: 'Traducidas del inglés.',
+      items: [
+        { name: 'Esteban M.', quote: 'Los comentarios de la revisión eran lo bastante específicos como para que nuestro equipo de diseño pudiera responder sin muchas llamadas de aclaración. Podíamos llevar el control de lo que se había respondido y de lo que seguía abierto. Fue un proceso de revisión constructivo.' },
+        { name: 'Scott H.', quote: 'Contratamos a Tercero Tablada para una revisión independiente como parte del proceso de financiamiento de nuestro proyecto. Estoy del lado de la propiedad, así que necesitaba un resumen que realmente pudiera seguir. Su informe me ayudó a entender las preguntas pendientes y a discutirlas con nuestro equipo de diseño.' },
+        { name: 'Natalia C.', quote: 'Agradecí la forma en que Juan manejó las preguntas con nuestro ingeniero. La conversación se mantuvo centrada en los planos y en el razonamiento detrás de los detalles. Terminamos con una documentación más clara y entendiendo mejor los puntos que necesitaban aclaración.' },
+      ],
+    },
+  },
   servicesPage: {
     eyebrow: 'Servicios',
     titleLines: ['Seis servicios para', 'los edificios de Florida.'],
@@ -2226,7 +2287,7 @@ export const es: SiteContent = {
        "Building Official" carries its gloss at its first use on the page
        (the row for a date already passed), the short form after it. */
     steps: [
-      { t: 'Cuéntenos del edificio', v: 'Llene el formulario: quién es usted, el servicio, dónde está el edificio y unas líneas sobre él. Adjunte la notificación, fotos o planos si los tiene; nada de eso es obligatorio.' },
+      { t: 'Cuéntenos del edificio', v: 'Llene el formulario: el servicio, dónde está el edificio, quién es usted y unas líneas sobre él. Adjunte la notificación, fotos o planos si los tiene; nada de eso es obligatorio.' },
       { t: 'Lo leemos y respondemos', v: 'Normalmente en menos de dos horas en un día hábil, con nuestras preguntas o una propuesta por escrito: qué incluye el trabajo, qué recibe y el precio.' },
       { t: 'Usted aprueba y empezamos', v: 'Nada empieza hasta que usted acepta la propuesta. La visita se programa para un día en que se pueda abrir el edificio, y el informe viene después.' },
     ],

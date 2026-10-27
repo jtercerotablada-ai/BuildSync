@@ -256,13 +256,22 @@ export function ContactForm({
   const lang = useLang();
   const t = c.ui.form;
   const home = variant === 'home';
+  // The service a fresh form starts from — on the first render and again
+  // after "Send another" (restart), so a second request carries it too. The
+  // home variant has no service select: the page's own service, or the last
+  // option ("Other / not sure yet"); /api/contact refuses an empty one. The
+  // page variant: the ?service= preset, or '' for the visitor to choose.
+  const initialService = () =>
+    home
+      ? presetOption(presetService, c) || c.contactServiceOptions[c.contactServiceOptions.length - 1]
+      : presetOption(presetService, c);
   const [f, setF] = useState<Fields>(() => ({
     ...EMPTY,
     // The home variant shows no service select. On the home itself it sends
     // the last option, "Other / not sure yet", which the route accepts like
     // any other; on an inner page (the same plate closes every page since
     // 2026-10-26) it sends the page's own service when one is given.
-    service: home ? presetOption(presetService, c) || c.contactServiceOptions[c.contactServiceOptions.length - 1] : presetOption(presetService, c),
+    service: initialService(),
   }));
   // Read once, on the first render, when `f.service` is still the preset.
   // Never in the home variant: the plate that closes every page (2026-10-26)
@@ -312,16 +321,18 @@ export function ContactForm({
     };
 
   function validate(v: Fields): Errors {
+    // In the order of the fields on screen, so the first error found is the
+    // first field the visitor meets and the focus lands there (onSubmit).
     const e: Errors = {};
-    if (!v.name.trim()) e.name = t.errors.name;
-    if (!v.email.trim()) e.email = t.errors.email;
-    else if (!EMAIL_RE.test(v.email.trim())) e.email = t.errors.emailFormat;
     // One of THIS language's options — the server accepts nothing else, and a
     // value the <select> cannot show would otherwise pass as "chosen".
     if (!home) {
       if (!c.contactServiceOptions.includes(v.service)) e.service = t.errors.service;
       if (!v.location.trim()) e.location = t.errors.location;
     }
+    if (!v.name.trim()) e.name = t.errors.name;
+    if (!v.email.trim()) e.email = t.errors.email;
+    else if (!EMAIL_RE.test(v.email.trim())) e.email = t.errors.emailFormat;
     // A county notice that finished uploading stands in for the description;
     // the route applies the same function. Counted from the ref: uploads
     // settle outside the render that started them.
@@ -341,7 +352,7 @@ export function ContactForm({
       reveal(alertRef.current);
     } else if (status === 'idle' && restarted.current) {
       restarted.current = false;
-      reveal(formRef.current, formRef.current?.querySelector<HTMLElement>('[name="name"]') ?? null);
+      reveal(formRef.current, formRef.current?.querySelector<HTMLElement>(home ? '[name="name"]' : '[name="service"]') ?? null);
     }
   }, [status]);
 
@@ -616,7 +627,7 @@ export function ContactForm({
     controllers.current.clear();
     queue.current = [];
     writePending([]);
-    setF({ ...EMPTY });
+    setF({ ...EMPTY, service: initialService() });
     setErrors({});
     setFileError(null);
     setRef('');
@@ -805,16 +816,10 @@ export function ContactForm({
 
         {noticeFirst ? attachments : null}
 
-        {/* Who: name, email and the optional phone. One row of three from
-            641 to 1180px, where the form has the full width; from 1181px,
-            beside the guide, name | email with the phone under the name
-            (mp.css 18), so a long address stays readable as it is typed. */}
-        <div className="mp-form__row mp-form__row--3">
-          <Field id="mp-name" name="name" label={t.name} value={f.name} onChange={set('name')} error={errors.name} autoComplete="name" autoCapitalize="words" spellCheck={false} maxLength={120} required />
-          <Field id="mp-email" name="email" label={t.email} type="email" inputMode="email" value={f.email} onChange={set('email')} error={errors.email} autoComplete="email" autoCapitalize="none" spellCheck={false} maxLength={200} required />
-          <Field id="mp-phone" name="phone" label={t.phone} optional optionalLabel={t.optional} type="tel" inputMode="tel" value={f.phone} onChange={set('phone')} autoComplete="tel" maxLength={40} />
-        </div>
-
+        {/* What and where first (2026-10-27, the owner: "procede"): the
+            service and the address are what a proposal is written from, so
+            the page's form opens on them and asks who is writing after. The
+            home variant has neither field (see above) and opens on the name. */}
         {home ? null : (
         <div className="mp-form__row">
           <div className="mp-field" data-invalid={errors.service ? 'true' : undefined}>
@@ -847,6 +852,17 @@ export function ContactForm({
           <Field id="mp-location" name="location" label={program ? t.program.location : t.location} value={f.location} onChange={set('location')} error={errors.location} placeholder={program ? t.program.locationPlaceholder : t.locationPlaceholder} autoComplete={program ? 'street-address' : 'address-level2'} autoCapitalize="words" maxLength={160} required />
         </div>
         )}
+
+        {/* Who: name, email and the optional phone, after the service and
+            the address on the page's form. One row of three from
+            641 to 1180px, where the form has the full width; from 1181px,
+            beside the guide, name | email with the phone under the name
+            (mp.css 18), so a long address stays readable as it is typed. */}
+        <div className="mp-form__row mp-form__row--3">
+          <Field id="mp-name" name="name" label={t.name} value={f.name} onChange={set('name')} error={errors.name} autoComplete="name" autoCapitalize="words" spellCheck={false} maxLength={120} required />
+          <Field id="mp-email" name="email" label={t.email} type="email" inputMode="email" value={f.email} onChange={set('email')} error={errors.email} autoComplete="email" autoCapitalize="none" spellCheck={false} maxLength={200} required />
+          <Field id="mp-phone" name="phone" label={t.phone} optional optionalLabel={t.optional} type="tel" inputMode="tel" value={f.phone} onChange={set('phone')} autoComplete="tel" maxLength={40} />
+        </div>
 
         <div className="mp-field" data-invalid={messageError ? 'true' : undefined}>
           <label className="mp-field__label" htmlFor="mp-message">
