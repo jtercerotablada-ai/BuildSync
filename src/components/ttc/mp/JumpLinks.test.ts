@@ -43,11 +43,11 @@ describe('jump links on the county program pages', () => {
       it(`${slug} (${lang}): every link lands on one section of the page, in the page's order`, () => {
         const targets = hrefs(strip(html));
         expect(targets).toEqual([
+          JUMP_ID.steps,
           JUMP_ID.receive,
           JUMP_ID.applies,
           JUMP_ID.questions,
           JUMP_ID.offices,
-          JUMP_ID.steps,
         ]);
         for (const id of targets) expect(count(html, ` id="${id}"`)).toBe(1);
         const at = targets.map((id) => html.indexOf(` id="${id}"`));

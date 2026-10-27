@@ -395,7 +395,6 @@ export const ui = {
   /** The one label for the representative profiles on Work — they are not past jobs. */
   typicalEngagements: 'Typical engagements',
   relatedServices: 'Related services',
-  atAGlance: 'At a glance',
   coverage: 'Coverage',
   verified: 'Verified',
   lastChecked: 'Last verified',
@@ -3274,6 +3273,81 @@ export const serviceClock: Record<string, ServiceClock> = {
   },
 };
 
+/* The service page in plain words (2026-10-27, the owner: "minimalista,
+   aesthetic, clean, claro, entendible para todo tipo de clientes, vendedor…
+   veo mucho texto pero sin explicación; alguien que no le gusta leer se
+   aburre"). Three short lines open every service page under its
+   `problemTitle` — what it is, who it is for, what you get — and the long
+   texts fold under them. Each line is a SHORTER telling of what the page
+   already says (its problem, the verified `Applies to` row, its
+   deliverables), never a new fact: no age, no day count, nothing about who
+   signs. `fee` is the price band of the two county programs: the first tier
+   of `pricing` (never typed here), the owner's delivery time
+   (`pricing.delivery`) and the free proposal. Every shared line is five
+   words or fewer: a longer one printed on both county pages is a block the
+   on-page report counts twice (programs-own-words.test.ts). */
+export type ServiceLook = {
+  glance: { label: string; keys: readonly [string, string, string]; more: string };
+  scopeMore: string;
+  notesAll: string;
+  fee: {
+    label: string;
+    fixed: string;
+    /** `{name}` in `k` is the program's name: the figure is the same on both
+       county pages, so its caption says whose package it is. */
+    days: { n: string; unit: string; k: string; sub: string };
+    free: { n: string; k: string };
+    /** `{name}` is the program's name in `pricing.programs`. */
+    line: string;
+  };
+  plain: Record<string, readonly [string, string, string]>;
+};
+
+export const serviceLook: ServiceLook = {
+  glance: { label: 'In plain words', keys: ['What it is', 'Who it is for', 'What you get'], more: 'Read the full explanation' },
+  scopeMore: 'The full scope, line by line',
+  notesAll: 'All {n} notes',
+  fee: {
+    label: 'The fee',
+    fixed: 'Fixed fee, by building size',
+    days: { n: '3–4', unit: 'days', k: 'Signed {name} package, after the inspection', sub: 'Urgent? 1–2 days.' },
+    free: { n: 'Free', k: 'The written proposal' },
+    line: 'Most buildings fall in a range by size. The fixed fee for your {name} is written in the proposal, before any work starts.',
+  },
+  plain: {
+    'building-recertification': [
+      'Miami-Dade’s safety check of older buildings: a structural and an electrical inspection, filed with your Building Official.',
+      'Almost every building in the county once it comes of age — condos, apartments, offices, shops, warehouses.',
+      'The complete package the county asks for, ready to file, for a fixed fee agreed before we start.',
+    ],
+    'broward-bsip': [
+      'Broward’s safety inspection of older buildings, structural and electrical, reported on the Board of Rules and Appeals’ forms.',
+      'Almost every building in Broward as it comes of age — not small homes, fee-simple townhouses or minor structures.',
+      'The complete BSIP package — narrative report, both forms, photographs — for a fixed fee agreed before we start.',
+    ],
+    'milestone-inspections': [
+      'Florida’s structural inspection of condominium and co-op buildings, in two phases, met in Miami-Dade and Broward through the county program.',
+      'Condo and co-op boards asking whether the state law reaches them, and buyers, lenders and insurers with a reason to look.',
+      'A clear answer on which rules reach the building, the inspection report, and the summary the board shares with owners.',
+    ],
+    'structural-condition-assessments': [
+      'An engineer’s reading of what a building is doing today — cracks, spalling, rust, a sagging slab — and what to do about it.',
+      'Any building, without exception: before a purchase, after a storm, before repairs, or when something worries you.',
+      'A clear report of what matters and what can wait, and repair drawings that let every contractor price the same work.',
+    ],
+    'threshold-inspections': [
+      'The county inspection of a building over three stories or fifty feet, with the fuller file its size requires.',
+      'Towers, mid-rises past the third story, hotels, tall garages and large assembly halls in Miami-Dade and Broward.',
+      'The structural report from a qualified structural engineer, the electrical report, and the façade review where it applies.',
+    ],
+    'peer-review': [
+      'An independent check of a structural design — code, load path, constructability — while changes are still cheap.',
+      'Developers, owners, design teams, lenders and insurers — and projects whose building official requires one.',
+      'An independent review report and a comment log ranked by priority, tracked until every comment is closed.',
+    ],
+  },
+};
+
 export const servicesPage = {
   eyebrow: 'Services',
   /* The firm's six services for the whole state (the owner, 2026-10-26: the
@@ -4004,6 +4078,7 @@ export const en = {
   servicesPage,
   serviceBuildings,
   serviceClock,
+  serviceLook,
   existingPage,
   workPage,
   contactPage,

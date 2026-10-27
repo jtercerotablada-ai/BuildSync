@@ -6,12 +6,13 @@ import { cityPath } from '@/lib/ttc/cities';
 import { cityPagesOf } from '@/lib/ttc/city-content';
 import { localePath, type Lang } from '@/lib/ttc/i18n';
 import { serviceLd, webPageLd } from '@/lib/ttc/structured-data';
-import { COST_PATH } from '@/lib/ttc/cost-path';
 import { guidePath } from '@/lib/ttc/guides';
 import { getGuides, guideLabels } from '@/lib/ttc/guide-content';
 import { PageHero } from '@/components/ttc/mp/PageHero';
 import { ServiceBuildings } from '@/components/ttc/mp/plates/ServiceBuildings';
 import { ServiceClock } from '@/components/ttc/mp/plates/ServiceClock';
+import { ServiceFee } from '@/components/ttc/mp/plates/ServiceFee';
+import { ServiceGlance } from '@/components/ttc/mp/plates/ServiceGlance';
 import { HomeContact } from '@/components/ttc/mp/home/HomeContact';
 import { JUMP_ID, JumpLinks } from '@/components/ttc/mp/JumpLinks';
 import { ReachRow } from '@/components/ttc/mp/ReachRow';
@@ -25,26 +26,27 @@ import { breadcrumbLd, JsonLd } from './meta';
 /**
  * One service, in the order a client asks the questions.
  *
- * TWO LAYOUTS OF ONE TEMPLATE (the owner, 2026-10-20: "compact and
- * professional, every page"). Compact by layout, never by cutting what a
- * reader came for: every word stays in the server HTML.
+ * ONE ORDER FOR EVERY SERVICE (the owner, 2026-10-27: "minimalista,
+ * aesthetic, clean, claro, entendible para todo tipo de clientes, vendedor…
+ * veo mucho texto pero sin explicación"). Compact by layout, never by
+ * cutting what a reader came for: every word stays in the server HTML.
  *
- *   • The two county programs (`service.program`) are long reference pages:
- *     when you need it → what is included and what you receive, then the
- *     complete package that county asks for, part by part → when it applies
- *     → the questions boards ask → who sent your notice → how it runs →
- *     good to know. The in-page links sit at the foot of the hero up to
- *     1023px and follow the page as a bar from 1024px (JumpLinks). Each
- *     question opens on its own (several can be open), the 26 offices fold
- *     under one line, and the package and the notes fold at 1180px and
- *     narrower — open above it where the browser supports ::details-content
- *     (mp.css, "Service detail, compact").
- *   • The other six (`lean`) say the same things in fewer bands: one "At a
- *     glance" band with the brief and three columns — when you need it,
- *     what is included, what you receive — then when it applies (milestone
- *     only, with both counties and the comparison in the same band), how
- *     it runs as one row of steps, the questions a client asks about that
- *     service (where it has them), and good to know.
+ *   hero → in plain words (ServiceGlance: the short headline, three tiles —
+ *   what it is, who it is for, what you get — and the long brief folded) →
+ *   the program's numbers (ServiceClock, the four regulated services) → the
+ *   buildings it reaches → how it runs → what is included (short names, the
+ *   full lines folded) and what you receive (+ the package, part by part,
+ *   folded) → the fee (ServiceFee, the two county programs) → when it
+ *   applies (the rows; the note and the board's duties folded) → the
+ *   questions → who sent your notice (folded) → good to know (folded) →
+ *   related services.
+ *
+ *   • The two county programs (`service.program`) carry the in-page links,
+ *     at the foot of the hero up to 1023px and as a bar from 1024px
+ *     (JumpLinks), in that same order.
+ *   • The other four (`lean`) leave out what they do not have: the fee, the
+ *     offices, and where a service has none, the rows and the questions.
+ *     Their steps are one row (`--row`).
  *   • On every one of them, "Related services" closes the good-to-know band
  *     instead of opening a band of its own.
  *
@@ -96,10 +98,10 @@ import { breadcrumbLd, JsonLd } from './meta';
  * What stays a heading: every section's h2, every QUESTION (h3 — they are
  * what people search; inside its <summary> it is still an h3 in the HTML,
  * for crawlers and most screen readers, though some — VoiceOver — read a
- * <summary> as a button and drop the heading role), "What the board
- * must do" (h3, a list the answers point at by name) and the four names
- * compared on the milestone page (h3 under their own h2). Count before
- * adding one: 23 on a program page today.
+ * <summary> as a button and drop the heading role) and the four names
+ * compared on the milestone page (h3 under their own h2). "What the board
+ * must do" was an h3 until 2026-10-27; it is the line of the fold that holds
+ * the duties now. Count before adding one: 22 on a program page today.
  *
  * A service may word its own headings (`service.headings` in site.ts: "Who
  * has to recertify in Miami-Dade, and when"). Such a heading is always
@@ -156,12 +158,12 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
   // ("In Miami-Dade & Broward"), 1,200px tall on a desktop, whose first
   // words repeated the note beside the row.
   const mergedCounties = lean && singleRow && Boolean(service.countyPages?.length);
-  // Surfaces alternate down the page. Where a lean page has a timing band
-  // (milestone), that band is concrete, so the steps go back to paper and
-  // good-to-know to concrete; everywhere else the steps are concrete and
-  // good-to-know is paper — unless a lean page's questions (paper) come
-  // between them, and then good-to-know is concrete (`notesOnConcrete`).
-  const stepsOnPaper = lean && Boolean(service.timing);
+  // Surfaces alternate down the page, after the plates: each band that is
+  // rendered takes the next one, in page order, so two bands of one surface
+  // never meet whatever a service leaves out.
+  let band = 0;
+  const surface = () => (band++ % 2 ? 'mp-surface--paper' : 'mp-surface--concrete');
+  const look = c.serviceLook;
   // "Last verified: …", the one date every regulatory row shares. With one
   // row it closes the line that names the row's authority, under the rows
   // themselves; alone in the notes it was the same seven-word paragraph on
@@ -170,22 +172,36 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
   const verified = service.timing ? (
     <Dated label={u.lastChecked} date={service.timing.checked} iso={regulatoryCheckedISO} />
   ) : null;
-  const timingNotes = service.timing ? (
+  // The note under the rows and, on the two county programs, the board's
+  // duties to unit owners. The duties fold under one line (2026-10-27, the
+  // owner: "mucho texto"), the note with them as their lead-in. The line is
+  // the list's own name, "What the board must do" — the name the answers
+  // below point at ("see … above"); it was the list's h3, and a summary
+  // carries it now, so the name is not printed twice once the fold opens. A
+  // page with a note and no duties (milestone: one sentence) prints the
+  // note as it is. Several rows share one date, printed after them, never
+  // inside the fold.
+  const timingNote = service.timing ? <p className="mp-timing__note">{service.timing.note}</p> : null;
+  const timingFold = service.timing ? (
     <>
-      <p className="mp-timing__note">{service.timing.note}</p>
-      {/* The board's duties to unit owners, as a list a board can act on.
-          An h3 under the section's h2: the answers below point at this list
-          by its name, so it is a part of the page a reader looks for. */}
       {service.timing.duties?.length ? (
-        <>
-          <h3 className="mp-duties__title">{u.boardDuties}</h3>
-          <ul className="mp-duties">
-            {service.timing.duties.map((d) => (
-              <li key={d}>{d}</li>
-            ))}
-          </ul>
-        </>
-      ) : null}
+        <details className="h-fold mp-timing__fold">
+          <summary className="h-fold__sum">
+            {u.boardDuties}
+            <span className="h-fold__plus" aria-hidden="true" />
+          </summary>
+          <div className="mp-timing__more">
+            {timingNote}
+            <ul className="mp-duties">
+              {service.timing.duties.map((d) => (
+                <li key={d}>{d}</li>
+              ))}
+            </ul>
+          </div>
+        </details>
+      ) : (
+        timingNote
+      )}
       {singleRow ? null : <p className="mp-timing__src">{verified}</p>}
     </>
   ) : null;
@@ -211,22 +227,8 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
       {program ? <ReachRow c={c} className="mp-reach--row" /> : null}
     </div>
   );
-  // The county programs: what the work costs, on its own page
-  // (cost-page.ts), in words of its own, not the home page's.
-  const costLink = program ? (
-    <p className="mp-costp__late">
-      {/* One <span> around the words: the link is an inline flex row, and
-          the pieces keepHyphens returns were each a flex item of it, spaced
-          by its gap ("size:  Miami-Dade  recertification"). */}
-      <TextLink href={localePath(COST_PATH, lang)}>
-        <span>
-          {keepHyphens(
-            c.pricing.pageLink.replace('{name}', c.pricing.programs.find((p) => p.slug === service.slug)?.name ?? service.title),
-          )}
-        </span>
-      </TextLink>
-    </p>
-  ) : null;
+  // What the work costs is the fee band's (ServiceFee), with the link to the
+  // prices by building size.
   // How the state inspection is met in each county (milestone). Each heading
   // IS the link to that county's page — this used to be a plain-text note
   // saying the deadline "is on that county's page", with nothing to tap.
@@ -391,9 +393,9 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
   // value: it numbers its section when it is placed (`next()` counts in
   // page order). A hyphenated name stays whole on its line (`keepHyphens`):
   // balanced on a phone, "Miami-Dade?" broke at its hyphen.
-  const faqSection = (surface: string) =>
+  const faqSection = (surfaceClass: string) =>
     service.faq?.length ? (
-      <section id={JUMP_ID.questions} className={`mp-section ${surface}`}>
+      <section id={JUMP_ID.questions} className={`mp-section ${surfaceClass}`}>
         <div className="mp-shell">
           <SectionOpen n={next()} label={u.faqLabel} title={h.faq ?? u.faqTitle} />
           <div className="mp-faq mp-faq--acc">
@@ -416,10 +418,6 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
         </div>
       </section>
     ) : null;
-  // A lean page with questions prints them after the steps, on paper, and
-  // its good-to-know band turns concrete so the surfaces still alternate.
-  const leanFaq = lean && Boolean(service.faq?.length);
-  const notesOnConcrete = stepsOnPaper || leanFaq;
 
   return (
     <div className="mp-plates mp-dark">
@@ -468,162 +466,180 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
       </PageHero>
 
       {/* Every section of the page's argument, in one wrapper: the in-page
-          bar sticks inside it and lets go before the closing band. */}
+          bar sticks inside it and lets go before the closing band.
+
+          ONE ORDER FOR EVERY SERVICE (2026-10-27, the owner: "minimalista…
+          claro, entendible para todo tipo de clientes, vendedor… veo mucho
+          texto pero sin explicación"): what it is in three lines, the
+          numbers, the buildings, how it runs, what you get, what it costs —
+          and only then the rules, the questions and the notes, each long
+          text folded under one line. */}
       <div className={lean ? 'mp-svcd mp-svcd--lean' : 'mp-svcd'}>
         {program ? <JumpLinks c={c} service={service} /> : null}
 
-        {lean ? (
-          <>
-          {/* At a glance: why it matters, then when you need it, what is
-             included and what you receive, side by side — one band where
-             there were two, each with a half-empty column. The h2 is the
-             short `problemTitle`; the `problem` paragraph opens the RIGHT
-             column (`.mp-split__title` is sticky, and a paragraph in the
-             same wrapper would let the title slide over it). */}
-          <section className="mp-section mp-surface--paper">
-            <div className="mp-shell">
-              <SectionHeading n={next()} label={u.atAGlance} />
-              <div className="mp-split">
-                <Reveal>
-                  <h2 className="mp-split__title">{service.problemTitle}</h2>
-                </Reveal>
-                <Reveal delay={0.05}>
-                  <p className="mp-split__lede">{service.problem}</p>
-                  <p className="mp-svcd__aud">{service.audience.join(' · ')}</p>
-                </Reveal>
+        {/* In plain words: the page's short headline, three tiles, and the
+            texts the page used to open with, folded. */}
+        <ServiceGlance
+          lang={lang}
+          slug={service.slug}
+          title={service.problemTitle}
+          more={
+            <>
+              <p className="mp-split__lede">{service.problem}</p>
+              <div>
+                {whenList}
+                <p className="mp-svcd__aud">{service.audience.join(' · ')}</p>
               </div>
-              <div className="mp-cols3">
+            </>
+          }
+        />
+
+        {/* The program's numbers, large (the four regulated services), then
+            the buildings it reaches (2026-10-26, the owner: "edificios
+            construidos… en todos"). */}
+        <ServiceClock lang={lang} slug={service.slug} />
+        <ServiceBuildings lang={lang} slug={service.slug} />
+
+        {/* How it runs. The ruled grid of /existing-buildings (mp.css,
+            `.mp-timeline--grid`): the step's number and name on one line,
+            its sentence under them. A county program's six steps are a
+            3 × 2 grid. On the lean pages four steps are one row from
+            1101px, five are 3 + 2 from 1101px and one row from 1181px
+            (`--mp-steps`); in one row the titles share a row track, so
+            every sentence starts on the same line. Two columns from 641px,
+            one on a phone. Right after the buildings since 2026-10-27: how
+            the work runs is the explanation a reader looks for first. */}
+        <section id={JUMP_ID.steps} className={`mp-section ${surface()}`}>
+          <div className="mp-shell">
+            <SectionOpen n={next()} label={u.howItRuns} title={h.howItRuns} />
+            <div
+              className={lean ? 'mp-timeline mp-timeline--grid mp-timeline--row' : 'mp-timeline mp-timeline--grid'}
+              style={lean ? ({ '--mp-steps': service.process.length } as React.CSSProperties) : undefined}
+            >
+              {service.process.map((p, i) => (
+                <Reveal as="div" key={p.step} delay={i * 0.04} className="mp-step is-in">
+                  <div className="mp-step__node">
+                    <span className="mp-step__dot" aria-hidden="true" />
+                    <span className="mp-step__n">{String(i + 1).padStart(2, '0')}</span>
+                  </div>
+                  {/* The step's name: a label beside its number, not a
+                      section — six of them were six headings. A <p>, drawn
+                      by its class. */}
+                  <p className="mp-step__title">{p.step}</p>
+                  <p className="mp-step__detail">{p.detail}</p>
+                </Reveal>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* What's included + what you receive. The label names the pair;
+            the two column titles carry it. What is included is said first
+            in a row of short names (`capabilities`), and line by line in a
+            fold under them. The names are <span>s in a list role, not <li>:
+            two of them are also step names, and the page's paragraphs and
+            items are counted for repeats (pages.test.ts).
+
+            "What you receive" stands OUTSIDE the reveal: it is a target of
+            the in-page bar, and a heading still parked 14px low by its
+            reveal was measured there by the smooth scroll, which then
+            landed it 2px under the bar once it rose. On a county program it
+            is a label, not a heading (a <div>, not a <p>: the bar's link
+            says the same two words, and the paragraphs are counted): the
+            buildings plate took its place in the ceiling of 23. */}
+        <section className={`mp-section ${surface()}`}>
+          <div className="mp-shell">
+            <SectionHeading n={next()} label={u.scopeAndDeliverables} />
+            <div className="mp-cols2">
+              <div>
+                <h2 className="mp-h3 mp-cols2__title">{h.whatsIncluded ?? u.whatsIncluded}</h2>
                 <Reveal>
-                  <h2 className="mp-h3 mp-cols3__title">{u.whenYouNeedIt}</h2>
-                  {whenList}
+                  <div className="mp-caps" role="list">
+                    {/* A space between two names: the page's text (what a
+                        crawler or a copy reads) is not one run of words. */}
+                    {service.capabilities.map((x, i) => (
+                      <React.Fragment key={x}>
+                        {i > 0 ? ' ' : null}
+                        <span role="listitem" className="mp-caps__item">
+                          {x}
+                        </span>
+                      </React.Fragment>
+                    ))}
+                  </div>
                 </Reveal>
-                <Reveal delay={0.05}>
-                  <h2 className="mp-h3 mp-cols3__title">{h.whatsIncluded ?? u.whatsIncluded}</h2>
+                <details className="h-fold mp-svcd__scope">
+                  <summary className="h-fold__sum">
+                    {look.scopeMore}
+                    <span className="h-fold__plus" aria-hidden="true" />
+                  </summary>
                   {scopeList}
-                </Reveal>
-                <Reveal delay={0.1}>
-                  <h2 id={JUMP_ID.receive} className="mp-h3 mp-cols3__title">
+                </details>
+              </div>
+              <div>
+                {lean ? (
+                  <h2 id={JUMP_ID.receive} className="mp-h3 mp-cols2__title">
                     {u.whatYouReceive}
                   </h2>
+                ) : (
+                  <div id={JUMP_ID.receive} className="mp-h3 mp-cols2__title">
+                    {u.whatYouReceive}
+                  </div>
+                )}
+                <Reveal delay={0.05}>
                   {receiveList}
                   {nextBox}
                 </Reveal>
               </div>
             </div>
-          </section>
-          {/* The buildings this service reaches (2026-10-26, the owner:
-              "edificios construidos… en todos"), then — on a page with no
-              timing rows of its own (threshold) — its numbers. */}
-          <ServiceBuildings lang={lang} slug={service.slug} />
-          {service.timing ? null : <ServiceClock lang={lang} slug={service.slug} />}
-          </>
-        ) : (
-          <>
-            {/* Why it matters + when you need it. */}
-            <section className="mp-section mp-surface--paper">
-              <div className="mp-shell">
-                <SectionHeading n={next()} label={u.whenYouNeedIt} />
-                <div className="mp-split">
-                  <Reveal>
-                    <h2 className="mp-split__title">{service.problemTitle}</h2>
-                  </Reveal>
-                  <Reveal delay={0.05}>
-                    <p className="mp-split__lede">{service.problem}</p>
-                    {whenList}
-                    <p className="mp-svcd__aud">{service.audience.join(' · ')}</p>
-                  </Reveal>
-                </div>
+            {/* The complete package, part by part (`service.packet`).
+                Under the two columns, so it follows "What you receive":
+                the first line of that list names the package and this
+                block lays it out, one row per part — its name, what it
+                is and when it applies. A definition list, and its label
+                a <p> drawn by its class: a part of a packet is not a
+                section of the page, and the page is at its ceiling of
+                headings (pages.test.ts). The rows fold under one line at
+                every width since 2026-10-27 (they were open on a desktop:
+                eight paragraphs a reader had not asked for); every row is
+                in the HTML either way. Each county's rows are its own; see
+                the rules over `packet` in site.ts before adding one.
+
+                The city pages link here (`#the-package`, "The package,
+                part by part"). The id is on a plain wrapper, not on the
+                block that rises: a target still parked low by its
+                reveal is measured low by the scroll. OpenAtHash opens
+                the folded rows for a visitor who arrives that way. */}
+            {service.packet ? (
+              <div id={JUMP_ID.package}>
+                <OpenAtHash id={JUMP_ID.package} />
+                <Reveal as="div" delay={0.05} className="mp-packet">
+                  <p className="mp-packet__label">{service.packet.label}</p>
+                  <p className="mp-packet__lede">{service.packet.lede}</p>
+                  <details className="mp-disclose">
+                    <summary>{counted(service.packet.toggle, service.packet.parts.length)}</summary>
+                    <dl className="mp-packet__list">
+                      {service.packet.parts.map((part) => (
+                        <div key={part.k}>
+                          <dt>{part.k}</dt>
+                          <dd>{part.v}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </details>
+                  <p className="mp-packet__note">{service.packet.note}</p>
+                </Reveal>
               </div>
-            </section>
+            ) : null}
+          </div>
+        </section>
 
-            {/* The buildings the program reaches, and what it leaves out
-                (2026-10-26): a reader sees at once whether the letter is
-                theirs. */}
-            <ServiceBuildings lang={lang} slug={service.slug} />
-
-            {/* What's included + what you receive. The label names the pair;
-                the two column titles are the h2s, so the label never repeats
-                one. The two titles stand OUTSIDE the reveal: "What you
-                receive" is a target of the in-page bar, and a heading still
-                parked 14px low by its reveal was measured there by the
-                smooth scroll, which then landed it 2px under the bar once it
-                rose. The lists under them still rise. */}
-            <section className="mp-section mp-surface--concrete">
-              <div className="mp-shell">
-                <SectionHeading n={next()} label={u.scopeAndDeliverables} />
-                <div className="mp-cols2">
-                  <div>
-                    <h2 className="mp-h3 mp-cols2__title">{h.whatsIncluded ?? u.whatsIncluded}</h2>
-                    <Reveal>{scopeList}</Reveal>
-                  </div>
-                  <div>
-                    {/* A label, not a heading, since 2026-10-26: the section's
-                        h2 is the column beside it, and the buildings plate
-                        took the place in the page's ceiling of 23. A <div>,
-                        not a <p>: the bar's link says the same two words,
-                        and the page's paragraphs are counted for repeats. */}
-                    <div id={JUMP_ID.receive} className="mp-h3 mp-cols2__title">
-                      {u.whatYouReceive}
-                    </div>
-                    <Reveal delay={0.05}>
-                      {receiveList}
-                      {nextBox}
-                    </Reveal>
-                  </div>
-                </div>
-                {/* The complete package, part by part (`service.packet`).
-                    Under the two columns, so it follows "What you receive":
-                    the first line of that list names the package and this
-                    block lays it out, one row per part — its name, what it
-                    is and when it applies. A definition list, and its label
-                    a <p> drawn by its class: a part of a packet is not a
-                    section of the page, and the page is at its ceiling of
-                    headings (pages.test.ts). The rows are open above 1180px
-                    and fold under one line at 1180px and narrower, where they
-                    ran 1,270px on a phone (`mp-disclose--desk`); every row is
-                    in the HTML either way. Each county's rows are its own; see the rules over
-                    `packet` in site.ts before adding one.
-
-                    The city pages link here (`#the-package`, "The package,
-                    part by part"). The id is on a plain wrapper, not on the
-                    block that rises: a target still parked low by its
-                    reveal is measured low by the scroll. OpenAtHash opens
-                    the folded rows for a visitor who arrives that way. */}
-                {service.packet ? (
-                  <div id={JUMP_ID.package}>
-                    <OpenAtHash id={JUMP_ID.package} />
-                    <Reveal as="div" delay={0.05} className="mp-packet">
-                      <p className="mp-packet__label">{service.packet.label}</p>
-                      <p className="mp-packet__lede">{service.packet.lede}</p>
-                      <details className="mp-disclose mp-disclose--desk">
-                        <summary>{counted(service.packet.toggle, service.packet.parts.length)}</summary>
-                        <dl className="mp-packet__list">
-                          {service.packet.parts.map((part) => (
-                            <div key={part.k}>
-                              <dt>{part.k}</dt>
-                              <dd>{part.v}</dd>
-                            </div>
-                          ))}
-                        </dl>
-                      </details>
-                      <p className="mp-packet__note">{service.packet.note}</p>
-                    </Reveal>
-                  </div>
-                ) : null}
-              </div>
-            </section>
-          </>
-        )}
+        {/* The fee — the two county programs (ServiceFee). */}
+        {program ? <ServiceFee lang={lang} slug={service.slug} href={contactHref} cta={cta} surface={surface()} /> : null}
 
         {/* When it applies — regulated services only. The notes, the button
             and the links stand in the column beside the card. */}
-        {/* The program's numbers, large, then the rows they come from. */}
-        {service.timing ? <ServiceClock lang={lang} slug={service.slug} /> : null}
         {service.timing ? (
-          <section
-            id={JUMP_ID.applies}
-            className={`mp-section ${lean ? 'mp-surface--concrete' : 'mp-surface--paper'}`}
-          >
+          <section id={JUMP_ID.applies} className={`mp-section ${surface()}`}>
             <div className="mp-shell">
               <SectionOpen n={next()} label={u.whenItApplies} title={h.whenItApplies} />
               <div className={singleRow ? 'mp-juris mp-juris--single' : 'mp-juris'}>
@@ -654,21 +670,19 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
                 {singleRow ? (
                   <Reveal delay={0.06} className="mp-juris__aside">
                     {countiesEl}
-                    {timingNotes}
                     {timingAction}
-                    {costLink}
+                    {timingFold}
                     {crossLinkEl}
                   </Reveal>
                 ) : null}
               </div>
               {singleRow ? null : (
                 <>
-                  <Reveal delay={0.06}>
-                    {timingNotes}
+                  <Reveal delay={0.06}>{timingAction}</Reveal>
+                  <Reveal delay={0.08}>
+                    {timingFold}
                     {crossLinkEl}
                   </Reveal>
-                  <Reveal delay={0.08}>{timingAction}</Reveal>
-                  {costLink}
                 </>
               )}
               {mergedCounties ? comparisonEl : null}
@@ -701,7 +715,7 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
         {/* A page with county links and no single timing row would still
             get its own band (no service has one today). */}
         {!mergedCounties && (service.countyPages?.length || service.comparison) ? (
-          <section className="mp-section mp-surface--paper">
+          <section className={`mp-section ${surface()}`}>
             <div className="mp-shell">
               <SectionHeading n={next()} label={u.inBothCounties} />
               {service.countyPages?.length ? (
@@ -723,12 +737,10 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
           </section>
         ) : null}
 
-        {/* Questions boards ask — the two county programs. Above the steps: a
-            board member skims for their own question before reading how the
-            work runs. The answers point at the timing table by row label,
-            so this section comes right under it, on the same surface. (A
-            lean page prints its questions after the steps instead.) */}
-        {lean ? null : faqSection('mp-surface--paper')}
+        {/* The questions, each closed under its own line. On a county program
+            the answers point at the timing table by row label, so they come
+            right under it. */}
+        {service.faq?.length ? faqSection(surface()) : null}
 
         {/* Who sent your notice? — the two county programs. The letter has a
             city's name on it. One row per city: its name, and the building
@@ -744,7 +756,7 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
             on — and the day the names were last read: a date of its own,
             not the rules' "Last verified". */}
         {service.offices ? (
-          <section id={JUMP_ID.offices} className="mp-section mp-surface--paper">
+          <section id={JUMP_ID.offices} className={`mp-section ${surface()}`}>
             <div className="mp-shell">
               <SectionHeading n={next()} label={u.yourCity} />
               <div className="mp-intro mp-intro--row">
@@ -796,82 +808,22 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
           </section>
         ) : null}
 
-        {/* How it runs. The ruled grid of /existing-buildings (mp.css,
-            `.mp-timeline--grid`): the step's number and name on one line,
-            its sentence under them. A county program's six steps are a
-            3 × 2 grid. On the lean pages four steps are one row from
-            1101px, five are 3 + 2 from 1101px and one row from 1181px
-            (`--mp-steps`); in one row the titles share a row track, so
-            every sentence starts on the same line. Two columns from 641px,
-            one on a phone. */}
-        <section
-          id={JUMP_ID.steps}
-          className={`mp-section ${stepsOnPaper ? 'mp-surface--paper' : 'mp-surface--concrete'}`}
-        >
-          <div className="mp-shell">
-            <SectionOpen n={next()} label={u.howItRuns} title={h.howItRuns} />
-            <div
-              className={lean ? 'mp-timeline mp-timeline--grid mp-timeline--row' : 'mp-timeline mp-timeline--grid'}
-              style={lean ? ({ '--mp-steps': service.process.length } as React.CSSProperties) : undefined}
-            >
-              {service.process.map((p, i) => (
-                <Reveal as="div" key={p.step} delay={i * 0.04} className="mp-step is-in">
-                  <div className="mp-step__node">
-                    <span className="mp-step__dot" aria-hidden="true" />
-                    <span className="mp-step__n">{String(i + 1).padStart(2, '0')}</span>
-                  </div>
-                  {/* The step's name: a label beside its number, not a
-                      section — six of them were six headings. A <p>, drawn
-                      by its class. */}
-                  <p className="mp-step__title">{p.step}</p>
-                  <p className="mp-step__detail">{p.detail}</p>
-                </Reveal>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* A lean page's questions: after the steps, before the caveats —
-            what it is, how it runs, then what clients ask about it. */}
-        {lean ? faqSection('mp-surface--paper') : null}
-
         {/* Good to know. The label stays "Good to know"; the h2 says what the
-            list actually is, instead of repeating the label at display size.
-            The two county programs word their own, across the shell, with
-            the notes in two columns above 1180px and folded under one line
-            at 1180px and narrower; the others keep the split. Related
+            list actually is. The notes fold under one line that counts them,
+            at every width and on every service (2026-10-27: they were open
+            on a desktop, the longest wall of text on the page). Related
             services close the band. */}
-        <section className={`mp-section ${notesOnConcrete ? 'mp-surface--concrete' : 'mp-surface--paper'}`}>
+        <section className={`mp-section ${surface()}`}>
           <div className="mp-shell">
-            {program ? (
-              <>
-                <SectionOpen n={next()} label={u.considerations} title={h.considerations ?? u.considerationsTitle} />
-                <details className="mp-disclose mp-disclose--desk">
-                  <summary>{counted(service.notesToggle ?? '{n}', service.considerations.length)}</summary>
-                  <ul className="mp-notes">
-                    {service.considerations.map((x) => (
-                      <li key={x}>{x}</li>
-                    ))}
-                  </ul>
-                </details>
-              </>
-            ) : (
-              <>
-                <SectionHeading n={next()} label={u.considerations} />
-                <div className="mp-split">
-                  <Reveal>
-                    <h2 className="mp-split__title">{h.considerations ?? u.considerationsTitle}</h2>
-                  </Reveal>
-                  <Reveal delay={0.05} className="mp-prose">
-                    <ul>
-                      {service.considerations.map((x) => (
-                        <li key={x}>{x}</li>
-                      ))}
-                    </ul>
-                  </Reveal>
-                </div>
-              </>
-            )}
+            <SectionOpen n={next()} label={u.considerations} title={h.considerations ?? u.considerationsTitle} />
+            <details className="mp-disclose">
+              <summary>{counted(service.notesToggle ?? look.notesAll, service.considerations.length)}</summary>
+              <ul className="mp-notes">
+                {service.considerations.map((x) => (
+                  <li key={x}>{x}</li>
+                ))}
+              </ul>
+            </details>
             {relatedEl}
           </div>
         </section>

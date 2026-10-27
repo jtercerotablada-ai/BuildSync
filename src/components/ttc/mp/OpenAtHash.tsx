@@ -6,8 +6,9 @@ import { useEffect } from 'react';
  * Opens the fold under an anchor when the page is reached at that anchor.
  *
  * The city pages link to "The package, part by part" on their county's page
- * (`#the-package`, JumpLinks `JUMP_ID.package`). At 1180px and narrower the
- * package's rows fold under one line (`mp-disclose--desk`), so a visitor who
+ * (`#the-package`, JumpLinks `JUMP_ID.package`). The package's rows fold
+ * under one line — at every width since 2026-10-27 (they were open above
+ * 1180px, `mp-disclose--desk`) — so a visitor who
  * followed that link landed on a label, a sentence and a closed toggle — the
  * one thing the link promised was behind another tap. This opens the first
  * `details.mp-disclose` inside the element with that id when the address
@@ -15,10 +16,8 @@ import { useEffect } from 'react';
  * page), on a hash change, and on a click of a link to it on the same page
  * (smooth-scroll.tsx takes those over, so no hashchange fires for them).
  *
- * Opening only: a reader who closes it again keeps it closed. Wider than
- * 1180px the rows are open anyway and the toggle is not drawn, so opening it
- * there changes nothing on screen. Renders nothing; the anchor and the rows
- * are in the server's HTML either way.
+ * Opening only: a reader who closes it again keeps it closed. Renders
+ * nothing; the anchor and the rows are in the server's HTML either way.
  */
 export function OpenAtHash({ id }: { id: string }) {
   useEffect(() => {

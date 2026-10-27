@@ -206,7 +206,6 @@ body:has(.mp-dark) .mp-header.is-stuck:not(.is-menu-open) {
 }
 .mp-dark .mp-h3,
 .mp-dark .mp-cols2__title,
-.mp-dark .mp-cols3__title,
 .mp-dark .mp-juris__title,
 .mp-dark .mp-compare__title {
   font-size: clamp(22px, 1.9vw, 30px);
@@ -1235,5 +1234,282 @@ body:has(.mp-dark) .mp-header.is-stuck:not(.is-menu-open) {
   .mp-dark .h-cq__promises li + li {
     border-left: 0;
     border-top: 1px solid var(--h-hair-2);
+  }
+}
+
+/* ═══ 18 · A SERVICE PAGE, IN PLAIN WORDS (2026-10-27) ════════════════════ */
+
+/* The owner: "minimalista, aesthetic, clean, claro, entendible para todo
+   tipo de clientes, vendedor… veo mucho texto pero sin explicación". Every
+   service page opens with three tiles (ServiceGlance), shows its numbers
+   and its fee in the clock's large type (ServiceClock, ServiceFee), and
+   folds every long text under one line. */
+
+/* The section headlines a step down: three-line headlines at 80px were the
+   loudest thing on the page and said the least. */
+.mp-dark .mp-svcd .mp-intro__title {
+  max-width: 22ch;
+  font-size: clamp(30px, 3.4vw, 56px);
+}
+
+/* In plain words: the label, the page's short headline, three tiles. */
+.mp-dark .h-gl__h {
+  margin-block-start: clamp(18px, 2vw, 28px);
+  max-width: 18ch;
+  font-size: clamp(36px, 5vw, 88px);
+}
+.mp-dark .h-gl__tiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(14px, 1.6vw, 24px);
+  margin: clamp(36px, 4.4vw, 68px) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.mp-dark .h-gl__tile {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(18px, 2vw, 30px);
+  min-height: clamp(200px, 18vw, 280px);
+  padding: clamp(24px, 2.4vw, 38px);
+  background: var(--mp-graphite);
+  border: 1px solid var(--h-hair-2);
+  border-top: 1px solid var(--mp-gold);
+}
+.mp-dark .h-gl__k {
+  margin: 0;
+  font-family: var(--mp-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--mp-snow-2);
+}
+.mp-dark .h-gl__n {
+  margin-inline-end: 10px;
+  color: var(--mp-gold);
+}
+.mp-dark .h-gl__v {
+  margin: 0;
+  font-size: clamp(19px, 1.6vw, 25px);
+  font-weight: 500;
+  line-height: 1.32;
+  letter-spacing: -0.02em;
+  color: var(--mp-snow);
+  text-wrap: pretty;
+}
+.mp-dark .h-gl__fold {
+  margin-block-start: clamp(22px, 2.4vw, 34px);
+}
+.mp-dark .h-gl__more {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: clamp(24px, 4vw, 72px);
+  padding-block: clamp(16px, 2vw, 28px) 0;
+  border-top: 1px solid var(--h-hair-2);
+}
+.mp-dark .h-gl__more .mp-split__lede {
+  margin: 0;
+  max-width: 46ch;
+}
+@media (max-width: 899px) {
+  .mp-dark .h-gl__tiles,
+  .mp-dark .h-gl__more {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .mp-dark .h-gl__tile {
+    min-height: 0;
+  }
+}
+
+/* How it runs: the step's number large, in gold, over its name. */
+.mp-dark .mp-svcd .mp-timeline--grid .mp-step {
+  grid-template-columns: minmax(0, 1fr);
+  row-gap: 12px;
+}
+.mp-dark .mp-svcd .mp-step__dot {
+  display: none;
+}
+.mp-dark .mp-svcd .mp-step__n {
+  font-family: inherit;
+  font-size: clamp(40px, 4vw, 64px);
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -0.05em;
+  font-variant-numeric: tabular-nums;
+}
+.mp-dark .mp-svcd .mp-step__title {
+  font-size: clamp(20px, 1.6vw, 26px);
+  letter-spacing: -0.025em;
+}
+.mp-dark .mp-svcd .mp-step__detail {
+  font-size: clamp(15px, 1.1vw, 17px);
+  line-height: 1.55;
+  color: var(--mp-snow-3);
+}
+/* In one row (the lean pages, mp.css `--row`) every step spans the row
+   tracks as a subgrid, so the names share a line; the number on its own
+   line makes that three tracks, not two. */
+@supports (grid-template-rows: subgrid) {
+  @media (min-width: 1101px) {
+    .mp-dark .mp-svcd .mp-timeline--row:has(> .mp-step:nth-child(4):last-child) {
+      grid-template-rows: auto auto auto;
+    }
+    .mp-dark .mp-svcd .mp-timeline--row:has(> .mp-step:nth-child(4):last-child) > .mp-step {
+      grid-row: span 3;
+    }
+  }
+  @media (min-width: 1181px) {
+    .mp-dark .mp-svcd .mp-timeline--row {
+      grid-template-rows: auto auto auto;
+    }
+    .mp-dark .mp-svcd .mp-timeline--row > .mp-step {
+      grid-row: span 3;
+    }
+  }
+}
+
+/* What is included, in short names: a row of hairline pills. */
+.mp-dark .mp-caps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 4px 0 0;
+}
+.mp-dark .mp-caps__item {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 8px 16px;
+  border: 1px solid var(--mp-line-strong);
+  border-radius: 999px;
+  font-size: clamp(14px, 1vw, 16px);
+  line-height: 1.3;
+  color: var(--mp-snow);
+}
+.mp-dark .mp-svcd__scope {
+  margin-block-start: 18px;
+}
+.mp-dark .mp-svcd__scope[open] .mp-speclist {
+  margin-block-start: 6px;
+}
+
+/* The fee: the clock's figures, three to a row; one line, the button and
+   the link under them. */
+.mp-dark .h-fee .h-fee__figs {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.mp-dark .h-fee .h-clock__num {
+  font-size: clamp(52px, 6vw, 104px);
+}
+/* The clock and the buildings are two black plates in a row: the second
+   keeps a part of its top padding, its label opens it. */
+.mp-dark .h-clock + .h-bld {
+  padding-block-start: calc(var(--h-plate-y) * 0.35);
+}
+.mp-dark .h-fee__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px 40px;
+  margin-block-start: clamp(40px, 4.6vw, 72px);
+  padding-block-start: clamp(24px, 2.4vw, 34px);
+  border-top: 1px solid var(--h-hair-2);
+}
+.mp-dark .h-fee__text {
+  margin: 0;
+  max-width: 52ch;
+  font-size: clamp(16px, 1.2vw, 19px);
+  line-height: 1.55;
+  color: var(--mp-snow-2);
+}
+.mp-dark .h-fee__act {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 18px 32px;
+}
+@media (max-width: 899px) {
+  .mp-dark .h-fee .h-fee__figs {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .mp-dark .h-fee .h-clock__item::before {
+    display: none;
+  }
+}
+
+/* When it applies: the button beside the rows, the note and the board's
+   duties folded under it. */
+.mp-dark .mp-timing__fold {
+  margin-block-start: 22px;
+  border-top: 1px solid var(--h-hair-2);
+}
+.mp-dark .mp-timing__more {
+  padding-block: 6px 4px;
+}
+.mp-dark .mp-timing__more > :first-child {
+  margin-block-start: 0;
+}
+
+/* The page's last band and the contact plate are both graphite on a page
+   whose bands end on paper: a hairline between them, as wide as the
+   content (the plates' seams elsewhere are). */
+.mp-dark .mp-svcd:has(> .mp-section:last-child.mp-surface--paper) + .h-contact::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  width: min(var(--h-max), 100% - 2 * var(--h-pad));
+  height: 1px;
+  margin-inline: auto;
+  background: var(--h-hair);
+}
+
+/* The folds' lines on a service page: a 44px target, as every other fold
+   of the site (mp.css, .mp-disclose). */
+.mp-dark .mp-svcd .h-fold__sum {
+  min-height: 44px;
+}
+
+/* When it applies, on a county program: the button is the aside's first
+   child, flush with the card's top (mp.css gives the button its own top
+   margin later than the aside's first-child rule); the open fold ends on
+   the duties' hairline, so the other county's line draws no second one. */
+.mp-dark .mp-juris__aside > .mp-prog__action:first-child {
+  margin-block-start: 0;
+}
+.mp-dark .mp-timing__fold[open] + .mp-timing__cross {
+  padding-block-start: 0;
+  border-block-start: 0;
+}
+
+/* On paper every fold prints open and its line goes (mp.css does the same
+   for its own folds): a board prints the page for a meeting, and the
+   answers point at "What the board must do". */
+@supports selector(::details-content) {
+  @media print {
+    .mp-dark .h-fold::details-content {
+      content-visibility: visible;
+      display: block;
+    }
+    .mp-dark .h-fold__sum {
+      display: none;
+    }
+  }
+}
+
+/* Found by the 2026-10-27 sweep (six services × two languages × 320–1440px):
+   a figure's unit ran past its column ("500 personas", "150 days" at
+   320px) — it drops under the figure when the two do not fit side by side;
+   and a headline's italic phrase, which never breaks (mp.css), ran off a
+   phone ("residential condominium.") — on a phone it breaks between its
+   words, each still in its own mask. */
+.mp-dark .h-clock__n {
+  flex-wrap: wrap;
+  row-gap: 2px;
+}
+@media (max-width: 640px) {
+  .mp-dark :is(h1, h2) .mp-serif {
+    white-space: normal;
   }
 }

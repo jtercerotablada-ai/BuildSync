@@ -1320,7 +1320,6 @@ export const es: SiteContent = {
     pauseMotion: 'Pausar el movimiento',
     typicalEngagements: 'Trabajos típicos',
     relatedServices: 'Servicios relacionados',
-    atAGlance: 'De un vistazo',
     coverage: 'Cobertura',
     verified: 'Verificado',
     lastChecked: 'Última verificación',
@@ -1962,6 +1961,50 @@ export const es: SiteContent = {
         { n: '50', unit: 'pies', k: 'O más de cincuenta pies de altura' },
         { n: '500', unit: 'personas', k: 'O un espacio de reunión de más de 5,000 sq ft, a cualquier altura' },
         { n: '5', unit: 'años', k: 'El ciclo de una fachada de acristalamiento estructural' },
+      ],
+    },
+  },
+  serviceLook: {
+    glance: { label: 'En pocas palabras', keys: ['Qué es', 'Para quién es', 'Qué recibe'], more: 'Leer la explicación completa' },
+    scopeMore: 'El alcance completo, punto por punto',
+    notesAll: 'Las {n} notas',
+    fee: {
+      label: 'El precio',
+      fixed: 'Precio fijo, según el tamaño',
+      days: { n: '3–4', unit: 'días', k: '{name}: paquete firmado, tras la inspección', sub: '¿Urgente? 1–2 días.' },
+      free: { n: 'Gratis', k: 'La propuesta por escrito' },
+      line: 'La mayoría de los edificios cae en un rango según su tamaño. {name}: el precio fijo queda por escrito en la propuesta, antes de empezar cualquier trabajo.',
+    },
+    plain: {
+      'building-recertification': [
+        'La revisión de seguridad de Miami-Dade para edificios con años: una inspección estructural y una eléctrica, presentadas ante su Building Official.',
+        'Casi todos los edificios del condado cuando cumplen la edad: condominios, apartamentos, oficinas, tiendas, almacenes.',
+        'El paquete completo que pide el condado, listo para presentar, a un precio fijo acordado antes de empezar.',
+      ],
+      'broward-bsip': [
+        'La inspección de seguridad de Broward para edificios con años, estructural y eléctrica, en los formularios de la Junta de Reglas y Apelaciones.',
+        'Casi todos los edificios de Broward cuando cumplen la edad, salvo viviendas pequeñas, townhouses en dominio pleno (fee simple) y estructuras menores.',
+        'El paquete BSIP completo — informe narrativo, ambos formularios, fotografías — a un precio fijo acordado antes de empezar.',
+      ],
+      'milestone-inspections': [
+        'La inspección estructural de Florida para edificios de condominio y cooperativa, en dos fases, que en Miami-Dade y Broward se cumple con el programa del condado.',
+        'Juntas de condominio y cooperativa que preguntan si la ley estatal las alcanza, y compradores, prestamistas y aseguradoras con un motivo para revisar.',
+        'Una respuesta clara sobre qué reglas alcanzan al edificio, el informe de la inspección y el resumen que la junta comparte con los propietarios.',
+      ],
+      'structural-condition-assessments': [
+        'La lectura de un ingeniero de lo que hace hoy un edificio — grietas, desprendimientos, óxido, una losa que cede — y de qué hacer al respecto.',
+        'Cualquier edificio, sin excepción: antes de comprar, después de una tormenta, antes de reparar o cuando algo le preocupa.',
+        'Un informe claro de lo que importa y lo que puede esperar, y planos de reparación con los que todos los contratistas cotizan el mismo trabajo.',
+      ],
+      'threshold-inspections': [
+        'La inspección del condado de un edificio de más de tres pisos o cincuenta pies, con el expediente más completo que pide su tamaño.',
+        'Torres, edificios de mediana altura de más de tres pisos, hoteles, garajes altos y grandes salas de reunión en Miami-Dade y Broward.',
+        'El informe estructural de un ingeniero estructural calificado, el informe eléctrico y la revisión de la fachada donde aplica.',
+      ],
+      'peer-review': [
+        'Una revisión independiente de un diseño estructural — código, trayectoria de carga, constructibilidad — cuando los cambios aún son baratos.',
+        'Desarrolladores, propietarios, equipos de diseño, prestamistas y aseguradoras, y proyectos cuyo funcionario de construcción la exija.',
+        'Un informe de revisión independiente y un registro de comentarios por prioridad, seguido hasta cerrar cada uno.',
       ],
     },
   },

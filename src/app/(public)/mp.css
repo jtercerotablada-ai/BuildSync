@@ -5258,15 +5258,8 @@ a.mp-menu__mail {
 
 /* "What the board must do" (`timing.duties`), under a county program's
    timing note: three hairline rows at the size of the table values beside
-   them. Its heading is a label, like the table's own dt's. */
-.mp-duties__title {
-  margin: var(--mp-6) 0 var(--mp-2);
-  font-size: var(--mp-t-label);
-  letter-spacing: var(--mp-track-label);
-  text-transform: uppercase;
-  font-weight: 500;
-  color: var(--mp-ink);
-}
+   them. Its name is the line of the fold that holds them (ServiceDetailView,
+   2026-10-27). */
 .mp-duties {
   list-style: none;
   margin: 0;
@@ -5339,9 +5332,6 @@ a.mp-menu__mail {
 .mp-svcd--lean .mp-split__lede {
   margin-block-end: var(--mp-4);
 }
-.mp-split__lede + .mp-svcd__aud {
-  margin-block-start: 0;
-}
 /* "Next step" sits closer under the list it follows, and its button keeps
    its own space without an inline style. */
 .mp-svcd .mp-callout--spaced {
@@ -5351,50 +5341,9 @@ a.mp-menu__mail {
   margin-block-start: var(--mp-4);
 }
 
-/* At a glance (the six lean pages): when you need it, what is included and
-   what you receive, three columns under the brief. The "when" rows take the
-   spec lists' measure — the number in a 1.75rem column, the text 44px in —
-   so the three lists line up row for row; two classes, so the number stays
-   beside its line on a phone too (the ≤720 `.mp-pillars--plain` rule stacks
-   it). Two columns from 1180px down, the first across both; one from 900. */
-.mp-cols3 {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: clamp(2rem, 4vw, 3.5rem);
-  align-items: start;
-  margin-block-start: var(--mp-12);
-}
-.mp-cols3__title {
-  margin: 0 0 var(--mp-4);
-}
-.mp-cols3 .mp-pillars--plain li {
-  grid-template-columns: 1.75rem minmax(0, 1fr);
-  gap: var(--mp-4);
-  padding-block: 0.85rem;
-}
-.mp-cols3 .mp-pillars span {
-  color: var(--mp-ink-2);
-  line-height: 1.6;
-}
-@media (max-width: 1180px) {
-  .mp-cols3 {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .mp-cols3 > :first-child {
-    grid-column: 1 / -1;
-  }
-}
-@media (max-width: 900px) {
-  .mp-cols3 {
-    grid-template-columns: minmax(0, 1fr);
-    margin-block-start: var(--mp-8);
-  }
-}
-
 /* One disclosure look for the lists that fold: a line in ink, underlined in gold, with a chevron, and
-   a 44px target. `--desk` is open on a desktop — the summary is not drawn
-   and the content shows — and folds from 1180px down. An engine without
-   ::details-content shows the plain disclosure, closed, at every width. */
+   a 44px target. Closed at every width (the `--desk` variant, open on a
+   desktop, went on 2026-10-27 with the service pages' redesign). */
 .mp-disclose > summary {
   display: inline-flex;
   align-items: center;
@@ -5433,18 +5382,6 @@ a.mp-menu__mail {
     text-decoration-thickness: 2px;
   }
 }
-@supports selector(::details-content) {
-  @media (min-width: 1181px) {
-    .mp-disclose--desk > summary {
-      display: none;
-    }
-    .mp-disclose--desk::details-content {
-      content-visibility: visible;
-      display: block;
-    }
-  }
-}
-
 /* The questions (`service.faq`): two columns of closed questions, each a
    <details> whose <summary> holds the h3 and a plus that turns into a
    minus. Several can be open at once, and each column grows on its own.
@@ -5636,10 +5573,6 @@ a.mp-menu__mail {
        three keys and the bar had come unstuck. Change it with the three
        scroll-padding values below. */
     scroll-margin-top: calc(-52px - 12px);
-  }
-  /* The sticky titles of the split sections stop under the bar too. */
-  .mp-svcd:has(> .mp-jump) .mp-split > :has(> .mp-split__title) {
-    top: calc(var(--mp-header-h) + 52px + var(--mp-6));
   }
   html:has(.mp .mp-jump) {
     scroll-padding-top: 132px;
