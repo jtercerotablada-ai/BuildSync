@@ -295,7 +295,12 @@ export type NavItem = { href: string; label: string; description?: string; inHea
    header (site.test.ts holds the two together). */
 export const primaryNav: NavItem[] = [
   { href: '/services', label: 'Services' },
-  { href: '/existing-buildings', label: 'Existing Buildings' },
+  /* Out of the header since 2026-10-26 (the owner: "sácalo del header y
+     déjalo en el footer"): five of the six services are existing-building
+     services, so Services already leads there. The page stays — the
+     "EN - Both counties" Google Ads group lands on it — and the footer
+     links it. */
+  { href: '/existing-buildings', label: 'Existing Buildings', inHeader: false },
   { href: '/projects', label: 'Typical Engagements', inHeader: false },
   { href: '/guides', label: 'Guides' },
   { href: '/resources', label: 'Resources', inHeader: false },

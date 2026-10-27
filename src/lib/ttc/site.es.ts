@@ -1249,7 +1249,7 @@ export const es: SiteContent = {
      "Proyectos" promised past projects the page does not show. */
   primaryNav: [
     { href: '/services', label: 'Servicios' },
-    { href: '/existing-buildings', label: 'Edificios existentes' },
+    { href: '/existing-buildings', label: 'Edificios existentes', inHeader: false },
     { href: '/projects', label: 'Trabajos típicos', inHeader: false },
     { href: '/guides', label: 'Guías' },
     { href: '/resources', label: 'Recursos', inHeader: false },
