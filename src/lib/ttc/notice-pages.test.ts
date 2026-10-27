@@ -4,7 +4,7 @@ import { COST_PATH } from './cost-path';
 import { getGuides } from './guide-content';
 import { guidePath } from './guides';
 import type { Lang } from './i18n';
-import { pageHoldsNotice, NO_NOTICE_GUIDES, NO_NOTICE_SERVICES, NOTICE_SERVICES } from './notice-pages';
+import { guideHoldsNotice, pageHoldsNotice, NO_NOTICE_GUIDES, NO_NOTICE_SERVICES, NOTICE_SERVICES } from './notice-pages';
 import { holdsNotice } from './site';
 
 /**
@@ -17,11 +17,13 @@ const LANGS: Lang[] = ['en', 'es'];
 
 describe('pageHoldsNotice: the lists agree with the pages', () => {
   for (const lang of LANGS) {
-    it(`${lang}: the no-letter guides are the guides whose button sends the address`, () => {
-      const address = getGuides(lang)
-        .filter((g) => g.heroAction === 'address')
+    // Since 2026-10-26: the no-letter guide, and the guides of the services
+    // whose reader holds no notice (assessments, peer review).
+    it(`${lang}: the no-notice guides are the guides whose reader holds no notice`, () => {
+      const none = getGuides(lang)
+        .filter((g) => !guideHoldsNotice(g))
         .map((g) => g.slug);
-      expect([...NO_NOTICE_GUIDES].sort()).toEqual(address.sort());
+      expect([...NO_NOTICE_GUIDES].sort()).toEqual(none.sort());
     });
 
     it(`${lang}: every existing-building service is decided, and no new-building one holds a notice`, () => {
@@ -41,9 +43,9 @@ describe('pageHoldsNotice: the lists agree with the pages', () => {
       }
     });
 
-    it(`${lang}: every guide page agrees with its own heroAction`, () => {
+    it(`${lang}: every guide page agrees with its own reader`, () => {
       for (const g of getGuides(lang)) {
-        expect(pageHoldsNotice(guidePath(g.slug)), g.slug).toBe(g.heroAction !== 'address');
+        expect(pageHoldsNotice(guidePath(g.slug)), g.slug).toBe(guideHoldsNotice(g));
       }
     });
   }

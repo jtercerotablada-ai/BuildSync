@@ -39,14 +39,26 @@ import { GUIDES_PATH } from './guides';
  * (the home is `false`, as is anything else not listed).
  */
 
-/** Guides whose reader has no letter yet (`heroAction: 'address'`). */
-export const NO_NOTICE_GUIDES = ['is-my-building-due'] as const;
+/**
+ * Guides whose reader holds no notice: the one for the reader with no letter
+ * yet (`heroAction: 'address'`) and, since 2026-10-26, the guides of the
+ * services whose reader holds none — the assessments (cracks, a purchase)
+ * and peer review (a design). `guideHoldsNotice` is the rule;
+ * notice-pages.test.ts keeps this list equal to it.
+ */
+export const NO_NOTICE_GUIDES = ['is-my-building-due', 'balcony-spalling-cracks', 'buying-a-building', 'structural-peer-review-florida'] as const;
 
 /** Services (and their city pages) whose reader holds a county notice. */
 export const NOTICE_SERVICES = ['building-recertification', 'broward-bsip', 'milestone-inspections', 'threshold-inspections'] as const;
 
 /** Existing-building services whose reader does not (see above). */
 export const NO_NOTICE_SERVICES = ['structural-condition-assessments'] as const;
+
+/** Whether a guide's reader holds a notice: not the no-letter guide, and
+ *  only under a service whose reader holds one. */
+export function guideHoldsNotice(g: { heroAction?: string; service: string }): boolean {
+  return g.heroAction !== 'address' && (NOTICE_SERVICES as readonly string[]).includes(g.service);
+}
 
 export function pageHoldsNotice(path: string): boolean {
   const p = path.replace(/\/+$/, '');

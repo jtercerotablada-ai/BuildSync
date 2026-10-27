@@ -18,6 +18,7 @@ import { accentLines } from '@/components/ttc/mp/text';
 import { Reveal, SectionHeading } from '@/components/ttc/mp/primitives';
 import { Arrow, Diamond } from '@/components/ttc/mp/home/glyphs';
 import { Words } from '@/components/ttc/mp/home/Words';
+import { guideHoldsNotice } from '@/lib/ttc/notice-pages';
 import { breadcrumbLd, JsonLd } from './meta';
 
 /**
@@ -25,9 +26,11 @@ import { breadcrumbLd, JsonLd } from './meta';
  *
  *   hero     the question as the H1; one button per county program, each
  *            opening the form for its own county (or, for the reader with
- *            no letter yet, one button with no preset, and WhatsApp without
- *            "Send the notice" here and in the closing band); Call and
- *            WhatsApp; the engineer's credential last, after the actions
+ *            no letter yet, one button with no preset; or, for a guide of a
+ *            service that is no county program, one button with that
+ *            service preset); WhatsApp under the buttons, without "Send the
+ *            notice" where the reader holds none (`guideHoldsNotice`)
+ *   short    the short answer: three sentences before the long read
  *   guide    LegalDoc's guide variant — the contents in a rail from 901px:
  *              · the h2 sections, each with paragraphs, a list, and the
  *                county facts it needs (two counties side by side on a wide
@@ -38,9 +41,11 @@ import { breadcrumbLd, JsonLd } from './meta';
  *                even when closed; also FAQPage data
  *              · where to go from here: the program page(s), the cost page,
  *                the other guides
- *   contact  the closing band, with the program preset only when the guide
+ *   service  the card of the service behind the guide (and of its county
+ *            programs), as the home prints its cards
+ *   contact  the contact plate, with the program preset only when the guide
  *            has one program (a two-county guide's reader picks the county
- *            on the form, as on /existing-buildings)
+ *            on the form), or its service when it has none
  *
  * WHERE THE NUMBERS COME FROM: a fact block prints `service.timing.rows[0]`
  * facts by label, whole — the hedges of a row (Broward's "your city's letter
@@ -57,6 +62,11 @@ const GUIDE_PHOTO: Record<string, Photo> = {
   'milestone-recertification-sirs': photo.guideCoastalCondoTowers,
   'failed-recertification': photo.guideSpalledConcrete,
   'parking-lot-illumination-guardrail': photo.guideParkingLotNight,
+  /* The guides of 2026-10-26, one per service the guides did not reach. */
+  'threshold-building': photo.typeCondoTowers,
+  'balcony-spalling-cracks': photo.facadeRopeInspection,
+  'buying-a-building': photo.typeOffices,
+  'structural-peer-review-florida': photo.drawingsReviewDesk,
 };
 
 const PLACE: Record<GuideFacts['service'], Record<Lang, string>> = {
@@ -113,7 +123,13 @@ export function GuideView({ lang, slug }: { lang: Lang; slug: string }) {
   const t = guideLabels(lang);
   const idx = guidesIndex(lang);
   const l = (href: string) => localePath(href, lang);
-  const own = c.services.find((s) => s.slug === g.programs[0])!;
+  // The services the guide leads to: its own first, then its county
+  // programs (a threshold guide leads to both counties as well).
+  const leads = [...new Set([g.service, ...g.programs])].map((slug) => c.services.find((s) => s.slug === slug)!);
+  // The closing form's preset: the one program, or — for a guide with none
+  // (assessments, peer review) — its own service; a two-county guide's
+  // reader picks the county on the form.
+  const preset = g.programs.length === 1 ? g.programs[0] : g.programs.length === 0 ? g.service : undefined;
   const pageUrl = absoluteUrl(l(guidePath(g.slug)));
   const others = getGuides(lang).filter((x) => x.slug !== g.slug);
   const date = guidesReviewed[lang];
@@ -121,7 +137,7 @@ export function GuideView({ lang, slug }: { lang: Lang; slug: string }) {
   // to send a notice: under "Send the Address", WhatsApp is the plain
   // "Message us" (and the chat opens without "I received a notice"), in the
   // hero and in the closing band alike.
-  const notice = g.heroAction !== 'address';
+  const notice = guideHoldsNotice(g);
   // One button per program, each with its own county preselected: under a
   // lede that says "in Miami-Dade or in Broward", a lone Miami-Dade button
   // sent Broward boards to a form set to Miami-Dade. Both solid — neither
@@ -129,11 +145,15 @@ export function GuideView({ lang, slug }: { lang: Lang; slug: string }) {
   const heroActions: HeroAction[] =
     g.heroAction === 'address'
       ? [{ href: '/contact', label: t.addressCta, variant: 'solid' }]
-      : g.programs.map((p) => ({
-          href: `/contact?service=${p}`,
-          label: c.services.find((s) => s.slug === p)!.program!.cta,
-          variant: 'solid' as const,
-        }));
+      : g.programs.length
+        ? g.programs.map((p) => ({
+            href: `/contact?service=${p}`,
+            label: c.services.find((s) => s.slug === p)!.program!.cta,
+            variant: 'solid' as const,
+          }))
+        : // A guide with no county program: one button, its own service
+          // preselected on the form.
+          [{ href: `/contact?service=${g.service}`, label: t.proposalCta, variant: 'solid' as const }];
 
   const ld = {
     '@context': 'https://schema.org',
@@ -152,7 +172,7 @@ export function GuideView({ lang, slug }: { lang: Lang; slug: string }) {
         author: { '@id': ORGANIZATION },
         publisher: { '@id': ORGANIZATION },
         isPartOf: { '@id': WEBSITE },
-        about: g.programs.map((p) => ({ '@id': `${absoluteUrl(l(`/services/${p}`))}#service` })),
+        about: leads.map((s) => ({ '@id': `${absoluteUrl(l(`/services/${s.slug}`))}#service` })),
       },
       {
         '@type': 'FAQPage',
@@ -186,12 +206,26 @@ export function GuideView({ lang, slug }: { lang: Lang; slug: string }) {
         sub={g.heroSub}
         actions={heroActions}
         photo={GUIDE_PHOTO[g.slug]}
-      >
-        {/* The actions first (the buttons, then Call and WhatsApp), the
-            credential after them: it used to sit between the button and
-            the two links. */}
-        <ReachRow c={c} plain={!notice} />
-      </PageHero>
+        // WhatsApp under the buttons: alone in the side panel it drew an
+        // empty box beside the title (the owner saw it, 2026-10-26).
+        reach={<ReachRow c={c} plain={!notice} />}
+      />
+
+      {/* The short answer: three sentences, the essentials in ten seconds,
+          before the long read (2026-10-26). Its own words, never lines of
+          the body; no heading — a label over a list. */}
+      <section className="mp-section mp-surface--paper h-short-plate" aria-label={t.shortLabel}>
+        <div className="mp-shell">
+          <div className="h-short">
+            <p className="h-label">{t.shortLabel}</p>
+            <ul className="h-short__list">
+              {g.short.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </section>
 
       {/* The answer, the questions and the links on: one document, laid out
           like the legal pages (the contents in a rail from 901px) but in the
@@ -256,17 +290,18 @@ export function GuideView({ lang, slug }: { lang: Lang; slug: string }) {
             {t.more}
           </h2>
           <ul className="mp-guide__up">
-            {g.programs.map((p) => {
-              const s = c.services.find((x) => x.slug === p)!;
-              return (
-                <li key={p}>
-                  <Link href={l(`/services/${p}`)}>{s.shortTitle}</Link>
-                </li>
-              );
-            })}
-            <li>
-              <Link href={l(COST_PATH)}>{t.costLink}</Link>
-            </li>
+            {leads.map((s) => (
+              <li key={s.slug}>
+                <Link href={l(`/services/${s.slug}`)}>{s.shortTitle}</Link>
+              </li>
+            ))}
+            {/* The cost page prices the two county programs: a guide of
+                theirs links it, a guide of another service does not. */}
+            {g.programs.length ? (
+              <li>
+                <Link href={l(COST_PATH)}>{t.costLink}</Link>
+              </li>
+            ) : null}
           </ul>
           <ul className="mp-guide__across">
             {others.map((x) => (
@@ -281,7 +316,46 @@ export function GuideView({ lang, slug }: { lang: Lang; slug: string }) {
         </nav>
       </LegalDoc>
 
-      <HomeContact closing lang={lang} presetService={g.programs.length === 1 ? own.slug : undefined} notice={notice} />
+      {/* The service behind the guide, as the home's card: the photograph,
+          the name, the ring — no line of the service's own (each sentence of
+          the site has one page). No heading: a label over the cards. */}
+      <section className="h-plate mp-surface--graphite h-gsvc" aria-label={t.serviceLabel}>
+        <div className="h-wrap">
+          <p className="h-label">{t.serviceLabel}</p>
+          {/* <div>s, not a list: a card's tag and name would read as one
+              list item, the same on every guide of that service. */}
+          <div className="h-gsvc__grid" style={{ '--cols': String(Math.min(leads.length, 3)) } as React.CSSProperties}>
+            {leads.map((s) => (
+              <div key={s.slug} className="h-card h-gsvc__card">
+                <Reveal fx="img" className="h-ph" style={{ '--ar': '3 / 2' } as React.CSSProperties}>
+                  <div className="h-ph__in">
+                    <Img photo={imagery.services[s.slug]} sizes="(min-width: 900px) 30vw, 92vw" />
+                  </div>
+                </Reveal>
+                <div className="h-card__meta">
+                  <p className="h-track">
+                    <Diamond />
+                    {s.track === 'new' ? c.servicesPage.tracks.new.eyebrow : c.servicesPage.tracks.existing.eyebrow}
+                  </p>
+                  {/* A <div>: the service's name is printed on every guide of
+                      that service, and a paragraph of six words or more may
+                      be on one page only (guides.test.ts). */}
+                  <div className="h-card__title h-gsvc__title">
+                    <Link className="h-card__link" href={l(`/services/${s.slug}`)}>
+                      {s.title}
+                    </Link>
+                  </div>
+                  <span className="h-ring" aria-hidden="true">
+                    <Arrow up />
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <HomeContact closing lang={lang} presetService={preset} notice={notice} />
     </div>
   );
 }
@@ -353,8 +427,17 @@ export function GuidesView({ lang }: { lang: Lang }) {
               <Words text={idx.listTitle} />
             </Reveal>
           </header>
+          {idx.groups.map((group) => {
+            const mine = list.filter((g) => group.services.includes(g.service));
+            if (!mine.length) return null;
+            return (
+              <div key={group.label} className="h-ggroup">
+                <div className="h-ggroup__head">
+                  <h2 className="h-ggroup__t">{group.label}</h2>
+                  <p className="h-ggroup__lede">{group.lede}</p>
+                </div>
           <ol className="h-tgrid h-tgrid--guides">
-            {list.map((g) => (
+            {mine.map((g) => (
               <li key={g.slug} className="h-card h-type">
                 <Reveal fx="img" className="h-ph" style={{ '--ar': '3 / 2' } as React.CSSProperties}>
                   <div className="h-ph__in">
@@ -364,7 +447,7 @@ export function GuidesView({ lang }: { lang: Lang }) {
                 <div className="h-card__meta">
                   <p className="h-track">
                     <Diamond />
-                    {g.programs.map((p) => PLACE[p][lang]).join(' · ')}
+                    {g.programs.length ? g.programs.map((p) => PLACE[p][lang]).join(' · ') : PLACE['milestone-inspections'][lang]}
                   </p>
                   <h3 className="h-card__title h-type__title">
                     <Link href={l(guidePath(g.slug))} className="h-card__link">
@@ -379,6 +462,9 @@ export function GuidesView({ lang }: { lang: Lang }) {
               </li>
             ))}
           </ol>
+              </div>
+            );
+          })}
         </div>
       </section>
       {/* The reader's letter: what a missed date leads to, what to send (or

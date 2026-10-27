@@ -8,6 +8,12 @@
  * Each guide here answers ONE question an owner types, and leads to the
  * county program's page and to the cost page.
  *
+ * Since October 26, 2026 the guides cover the SIX services (the owner: the
+ * site is built on six services): four more — threshold buildings, balcony
+ * spalling and cracks, buying a building, structural peer review — each
+ * leading to its own service (`service`); every guide opens with a short
+ * answer (`short`); /guides lists them under their service (`index.groups`).
+ *
  * NO TEXT IN THIS FILE: the proxy and the sitemap import it, and anything
  * may. The words are in guides.en.ts / guides.es.ts, reached only through
  * guide-content.ts, from server components (guides.test.ts walks the
@@ -51,7 +57,15 @@ export type GuideSection = {
 export type Guide = {
   slug: string;
   /**
-   * The program pages it leads to. The hero has one button per program, each
+   * The service the guide leads to: its card closes the guide, its group
+   * holds it on /guides, and its form preset is the hero's button when the
+   * guide has no county program (assessments, peer review). A slug of
+   * site.ts `services`.
+   */
+  service: string;
+  /**
+   * The program pages it leads to — none for a guide of a service that is
+   * not a county program. The hero has one button per program, each
    * opening the form with its own county preselected (a Broward board must
    * not land on a form set to Miami-Dade); the closing band keeps the preset
    * only when there is one program.
@@ -74,6 +88,11 @@ export type Guide = {
   heroSub: string;
   /** Its line on /guides. */
   card: string;
+  /**
+   * The short answer: three sentences at the top of the guide, the essentials
+   * in ten seconds — its own words, not lines of the body.
+   */
+  short: string[];
   sections: GuideSection[];
   /** The h2 over the questions: each guide's own. */
   faqTitle: string;
@@ -91,6 +110,11 @@ export type GuidesIndex = {
   listLabel: string;
   listTitle: string;
   /**
+   * The guides under their service, in this order: each group's name, one
+   * line, and the services whose guides it holds (`Guide.service`).
+   */
+  groups: { label: string; lede: string; services: string[] }[];
+  /**
    * Under the list, every paragraph about the reader's building, never about
    * the site: what a missed date leads to in each county, why the two are
    * never mixed, what to send (the letter — or, with no letter yet, the
@@ -105,6 +129,12 @@ export type GuidesIndex = {
 export type GuideLabels = {
   eyebrow: string;
   reviewed: string;
+  /** The label over a guide's short answer. */
+  shortLabel: string;
+  /** The label over the card of the guide's service, at its foot. */
+  serviceLabel: string;
+  /** The hero button of a guide with no county program. */
+  proposalCta: string;
   /** In front of a block of facts: "Miami-Dade County’s row". */
   rowsOf: (jurisdiction: string) => string;
   /** A fact's label in a guide, with its county: "Miami-Dade — Time to file". */
@@ -130,6 +160,10 @@ export const guideSlugs = [
   'milestone-recertification-sirs',
   'failed-recertification',
   'parking-lot-illumination-guardrail',
+  'threshold-building',
+  'balcony-spalling-cracks',
+  'buying-a-building',
+  'structural-peer-review-florida',
 ] as const;
 
 export const guidePath = (slug: string) => `${GUIDES_PATH}/${slug}`;
@@ -139,5 +173,5 @@ export const guidePath = (slug: string) => `${GUIDES_PATH}/${slug}`;
  * program pages. Not `regulatoryChecked`: the rows a guide prints carry
  * that date themselves. site.es.ts style for the Spanish one.
  */
-export const guidesReviewed = { en: 'October 17, 2026', es: '17 de octubre de 2026' } as const;
-export const guidesReviewedISO = '2026-10-17';
+export const guidesReviewed = { en: 'October 26, 2026', es: '26 de octubre de 2026' } as const;
+export const guidesReviewedISO = '2026-10-26';

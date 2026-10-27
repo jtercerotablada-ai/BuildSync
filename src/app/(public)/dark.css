@@ -911,3 +911,113 @@ body:has(.mp-dark) .mp-header.is-stuck:not(.is-menu-open) {
     display: none;
   }
 }
+
+/* ═══ 15 · THE GUIDES (2026-10-26) ════════════════════════════════════════ */
+
+/* WhatsApp under the hero's buttons (PageHero `reach`). */
+.mp-dark .mp-phero__reach {
+  margin-top: 18px;
+}
+.mp-dark .mp-phero__reach .mp-reach {
+  margin: 0;
+}
+
+/* The short answer: a panel with a gold rule, three sentences at reading
+   size, before the long read. */
+.mp-dark .h-short-plate {
+  padding-block: clamp(36px, 4.5vw, 64px) 0;
+}
+.mp-dark .h-short {
+  max-width: 920px;
+  padding: clamp(22px, 2.6vw, 36px) clamp(22px, 3vw, 44px);
+  background: var(--mp-card);
+  border: 1px solid var(--h-hair-2);
+  border-left: 2px solid var(--mp-gold);
+}
+.mp-dark .h-short__list {
+  display: grid;
+  gap: 12px;
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.mp-dark .h-short__list li {
+  position: relative;
+  padding-left: 26px;
+  font-size: clamp(17px, 1.35vw, 21px);
+  line-height: 1.5;
+  color: var(--mp-snow);
+}
+.mp-dark .h-short__list li::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 0.62em;
+  width: 7px;
+  height: 7px;
+  background: var(--mp-gold);
+  transform: rotate(45deg);
+}
+
+/* The guides under their service, on /guides. */
+.mp-dark .h-ggroup {
+  margin-top: clamp(56px, 7vw, 110px);
+}
+.mp-dark .h-ggroup:first-of-type {
+  margin-top: var(--h-head-gap);
+}
+.mp-dark .h-ggroup__head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  align-items: end;
+  gap: 12px clamp(24px, 4vw, 72px);
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--h-hair);
+}
+.mp-dark .h-ggroup__t {
+  margin: 0;
+  font-size: clamp(28px, 2.8vw, 46px);
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  color: var(--mp-snow);
+}
+.mp-dark .h-ggroup__lede {
+  margin: 0;
+  max-width: 52ch;
+  font-size: clamp(16px, 1.15vw, 18px);
+  line-height: 1.5;
+  color: var(--mp-snow-2);
+}
+.mp-dark .h-ggroup .h-tgrid {
+  margin-top: clamp(28px, 3.4vw, 52px);
+}
+@media (max-width: 899px) {
+  .mp-dark .h-ggroup__head {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* The service behind a guide: the home's cards, the name and the ring. */
+.mp-dark .h-gsvc {
+  padding-block: clamp(56px, 7vw, 120px);
+}
+.mp-dark .h-gsvc__grid {
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr));
+  gap: clamp(24px, 3vw, 48px);
+  margin: clamp(24px, 3vw, 44px) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.mp-dark .h-gsvc__grid[style*='--cols: 1'] {
+  grid-template-columns: minmax(0, 560px);
+}
+.mp-dark .h-gsvc__title {
+  font-size: clamp(22px, 2vw, 34px);
+}
+@media (max-width: 899px) {
+  .mp-dark .h-gsvc__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -44,6 +44,7 @@ export function PageHero({
   facts,
   photo,
   crumbs,
+  reach,
   children,
 }: {
   eyebrow: string;
@@ -54,6 +55,12 @@ export function PageHero({
   facts?: readonly { k: string; v: string }[];
   photo?: Photo;
   crumbs?: Crumb[];
+  /**
+   * A line of links under the buttons (WhatsApp), in the column, not in the
+   * side panel: alone there it drew an empty box beside the title (the
+   * guides, 2026-10-26).
+   */
+  reach?: React.ReactNode;
   children?: React.ReactNode;
 }) {
   const c = useContent();
@@ -114,6 +121,7 @@ export function PageHero({
                   ))}
                 </div>
                 {actionNote ? <p className="mp-phero__note">{actionNote}</p> : null}
+                {reach ? <div className="mp-phero__reach">{reach}</div> : null}
               </div>
             ) : null}
           </div>

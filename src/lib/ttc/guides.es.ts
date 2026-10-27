@@ -23,29 +23,37 @@ export const labels: GuideLabels = {
   costLink: 'Lo que cuesta el trabajo',
   allGuides: 'Todas las guías',
   forProgram: 'Guías para dueños',
+  shortLabel: 'En pocas palabras',
+  serviceLabel: 'El servicio de esta guía',
+  proposalCta: 'Solicitar propuesta',
 };
 
 export const index: GuidesIndex = {
   seo: {
-    title: 'Guías de recertificación y BSIP para propietarios',
+    title: 'Guías para dueños de edificios en Florida',
     description:
-      'Respuestas claras para dueños y juntas en Miami-Dade y Broward: la carta, qué programa aplica, hito o recertificación, reparaciones y estacionamientos.',
+      'Respuestas claras para dueños y juntas en Florida: notificaciones del condado, reglas de hito y threshold, balcones, comprar un edificio y revisión por pares.',
   },
   crumb: 'Guías',
   eyebrow: 'Guías',
-  titleLines: ['Recertificación y BSIP,', 'explicados para dueños.'],
-  accentWord: 'explicados para dueños.',
-  sub: 'Una carta del condado pone a correr un plazo, y una fecha vencida pasa a la vía de cumplimiento. Aquí están los dos programas, explicados en guías breves para juntas directivas, dueños y administradores en Miami-Dade y Broward, con las reglas verificadas de cada condado.',
+  titleLines: ['Guías para dueños', 'de edificios en Florida.'],
+  accentWord: 'en Florida.',
+  sub: 'Respuestas breves y claras a las preguntas de dueños, juntas y administradores — una notificación del condado, la ley de hitos, un edificio alto, un balcón agrietado, una compra, un diseño por revisar — cada una con el servicio que la resuelve.',
   listLabel: 'Las guías',
   listTitle: 'Elija la pregunta que tiene hoy.',
+  groups: [
+    { label: 'Recertificación y BSIP', lede: 'Los dos programas de los condados: la carta, el plazo que abre, los nombres que usan los dueños y qué pasa cuando un informe enumera reparaciones.', services: ['building-recertification', 'broward-bsip'] },
+    { label: 'Inspecciones de hito', lede: 'Lo que la ley estatal le pide a una junta de condominio o cooperativa, y cómo lo cubre el informe del condado.', services: ['milestone-inspections'] },
+    { label: 'Edificios threshold', lede: 'Cuándo la altura o un gran salón de reunión ponen un edificio por encima del umbral, y qué pide entonces el condado.', services: ['threshold-inspections'] },
+    { label: 'Evaluaciones y reparaciones', lede: 'Grietas, concreto desprendido y un edificio a punto de comprarse: qué mirar, y cuándo conviene que un ingeniero lo mire con usted.', services: ['structural-condition-assessments'] },
+    { label: 'Revisión por pares', lede: 'Cuándo un diseño estructural necesita una segunda lectura independiente antes del permiso, y qué abarca esa lectura.', services: ['peer-review'] },
+  ],
   howLabel: 'Su carta',
   howTitle: 'Su carta fija la fecha. Envíela y se la leemos.',
   how: [
-    'El condado no espera a la próxima reunión de la junta. En Miami-Dade, la recertificación que se queda sin entregar pasa a cumplimiento del código: sanciones por cada infracción, un gravamen sobre la propiedad y, si el edificio resulta inseguro, una orden de desalojo. En Broward, el informe atrasado va a una audiencia, y un edificio cuyas reparaciones nunca se hacen puede declararse inseguro.',
-    'Miami-Dade y Broward tienen programas distintos, con sus propias edades, sus propios plazos y sus propios formularios. Una regla de un condado nunca se aplica a un edificio del otro, y confundirlos cuesta un tiempo que ningún plazo devuelve.',
-    'Si una fecha de su notificación no coincide con una guía, vale la de la notificación. Mándenos una foto de la notificación con su celular y le decimos, en palabras sencillas, a qué programa corresponde, qué le pide la oficina y para cuándo, y qué sigue, con una propuesta de precio fijo que cubre el paquete completo. ¿Ya va tarde? Todavía tiene solución.',
-    '¿Todavía no le ha llegado la carta? Envíenos la dirección del edificio. Leemos el registro desde el cual el condado cuenta su edad y le decimos si la inspección ya le toca, le tocará pronto o todavía no; empezar antes de la carta permite planear las reparaciones, si las hay, sin prisas.',
-    'Una vez aprobada la propuesta, la inspección se programa para un día en que se pueda abrir el edificio, y el paquete completo le llega entre tres y cuatro días después de esa visita, o entre uno y dos si la fecha está cerca. Un informe que enumera reparaciones se entrega a tiempo de todos modos; las reparaciones se hacen después, con permiso de construcción.',
+    'Miami-Dade y Broward tienen cada uno su propio programa — sus edades, su plazo, sus formularios — y una fecha vencida en cualquiera de los dos pasa a la vía de cumplimiento del condado. Una regla de un condado nunca se aplica a un edificio del otro.',
+    'Mándenos una foto de la notificación con su celular y le decimos a qué programa corresponde, qué pide la oficina y para cuándo, con una propuesta de precio fijo por el paquete completo. ¿Todavía sin carta? Envíe la dirección, y leemos el registro desde el cual el condado cuenta la edad del edificio.',
+    'Una vez aprobada la propuesta, la inspección se programa para un día en que se pueda abrir el edificio, y el paquete completo llega entre tres y cuatro días después de esa visita, o entre uno y dos si la fecha está cerca. Un informe que enumera reparaciones se entrega a tiempo de todos modos.',
   ],
 };
 
@@ -53,6 +61,7 @@ export const guides: Guide[] = [
   /* ── 1. The notice ─────────────────────────────────────────────────── */
   {
     slug: 'recertification-notice',
+    service: 'building-recertification',
     programs: ['building-recertification', 'broward-bsip'],
     seo: {
       title: '¿Le llegó una notificación de recertificación?',
@@ -64,6 +73,7 @@ export const guides: Guide[] = [
     heroSub:
       'Una carta de su departamento de construcción pone a correr un plazo. Esto es lo que conviene hacer: léala ese mismo día y siga estos cinco pasos, esté el edificio en Miami-Dade o en Broward.',
     card: 'Para la junta o el dueño que tiene la carta en la mano: los cinco primeros pasos, en orden, y el plazo que empieza a correr.',
+    short: ["La carta pone en marcha el plazo de su condado para presentar, y Broward lo cuenta a partir de su recepción.", "La semana en que llegue, mande la carta a un ingeniero, aunque sea como foto del celular, con planos e informes previos.", "Aunque enumere reparaciones, el informe se presenta dentro del plazo, y las reparaciones se hacen luego con permiso."],
     sections: [
       {
         title: 'Primero, lea lo que la carta dice en realidad',
@@ -132,6 +142,7 @@ export const guides: Guide[] = [
   /* ── 2. The Broward notice ─────────────────────────────────────────── */
   {
     slug: 'broward-bsip-notice',
+    service: 'broward-bsip',
     programs: ['broward-bsip'],
     seo: {
       title: 'La carta del BSIP en Broward: quién debe presentar',
@@ -143,6 +154,7 @@ export const guides: Guide[] = [
     heroSub:
       'Una carta certificada sobre el BSIP (Building Safety Inspection Program) significa que su edificio alcanzó en Broward la edad de inspección. Esto es lo que le pide.',
     card: 'Para un edificio de Broward que recibió la carta certificada: lo que le pide al propietario, y qué edificios quedan fuera del programa.',
+    short: ["La carta certificada significa que su edificio está en la lista de Broward para este año y necesita inspección estructural y eléctrica.", "Entra casi cualquier edificio, y las pocas excepciones, como estructuras menores y viviendas pequeñas, se listan abajo.", "Se presenta un informe narrativo con fotos a color en los formularios oficiales del condado, nunca en los de una empresa."],
     sections: [
       {
         title: 'Qué es la carta',
@@ -197,6 +209,7 @@ export const guides: Guide[] = [
   /* ── 3. Is the building due? ───────────────────────────────────────── */
   {
     slug: 'is-my-building-due',
+    service: 'building-recertification',
     programs: ['building-recertification', 'broward-bsip'],
     heroAction: 'address',
     seo: {
@@ -209,6 +222,7 @@ export const guides: Guide[] = [
     heroSub:
       '¿Aún no tiene carta, o no está seguro de que le aplique? La edad que cuenta consta en un registro público que usted mismo puede comprobar, y cada condado la toma de un registro distinto.',
     card: '¿Aún sin carta? Dónde consta la edad que cuenta, condado por condado, para revisarla antes de que llegue la notificación.',
+    short: ["Primero confirme el condado, no el municipio, porque cada condado toma la edad de un registro público distinto.", "Miami-Dade usa el año de construcción del Property Appraiser, y Broward, la fecha de expedición de su certificado de ocupación.", "Si el edificio ya está en edad de inspección o cerca, mándenos la dirección, y así cualquier reparación se planea con tiempo."],
     sections: [
       {
         title: 'Empiece por el condado donde está el edificio',
@@ -265,6 +279,7 @@ export const guides: Guide[] = [
   /* ── 4. 30 vs 40 vs 50-year ────────────────────────────────────────── */
   {
     slug: 'recertification-30-40-50-year',
+    service: 'building-recertification',
     programs: ['building-recertification'],
     seo: {
       title: 'Recertificación de 40 años y sus otros nombres',
@@ -276,6 +291,7 @@ export const guides: Guide[] = [
     heroSub:
       'Los nombres cuentan los años que tiene el edificio al momento de una inspección. Hay un solo programa, la recertificación de edificios de Miami-Dade, y se repite durante toda la vida del edificio.',
     card: 'Para una junta de Miami-Dade que no sabe qué nombre le aplica: un programa, tres nombres que buscan los dueños, y qué significa hoy cada uno.',
+    short: ["Los nombres que buscan los dueños indican los años del edificio al inspeccionarlo, y en Miami-Dade todos remiten a un solo programa.", "El nombre más conocido quedó desactualizado: hoy la primera inspección toca más pronto, a las edades que aparecen abajo.", "En Broward esos mismos nombres apuntan a un programa distinto, el BSIP, que tiene edades y plazos propios."],
     sections: [
       {
         title: 'De dónde vienen los nombres',
@@ -330,6 +346,7 @@ export const guides: Guide[] = [
   /* ── 5. Milestone vs recertification vs SIRS ───────────────────────── */
   {
     slug: 'milestone-recertification-sirs',
+    service: 'milestone-inspections',
     programs: ['building-recertification', 'broward-bsip'],
     seo: {
       title: 'Inspección de hito, recertificación y SIRS',
@@ -341,6 +358,7 @@ export const guides: Guide[] = [
     heroSub:
       'Tres nombres, dos leyes, un edificio. En Miami-Dade y Broward, la inspección del condado y la de hito del estado son un solo informe; el estudio de reservas es otro asunto.',
     card: 'Para una junta de condominio de cualquier condado: tres nombres que escucha, cuáles dos son un mismo informe y cuál planifica el dinero.',
+    short: ["Si un condominio o cooperativa tiene tres o más pisos habitables, su informe de Miami-Dade o Broward cuenta como inspección de hito.", "La junta aún debe avisar de la inspección a cada dueño y mandarle el resumen del ingeniero en los plazos de ley.", "El estudio de reservas, o SIRS, es otra obligación que planifica el dinero para reparar y reemplazar, no un informe de inspección."],
     sections: [
       {
         title: 'La inspección de hito que exige el estado',
@@ -398,6 +416,7 @@ export const guides: Guide[] = [
   /* ── 6. A failed recertification ───────────────────────────────────── */
   {
     slug: 'failed-recertification',
+    service: 'building-recertification',
     programs: ['building-recertification', 'broward-bsip'],
     seo: {
       title: '¿Y si el edificio no aprueba la recertificación?',
@@ -409,6 +428,7 @@ export const guides: Guide[] = [
     heroSub:
       'Casi todos los edificios que “no aprueban” tienen un informe que enumera reparaciones, y para eso hay un camino fijo hasta el cierre. El informe que nunca se entrega es el caso que sale caro.',
     card: 'Para un edificio cuyo informe enumera reparaciones, o cuyo informe nunca se entregó: dos casos muy distintos, y cómo se cierra cada uno.',
+    short: ["Cuando se dice que un edificio no aprobó, casi siempre el informe enumera reparaciones, y aun así se entrega a tiempo.", "Cada condado fija un plazo para reparar, que figura abajo, y el expediente solo se cierra con las reparaciones hechas.", "Lo que hay que evitar es un informe nunca entregado: Miami-Dade lo envía a cumplimiento del código y Broward, a una audiencia."],
     sections: [
       {
         title: 'El formulario no aprueba ni reprueba',
@@ -471,6 +491,7 @@ export const guides: Guide[] = [
   /* ── 7. Parking-lot certificates ───────────────────────────────────── */
   {
     slug: 'parking-lot-illumination-guardrail',
+    service: 'building-recertification',
     programs: ['building-recertification'],
     seo: {
       title: 'Certificados de iluminación y barandas en Miami-Dade',
@@ -482,6 +503,7 @@ export const guides: Guide[] = [
     heroSub:
       'Una recertificación en Miami-Dade es más que un informe estructural y otro eléctrico. Cuando corresponde, también lleva dos certificaciones del estacionamiento.',
     card: 'Para una propiedad de Miami-Dade con estacionamiento: los dos formularios que acompañan la recertificación, y qué registra cada uno.',
+    short: ["Cuando corresponden, Miami-Dade, a diferencia de Broward, suma a la recertificación dos formularios del estacionamiento: uno de iluminación y otro de barandas.", "La luz se mide de noche contra la norma del condado; la baranda solo se exige si el estacionamiento da al agua.", "Poca luz suele indicar luminarias dañadas o árboles crecidos sobre los postes, y la baranda que falte se coloca con permiso."],
     sections: [
       {
         title: 'Dos formularios que van con los informes',
@@ -527,6 +549,276 @@ export const guides: Guide[] = [
         q: '¿Estos certificados encarecen mucho el trabajo?',
         a: 'Forman parte del paquete completo y van en la misma propuesta de precio fijo. Las reparaciones que generen, como luminarias nuevas o una baranda, se cotizan aparte.',
       },
+    ],
+  },
+  /* ── Since 2026-10-26: one guide for each service the guides did not reach ── */
+  {
+    slug: "threshold-building",
+    service: "threshold-inspections",
+    programs: ["building-recertification", "broward-bsip"],
+    seo: {
+      title: "¿Su edificio es threshold? La prueba de Florida",
+      description: "Cómo define Florida un edificio threshold: pisos, altura o una gran sala de reunión, y qué cambia luego en la inspección de Miami-Dade y de Broward.",
+    },
+    name: "¿Es un edificio threshold?",
+    h1: "¿Su edificio es un edificio threshold? Cómo saberlo y qué cambia",
+    heroSub: "La ley threshold de Florida traza su línea por los pisos, la altura o una sala de reunión grande. Pasada esa línea, la misma inspección del condado les pide más a quienes la preparan, tanto en Miami-Dade como en Broward.",
+    card: "Para juntas y dueños de edificios altos: las tres pruebas de la ley threshold y lo que pide luego cada condado.",
+    short: ["Florida llama threshold al edificio de más de tres pisos o cincuenta pies, o con gran sala de reunión a cualquier altura.", "El programa del condado y sus plazos no cambian, pero la regla sobre quién prepara el informe estructural se vuelve más estricta.", "La inspección especial durante la construcción es otro requisito, ligado a la obra y no al programa del condado."],
+    sections: [
+      {
+        title: "Dónde traza Florida la línea threshold",
+        paras: [
+          "La ley threshold de Florida da tres maneras de pasar la línea, y basta con cumplir una. Dos son de tamaño: más de tres pisos, o una altura de más de cincuenta pies, para cualquier uso, desde una torre de condominios hasta un garaje. La tercera es de gente: un espacio que el Código de Construcción de Florida clasifica como de reunión, de más de cinco mil pies cuadrados y con una capacidad de ocupación de más de quinientas personas, lo vuelve threshold a cualquier altura.",
+          "Los dos condados usan la línea del estado. El programa de Broward y el código de Miami-Dade repiten la definición, y la página de Miami-Dade expresa la prueba de pisos como cuatro pisos o más. En ningún condado es un programa aparte: cambia lo que debe llevar el expediente.",
+        ],
+      },
+      {
+        title: "Qué cambia en la inspección del condado",
+        paras: [
+          "Ser threshold no mueve la edad a la que el edificio debe inspeccionarse, ni la notificación que recibe, ni el plazo que tiene para presentar el informe. Cambia quién puede prepararlo, y cada condado escribe esa regla a su manera.",
+          "La carta de autocalificación es un requisito de Miami-Dade; los textos del programa de Broward no la piden. El formulario estructural de Broward pregunta, en cambio, si el edificio es threshold y si el profesional que prepara la porción estructural es Inspector Especial certificado.",
+        ],
+        list: [
+          "Miami-Dade, estructural: un ingeniero especializado en diseño estructural, cuyo informe lleva una carta de autocalificación con prueba de la especialización estructural reconocida por el estado.",
+          "Miami-Dade, eléctrica: un ingeniero especializado en diseño eléctrico.",
+          "Broward, estructural: un profesional con licencia de Florida, especializado en ingeniería estructural y con licencia de Inspector Especial.",
+          "Broward, eléctrica: un profesional con licencia de Florida especializado en diseño eléctrico, la misma regla que para todo edificio del programa.",
+        ],
+      },
+      {
+        title: "Una fachada sujeta con sellador estructural",
+        paras: [
+          "En una fachada de acristalamiento estructural, el vidrio va adherido al marco con un sellador estructural, en lugar de quedar sujeto con metal en todos sus bordes. Si el edificio es threshold y está en Miami-Dade, esa fachada debe recertificarse por su cuenta cada cinco años, aparte del informe del edificio.",
+          "Miami-Dade aplica ese ciclo con guías publicadas: el condado envía un aviso para la fachada, el informe vence a los noventa días y el inspector debe tener la certificación del estado como Inspector Especial para edificios threshold. En Broward, el formulario estructural del programa pregunta si un edificio threshold tiene acristalamiento estructural, cuándo se inspeccionó el sistema por última vez y en qué estado está.",
+          "No todo muro de vidrio es acristalamiento estructural; los planos de la fachada muestran cómo se sujeta el vidrio.",
+        ],
+      },
+      {
+        title: "Cómo saberlo antes de la notificación",
+        paras: [
+          "Casi toda la respuesta está en los planos. La ley threshold cuenta pisos, mientras que la ley estatal de inspecciones de hito cuenta solo los habitables, así que un piso de estacionamiento o de locales no sale de la cuenta threshold solo porque nadie viva en él.",
+          "Si alguna prueba queda justa, por un nivel en parte bajo tierra o un entrepiso, mándenos la dirección y el uso de cada planta, y lo revisamos con la regla de su condado.",
+        ],
+        list: [
+          "Pisos: más de tres, contando cada planta que el código cuenta como piso.",
+          "Altura: más de cincuenta pies, lo que vuelve threshold también a un edificio de tres pisos o menos.",
+          "Reunión: un espacio clasificado como de reunión, de más de cinco mil pies cuadrados y para más de quinientas personas.",
+          "La redacción de Miami-Dade: cuatro pisos o más, la misma línea que la del estado.",
+          "La fachada: en Miami-Dade, el vidrio sujeto con sellador estructural tiene un ciclo propio.",
+        ],
+      },
+    ],
+    faqTitle: "Preguntas de las juntas de edificios altos",
+    faq: [
+      { q: "Nuestro edificio tiene tres pisos de viviendas sobre un nivel de estacionamiento. ¿Es threshold?", a: "Lo es, si el nivel de estacionamiento cuenta como piso. La ley threshold pide pisos, no pisos habitables, así que con ese nivel el edificio suma cuatro y pasa la línea en los dos condados. Un nivel en parte bajo tierra es el caso que conviene confirmar en los planos." },
+      { q: "¿Un hotel o una iglesia es un edificio threshold?", a: "Con las mismas pruebas que cualquier otro edificio. Un hotel de más de tres pisos o cincuenta pies lo es. Una iglesia, o un hotel bajo con un salón de baile, lo es a cualquier altura cuando esa sala está clasificada como de reunión y pasa de cinco mil pies cuadrados y quinientas personas." },
+      { q: "¿Threshold quiere decir inspección especial durante la construcción?", a: "Solo mientras el edificio se construye o se modifica su estructura. En una obra nueva, o en una reparación que modifica la estructura o las cargas que soporta, el estado exige un inspector especial certificado para la obra estructural. Es un requisito aparte del programa del condado y no lo ofrecemos; esta guía trata de un edificio ya construido." },
+      { q: "Nos devolvieron el informe por la calificación de quien lo preparó. ¿Y ahora qué?", a: "Lea el comentario de la oficina junto con la regla de su condado, en la lista de arriba, porque Miami-Dade y Broward no piden lo mismo. Luego mándenos el comentario y el informe, y le decimos qué necesita el expediente antes de volver a presentarse." },
+    ],
+  },
+  {
+    slug: "balcony-spalling-cracks",
+    service: "structural-condition-assessments",
+    programs: [],
+    seo: {
+      title: "Balcón con concreto desprendido: cuándo llamar al ingeniero",
+      description: "Concreto que se cae de un balcón, manchas de óxido, una baranda floja: qué suelen indicar, qué no puede esperar y qué aporta una evaluación estructural.",
+    },
+    name: "Grietas y desprendimientos en balcones",
+    h1: "Desprendimientos, óxido y grietas en balcones: qué significan y cuándo llamar a un ingeniero",
+    heroSub: "Que el concreto se desprenda del borde de un balcón es una señal que hay que entender, sin ignorarla y sin alarmarse. Aquí verá qué suele indicar donde hay aire salino, qué cerrar hoy mismo y qué puede planificar la junta.",
+    card: "Para juntas, administradores o dueños ante un balcón que suelta concreto: qué indican las señales, qué no puede esperar y qué sigue.",
+    short: ["Un balcón que suelta concreto suele tener el acero interior oxidándose e hinchándose, algo que no se detiene solo.", "Concreto suelto sobre un pasillo, baranda que se mueve o losa que cede: despeje el área y llame hoy al ingeniero.", "La evaluación separa lo estético de lo estructural, y con el diseño de reparación cada contratista cotiza exactamente la misma obra."],
+    sections: [
+      {
+        title: "Lo que significan las señales del balcón",
+        paras: [
+          "Muchos balcones del Sur de Florida son losas de concreto que sobresalen de la pared, con su acero principal cerca de la cara superior. Cuando el concreto se desprende, lo más común es que la sal y la humedad hayan llegado a ese acero: el óxido ocupa más espacio que el acero sano, así que se hincha y empuja el concreto hacia afuera.",
+          "No toda marca apunta al acero. Las grietas muy delgadas en la pintura, la cerámica o el estuco suelen quedarse en el acabado; una grieta que sigue la línea de una barra, o que suelta óxido, por lo general compromete el acero.",
+        ],
+        list: [
+          "Concreto que falta en el borde o por debajo: por lo general, acero que se oxida detrás.",
+          "Manchas marrones o anaranjadas: óxido que el agua arrastra hacia afuera, a menudo antes de que algo caiga.",
+          "Una grieta en el borde o junto al poste de una baranda: a menudo, corrosión que empieza donde no se ve.",
+          "Una baranda floja u oxidada en la base: puede que el poste, o el concreto que lo rodea, se esté deteriorando.",
+          "Manchas de agua bajo la losa: agua que se mete en el concreto, camino del acero.",
+        ],
+      },
+      {
+        title: "Cuándo llamar ya y qué se puede planificar",
+        paras: [
+          "Tres señales tocan la seguridad hoy mismo: concreto suelto sobre un pasillo, una entrada, la terraza de la piscina o autos estacionados; una baranda que se tambalea o se ladea; una losa que se hunde o se inclina hacia afuera. Saque a todos de ese balcón y de la zona de abajo, y llame a un ingeniero ese mismo día.",
+          "Las demás señales suelen dar tiempo para planificar, no para olvidarlas: la corrosión sigue avanzando, y una reparación pequeña que no se atiende tiende a crecer. Las pautas de Fannie Mae para condominios incluso cuentan los balcones entre las reparaciones críticas por las que un proyecto deja de calificar para los préstamos que esa entidad compra. Las condiciones de abajo suelen poder esperar al calendario de la junta, una vez que un ingeniero las haya visto.",
+        ],
+        list: [
+          "Manchas de óxido donde todavía no hay concreto suelto.",
+          "Desprendimientos pequeños lejos de donde la gente camina, se sienta o estaciona.",
+          "Grietas muy delgadas en un acabado, sin óxido ni movimiento.",
+          "Manchas de agua ya secas bajo la losa.",
+        ],
+      },
+      {
+        title: "Lo que aportan una evaluación y un diseño de reparación",
+        paras: [
+          "La evaluación empieza por los documentos del edificio y sigue con los balcones mismos. El concreto se sondea, por lo general con un martillo, porque el que se ha separado de su acero suena hueco antes de caer; las barandas se revisan a mano en su base.",
+          "Cada condición se clasifica por lo que significa para la estructura, no por su aspecto. El diseño de reparación define luego dónde se retira concreto, qué se hace con el acero y cómo se rehacen los bordes, los anclajes de las barandas y la impermeabilización. En un balcón sostenido solo por la pared, hasta retirar concreto puede debilitarlo, así que los planos fijan el orden de los trabajos y cualquier apuntalamiento.",
+        ],
+        list: [
+          "Un mapa de cada balcón revisado, con cada condición fotografiada en su lugar.",
+          "Cada condición ordenada por su importancia estructural, y lo que va primero.",
+          "Planos y especificaciones, para que cada oferta responda a la misma obra.",
+          "Los documentos que el departamento de construcción revisa para dar el permiso de la reparación.",
+        ],
+      },
+      {
+        title: "Cómo encaja con los programas del condado y la ley de hitos",
+        paras: [
+          "Cuando llega el turno del edificio, la recertificación de Miami-Dade revisa sus balcones junto con el resto de la estructura, y el BSIP de Broward incluye los balcones unidos a un edificio. Un informe que enumera reparaciones de balcones se presenta en su fecha de todos modos; las reparaciones vienen después, con permiso, en el plazo que den el condado o el municipio.",
+          "En todo el estado, la ley de hitos se aplica a los edificios residenciales en régimen de condominio o cooperativa de al menos tres pisos habitables cuando llegan a la edad que ella fija: una primera fase visual y luego otra, solo si la primera revela un deterioro estructural sustancial. Tanto Miami-Dade como Broward cuentan el informe del condado como cumplimiento de esa ley. Una evaluación intermedia no reemplaza a ninguno de los dos, pero permite a la junta llegar a su siguiente informe con las reparaciones de los balcones ya diseñadas, o hechas.",
+        ],
+      },
+    ],
+    faqTitle: "Preguntas de las juntas sobre sus balcones",
+    faq: [
+      { q: "¿Basta con que un contratista parche el concreto roto?", a: "Por lo general, no por mucho tiempo. Un parche cierra la superficie, pero sobre acero que sigue oxidándose suele volver a agrietarse, y entretanto oculta el problema; la reparación duradera retira el concreto dañado, trata o reemplaza el acero y rehace la sección, con planos y con el permiso que haga falta." },
+      { q: "¿Hay que revisar todos los balcones?", a: "No siempre al principio. Si los balcones son parecidos, un grupo representativo, con los que muestran señales y los que quedan sobre pasillos, revela el patrón; si el deterioro resulta extendido, se sondea el resto antes de diseñar las reparaciones." },
+      { q: "¿Una evaluación hará que el condado inspeccione el edificio?", a: "No por sí sola. Los programas del condado y la ley de hitos alcanzan a un edificio por su edad y su tipo, no por un estudio que encargue la junta. La evaluación cambia lo que la junta sabe: lo que ponga en peligro a las personas se atiende de inmediato, y las reparaciones llegan al departamento de construcción con su permiso." },
+      { q: "¿Cuánto tarda la evaluación?", a: "Depende de cuántos balcones haya y de qué tan pronto puedan abrirse las unidades, porque a la mayoría de los balcones se llega por una. Lo urgente se le comunica a la junta durante la visita; el informe llega cuando los hallazgos quedan mapeados." },
+    ],
+  },
+  {
+    slug: "buying-a-building",
+    service: "structural-condition-assessments",
+    programs: [],
+    seo: {
+      title: "Comprar un edificio en Florida: la revisión estructural",
+      description: "Comprar un edificio en Florida: qué informes pedirle al vendedor, qué dejan fuera y la evaluación estructural que conviene hacer antes del cierre.",
+    },
+    name: "Antes de comprar un edificio",
+    h1: "Comprar un edificio: la revisión estructural antes del cierre",
+    heroSub: "Una unidad de condominio, un edificio de apartamentos, una oficina, un local o un almacén en Florida: antes de cerrar la compra, sepa qué necesita la estructura y qué no dicen los papeles.",
+    card: "Para quien compra, invierte o presta en Florida: qué papeles pedirle al vendedor y la revisión estructural antes del cierre.",
+    short: ["Pídale al vendedor el informe de recertificación o BSIP, los permisos abiertos y, en condominios, la inspección de hito y el SIRS.", "Esos papeles muestran lo que se vio y se presentó, no el estado de la estructura el día de la compra.", "Una evaluación estructural en el período de inspección del contrato clasifica lo que encuentra y esboza las reparaciones, por prioridad, para negociar."],
+    sections: [
+      {
+        title: "Qué pedirle al vendedor",
+        paras: [
+          "Empiece por los papeles que ya tienen el vendedor y la oficina de construcción. En Miami-Dade, un edificio que superó la edad de inspección del condado debería tener un expediente de recertificación; en Broward, uno del BSIP, el programa de inspecciones de seguridad que rige en todo el condado. Lo guarda la oficina de construcción local, y el vendedor debería poder entregarle una copia.",
+          "Esa misma oficina puede decirle además si sigue abierto un expediente de recertificación o algún permiso de la propiedad.",
+        ],
+        list: [
+          "El último informe de recertificación o del BSIP, y la notificación que lo pidió.",
+          "La prueba de que el expediente se cerró: si el informe enumeró reparaciones, el informe enmendado y, en Broward, la carta de terminación de obra.",
+          "Permisos abiertos o vencidos, y reparaciones en curso o apenas planeadas.",
+          "Si el edificio es de condominio o cooperativa y tiene al menos tres pisos habitables: la inspección de hito, que en Miami-Dade y Broward es el informe del condado, y el último estudio de reservas de integridad estructural, el SIRS.",
+        ],
+      },
+      {
+        title: "Lo que dicen los documentos, y lo que no",
+        paras: [
+          "Cada informe de recertificación o del BSIP recoge una sola inspección: lo que se vio ese día, donde se pudo llegar, y si el edificio podía seguir en uso o necesitaba reparaciones antes. Lo ocurrido después, sea una filtración, una tormenta o una reparación aplazada, no figura en él, y lo oculto tras los acabados solo aparece donde se abrió algo.",
+          "El estudio de reservas no es una inspección, sino el plan de la asociación para el dinero: lo que necesitarán el techo, la estructura, la impermeabilización, las ventanas y los demás elementos que enumera la ley durante su vida útil restante, y lo que conviene apartar cada año para ello. Leído junto a la inspección, le permite al comprador ver si lo que encontró la inspección está presupuestado.",
+          "Un prestamista también puede leer estos papeles. Según las reglas de venta de Fannie Mae, un proyecto de condominio que necesita reparaciones críticas no es elegible para los préstamos que Fannie Mae compra, y entre los elementos que nombra están los balcones, los cimientos, las estructuras de estacionamiento, los muros de contención frente al agua y otras estructuras portantes. El prestamista debe revisar toda inspección estructural hecha en los últimos tres años y, si hubo reparaciones, el informe de un ingeniero sobre si resolvieron lo encontrado.",
+        ],
+      },
+      {
+        title: "La evaluación antes del cierre",
+        paras: [
+          "Una evaluación estructural previa a la compra responde lo que los papeles no pueden: el estado actual de la estructura. Parte de los planos originales, los permisos y los últimos informes, y compara el edificio tal como se diseñó con el que hoy está en pie; si faltan los planos, se comprueba más en el sitio.",
+          "Prográmela al comienzo del período de inspección o de diligencia debida que permite su contrato, cuando aún hay tiempo de actuar según los resultados. En un condominio, el techo, el garaje y las demás áreas comunes se abren a través de la asociación o de su administrador.",
+        ],
+        list: [
+          "La estructura recorrida y fotografiada: techo, vigas y columnas, losas, balcones, garaje y los cimientos visibles.",
+          "Cada condición clasificada: estética o estructural, urgente o para vigilar.",
+          "Las modificaciones evaluadas: una abertura en una losa o un muro, un piso añadido, un cambio de uso o una carga mayor.",
+          "Las reparaciones que señala, por orden de prioridad, como base para hablar con el vendedor.",
+          "Lo que quede en duda, marcado como pendiente, con la prueba o la apertura exploratoria que lo aclararía.",
+        ],
+      },
+      {
+        title: "Cuando al edificio le toca pronto",
+        paras: [
+          "Un edificio cerca de su próxima recertificación o inspección del BSIP trae esa inspección consigo, junto con las reparaciones que luego enumere el informe. Tras el cierre, responder por ellas le toca al nuevo dueño, o a la asociación si es un condominio.",
+          "La edad que cuenta cada condado consta en registros públicos: en Miami-Dade, es el año de construcción tal como lo anota el Property Appraiser; en Broward, el día en que se expidió su certificado de ocupación. Mándenos la dirección durante el período de inspección y le indicamos qué inspección le corresponde después al edificio, y para cuándo.",
+        ],
+      },
+    ],
+    faqTitle: "Lo que preguntan los compradores antes del cierre",
+    faq: [
+      { q: "¿Basta con una inspección de vivienda para un edificio?", a: "Una inspección de vivienda es una revisión visual de una sola vivienda; en un condominio, esa vivienda es la unidad. Las vigas y columnas, las losas, los balcones y el garaje del edificio entero son una cuestión estructural, que pide la evaluación de un ingeniero." },
+      { q: "El informe del vendedor es reciente. ¿Igual necesitamos una evaluación?", a: "Tal vez no una completa. Un informe reciente con sus reparaciones cerradas es un buen punto de partida; lo leemos primero y le decimos si algo en él, o algo posterior, pide una visita." },
+      { q: "Al edificio le toca la recertificación el año que viene. ¿Quién la paga?", a: "La inspección va con el edificio: tras el cierre le toca responder al comprador, o a la asociación si es un condominio; que el vendedor asuma una parte o no lo acuerdan comprador y vendedor en el contrato de compra. Antes de esa conversación, podemos decirle qué vence y cuándo, qué implica la inspección y si el último informe dejó reparaciones pendientes." },
+      { q: "¿Pueden revisar un almacén o una oficina?", a: "Sí, en cualquier parte de Florida. La evaluación no depende de ningún programa: abarca almacenes, oficinas, locales y edificios de apartamentos igual que una torre de condominio. En Miami-Dade y Broward, además, la mayoría entra en el programa del condado: pídale también ese informe al vendedor." },
+    ],
+  },
+  {
+    slug: "structural-peer-review-florida",
+    service: "peer-review",
+    programs: [],
+    seo: {
+      title: "Revisión estructural por pares en Florida: cuándo se exige",
+      description: "La ley de permisos de Florida no pide revisión por pares, pero Coral Gables, la Ciudad de Miami y el Condado de Miami-Dade sí, para ciertos edificios.",
+    },
+    name: "Cuándo un diseño necesita revisión",
+    h1: "Cuándo hace falta una revisión estructural por pares en Florida",
+    heroSub: "La ley estatal de permisos no la pide, pero algunos funcionarios de construcción locales la ponen como condición del permiso. Aquí verá dónde se exige, qué abarca y cuándo conviene empezar.",
+    card: "Para un desarrollador, dueño o prestamista con un diseño estructural: dónde la revisión por pares es condición del permiso y qué entrega.",
+    short: ["La ley de permisos de Florida no pide una revisión por pares, pero algunos departamentos de construcción locales la exigen.", "Coral Gables, la Ciudad de Miami y el Condado de Miami-Dade publican cada uno su propia lista de edificios que la necesitan.", "Un ingeniero independiente lee el diseño, idealmente antes de presentarlo para el permiso, y el ingeniero de registro sigue respondiendo por él."],
+    sections: [
+      {
+        title: "Por qué hace falta la lectura de otro ingeniero",
+        paras: [
+          "Un diseño estructural lo revisa el equipo que lo hizo, y también el departamento de construcción antes del permiso. La revisión por pares suma un lector ajeno al equipo de diseño, sin interés en sus decisiones, que sigue el camino de las cargas hasta el suelo.",
+          "Lo que cuenta es el momento: un error hallado en los planos se resuelve con una respuesta y una hoja corregida, mientras que el mismo error hallado en obra puede significar apuntalar, reparar en sitio y perder semanas. Un funcionario de construcción puede ponerla como condición del permiso; un dueño, un prestamista o el propio equipo de diseño también pueden pedirla.",
+        ],
+      },
+      {
+        title: "Dónde la exige el funcionario de construcción",
+        paras: [
+          "La ley de Florida sobre permisos de construcción no menciona la revisión por pares. Los requisitos que siguen vienen de departamentos de construcción locales: cada uno la pone como condición de los permisos que emite, con criterios propios, de modo que el mismo diseño puede necesitarla en una ciudad y no en la de al lado.",
+          "En Broward no se encontró ningún requisito para todo el condado al redactar esta guía, así que la respuesta la tiene la oficina que va a emitir el permiso: pregúntele directamente. Lo mismo vale para cualquier lugar que esta guía no nombra, y en todo el estado un dueño, un prestamista o una aseguradora pueden pedir la revisión de todos modos.",
+        ],
+        list: [
+          "El Condado de Miami-Dade, sobre los edificios a los que da permiso en su área no incorporada: diez pisos o cien pies, lo que llegue primero; instalaciones esenciales que no sean de baja altura; medio millón de pies cuadrados o más en un solo piso; y más de tres pisos cuando el sistema que resiste el viento es de acero liviano (light-gauge) o de madera.",
+          "La Ciudad de Miami: edificios residenciales y comerciales de altura superior a tres pisos o a cincuenta pies; instalaciones esenciales; más de un cuarto de millón de pies cuadrados de área de piso en total; y edificios cuyos pisos y muros estén armados con acero liviano.",
+          "Coral Gables: los edificios threshold, tal como los define la ley estatal; instalaciones esenciales; edificios esbeltos, con una relación de aspecto (aspect ratio) de siete o más; edificios de más de un millón de pies cuadrados; cualquier elemento que sostenga, en total, más del quince por ciento del área del edificio; y diseños basados en análisis no lineal o de carga progresiva.",
+          "En los tres casos, el funcionario de construcción también puede exigirla para un proyecto que no esté en estas listas, como una estructura inusual o compleja.",
+        ],
+      },
+      {
+        title: "Qué comprueba el revisor y qué le entrega",
+        paras: [
+          "El revisor lee los planos y los cálculos según el código que rige el proyecto, y hace cálculos independientes sobre una parte representativa de la estructura. Coral Gables incluye ese método en sus reglas, y le da al revisor los cálculos del diseñador solo como referencia.",
+          "Lo que usted recibe es un informe de la revisión con una lista de comentarios, ordenados por su peso: cada uno indica la hoja, la inquietud y su consecuencia para la estructura. El equipo de diseño responde, el revisor lee cada respuesta, y un comentario se cierra solo cuando queda resuelto.",
+          "La revisión no rediseña el edificio. El ingeniero de registro conserva la responsabilidad exclusiva del diseño; el revisor aporta una opinión independiente sobre él.",
+        ],
+        list: [
+          "Las cargas y la trayectoria de carga, desde el techo hasta las cimentaciones.",
+          "El modelo de análisis y las hipótesis que lo sostienen.",
+          "Los detalles y las conexiones, y si se pueden construir tal como están dibujados.",
+        ],
+      },
+      {
+        title: "Cuándo empezar y qué enviar",
+        paras: [
+          "Empiece cuando el sistema estructural ya esté definido y antes de que los planos se presenten para el permiso. Para el Condado de Miami-Dade, los comentarios deben quedar resueltos antes de presentar la solicitud, así que una revisión que empieza tarde retrasa la presentación misma.",
+          "Para empezar, nos bastan los planos y los cálculos. Revisamos si la oficina que va a emitir el permiso exige una revisión, y con cuál de sus criterios, y le enviamos una propuesta a la medida de la revisión que el proyecto necesita.",
+        ],
+        list: [
+          "Los planos estructurales, en su última emisión.",
+          "Los cálculos, y el modelo de análisis si lo hay.",
+          "El estudio geotécnico, para las cimentaciones.",
+          "La dirección, y la fecha en que piensa presentar los planos para el permiso.",
+        ],
+      },
+    ],
+    faqTitle: "Lo que preguntan dueños y equipos de diseño",
+    faq: [
+      { q: "¿Toda obra nueva en Florida necesita una revisión por pares?", a: "No. La ley estatal de permisos no la pide, y las reglas locales de esta guía alcanzan solo a los edificios que describen, o al proyecto que el funcionario de construcción señale. Cualquier dueño, prestamista o aseguradora puede pedir una revisión de todos modos." },
+      { q: "Nuestro proyecto está en Broward. ¿La oficina de permisos la va a pedir?", a: "Al preparar esta guía no apareció ningún requisito para todo ese condado, así que conviene consultarlo con la oficina que va a emitir su permiso. Responda lo que responda, el dueño o el prestamista pueden pedir una revisión igual." },
+      { q: "¿Quién elige al revisor?", a: "En el Condado de Miami-Dade, el dueño contrata a un ingeniero profesional independiente con licencia en Florida. La Ciudad de Miami pide que el dueño proponga hasta tres ingenieros estructurales de Florida, y la elección final se hace de común acuerdo con el funcionario de construcción." },
+      { q: "¿Es la revisión por pares la inspección especial que se exige a un edificio threshold?", a: "No. La ley estatal sobre edificios threshold pide un inspector especial que inspecciona la estructura mientras se construye, o mientras una reparación o restauración modifica su sistema estructural o sus cargas; la revisión por pares lee el diseño mismo, sobre el papel." },
     ],
   },
 ];

@@ -12,6 +12,7 @@ import { GUIDES_PATH, guidePath, guideSlugs, guidesReviewed, guidesReviewedISO, 
 import { findGuide, getGuides, guideLabels, guidesIndex } from '@/lib/ttc/guide-content';
 import { localePath, type Lang } from '@/lib/ttc/i18n';
 import { absoluteUrl, company } from '@/lib/ttc/site';
+import { guideHoldsNotice } from '@/lib/ttc/notice-pages';
 import { EN_PUBLIC_PAGES, ES_PUBLIC_PAGES, isMarketingRoute, isPublicRoute, PUBLIC_NOT_FOUND, publicNotFoundTarget } from '@/proxy';
 import { SiteChrome } from '@/components/ttc/mp/SiteChrome';
 import { keepHyphens } from '@/components/ttc/mp/text';
@@ -28,8 +29,9 @@ import { ServicesView } from './ServicesView';
 import { WorkView } from './WorkView';
 
 /**
- * THE GUIDES (guides.ts) — seven answers to the questions owners type, each
- * leading to its county program's page and to the cost page.
+ * THE GUIDES (guides.ts) — eleven answers to the questions owners type, each
+ * leading to its service's page (and, for the county programs, to the cost
+ * page).
  *
  * They sit next to the most guarded text on the site — the counties' ages
  * and deadlines — and they are prose, where a number slips in easily. So:
@@ -57,7 +59,7 @@ const strings = (value: unknown): string[] =>
         ? Object.values(value).flatMap(strings)
         : [];
 /** Everything a guide says in its own words: not its slug, its programs or its fact keys. */
-const said = (g: Guide) => strings({ seo: g.seo.description, faqTitle: g.faqTitle, name: g.name, h1: g.h1, heroSub: g.heroSub, card: g.card, sections: g.sections.map((s) => ({ t: s.title, p: s.paras, l: s.list })), faq: g.faq });
+const said = (g: Guide) => strings({ seo: g.seo.description, faqTitle: g.faqTitle, name: g.name, h1: g.h1, heroSub: g.heroSub, card: g.card, short: g.short, sections: g.sections.map((s) => ({ t: s.title, p: s.paras, l: s.list })), faq: g.faq });
 const sentences = (s: string) => s.split(/(?<=[.!?])\s+/);
 const NAME = /\b(?:[345]0, ){0,2}(?:[345]0 (?:or|and|y|o) )?[345]0[- ](?:year|años)\b/gi;
 
@@ -247,7 +249,7 @@ describe('guides: the page a visitor gets', () => {
         expect(main).toContain(esc(g.h1));
         // A section's title is its h2 and its line in the contents beside it.
         for (const s of g.sections) expect(main.split(esc(s.title)).length - 1, s.title).toBe(2);
-        for (const line of [g.heroSub, g.faqTitle, ...g.sections.flatMap((s) => [...s.paras, ...(s.list ?? [])]), ...g.faq.flatMap((f) => [f.q, f.a])]) {
+        for (const line of [g.heroSub, g.faqTitle, ...g.short, ...g.sections.flatMap((s) => [...s.paras, ...(s.list ?? [])]), ...g.faq.flatMap((f) => [f.q, f.a])]) {
           expect(main.split(esc(line)).length - 1, line).toBe(1);
         }
       });
@@ -262,17 +264,22 @@ describe('guides: the page a visitor gets', () => {
         expect(main).toContain(`<time dateTime="${guidesReviewedISO}">${guidesReviewed[lang]}</time>`);
       });
 
-      it(`${name}: leads to its program pages, to the cost page, to the other guides and to the form`, () => {
+      it(`${name}: leads to its service and program pages, to the cost page, to the other guides and to the form`, () => {
         const hrefs = [...main.matchAll(/<a\b[^>]*href="([^"]*)"/g)].map((m) => m[1].replace(/&amp;/g, '&'));
+        expect(hrefs).toContain(localePath(`/services/${g.service}`, lang));
         for (const p of g.programs) expect(hrefs).toContain(localePath(`/services/${p}`, lang));
-        expect(hrefs).toContain(localePath(COST_PATH, lang));
+        // The cost page prices the two county programs: only their guides
+        // link it (2026-10-26).
+        if (g.programs.length) expect(hrefs).toContain(localePath(COST_PATH, lang));
+        else expect(hrefs).not.toContain(localePath(COST_PATH, lang));
         for (const s of guideSlugs.filter((s) => s !== g.slug)) expect(hrefs).toContain(localePath(guidePath(s), lang));
         // The form: once per program, with that county preselected — a
         // Broward board must not land on a form set to Miami-Dade — or, for
         // the reader with no letter yet (`heroAction`), with no preset.
         const form = localePath('/contact', lang);
         if (g.heroAction === 'address') expect(hrefs).toContain(form);
-        else for (const p of g.programs) expect(hrefs).toContain(`${form}?service=${p}`);
+        else if (g.programs.length) for (const p of g.programs) expect(hrefs).toContain(`${form}?service=${p}`);
+        else expect(hrefs).toContain(`${form}?service=${g.service}`);
       });
 
       it(`${name}: says enough to be a page of its own`, () => {
@@ -340,7 +347,7 @@ describe('guides: no "Send the notice" where the reader may have no letter', () 
       const html = guides.get(lang)!.get(guidePath(g.slug))!;
       const main = mainOf(html);
       const bar = html.match(/<nav class="mp-bar[\s\S]*?<\/nav>/)?.[0] ?? '';
-      if (g.heroAction === 'address') {
+      if (!guideHoldsNotice(g)) {
         it(`${lang} ${g.slug}: WhatsApp without the notice, in the hero, the closing band and the phone bar`, () => {
           expect(count(main, esc(r.whatsappPlain))).toBe(2);
           expect(main).not.toContain(esc(r.whatsappNotice));
