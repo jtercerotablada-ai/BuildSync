@@ -507,7 +507,9 @@ html:has(.mp) {
 .mp section[tabindex='-1']:focus,
 .mp section[tabindex='-1']:focus-visible,
 .mp h2[tabindex='-1']:focus,
-.mp h2[tabindex='-1']:focus-visible {
+.mp h2[tabindex='-1']:focus-visible,
+.mp div[tabindex='-1']:focus,
+.mp div[tabindex='-1']:focus-visible {
   outline: none;
 }
 

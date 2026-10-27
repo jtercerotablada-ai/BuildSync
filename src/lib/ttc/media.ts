@@ -263,6 +263,64 @@ const catalogue = {
     'Rope-access technicians inspecting the balconied facade of a concrete tower',
     'Técnicos en cuerda inspeccionando la fachada con balcones de una torre de concreto',
   ),
+  /* Building types, FINISHED and occupied (the owner, 2026-10-26: the
+     buildings a service reaches are "edificios construidos" — no cranes, no
+     open frames). Pexels, picked 2026-10-26 from contact sheets in black and
+     white at 4/5, the card shape (plates/ServiceBuildings.tsx). Each shows a
+     kind of building, never a project of the firm (the /credits page says
+     the photographs are stock). */
+  typeWarehouses: p(
+    'type-warehouses', 2000, 1500,
+    'Aerial view of large warehouse buildings with their loading yards',
+    'Vista aérea de grandes warehouses con sus patios de carga',
+  ),
+  typeIndustrial: p(
+    'type-industrial', 2000, 1333,
+    'Tall industrial hall with a large sliding door on a paved apron',
+    'Nave industrial alta con un gran portón corredizo sobre una explanada pavimentada',
+    '20% 50%',
+  ),
+  typeHotels: p(
+    'type-hotels', 2000, 2667,
+    'Curved beachfront hotel tower among palms under a bright sky',
+    'Torre de hotel curva frente a la playa, entre palmas, bajo un cielo claro',
+  ),
+  typeRetail: p(
+    'type-retail', 2000, 3000,
+    'Shopping plaza with palms seen through an arcade arch',
+    'Plaza comercial con palmas vista a través del arco de una galería',
+    '70% 50%',
+  ),
+  typeParkingGarages: p(
+    'type-parking-garages', 2000, 2667,
+    'Multi-storey concrete parking garage with open floors behind trees',
+    'Garaje de estacionamiento de concreto de varios pisos, con las plantas abiertas, detrás de unos árboles',
+  ),
+  typeOffices: p(
+    'type-offices', 2000, 1333,
+    'Office tower rising behind a row of palms',
+    'Torre de oficinas que se alza detrás de una fila de palmas',
+  ),
+  typeApartments: p(
+    'type-apartments', 2000, 1500,
+    'Mid-rise apartment building with balconies over a palm-lined street',
+    'Edificio de apartamentos de mediana altura, con balcones, sobre una calle bordeada de palmas',
+  ),
+  typeChurches: p(
+    'type-churches', 2000, 1333,
+    'Modern church with a steep gabled roof and arched glass front',
+    'Iglesia moderna de techo a dos aguas muy inclinado y fachada de vidrio en arco',
+  ),
+  typeSchools: p(
+    'type-schools', 2000, 1333,
+    'Campus building with a cantilevered upper floor over palms and a pond',
+    'Edificio de un campus con el piso superior en voladizo sobre palmas y un estanque',
+  ),
+  typeCondoTowers: p(
+    'type-condo-towers', 2000, 1333,
+    'Older high-rise condominium towers above the trees',
+    'Torres de condominios antiguas de gran altura sobre los árboles',
+  ),
   slabSpallingRebar: p(
     'slab-spalling-rebar', 2000, 1335,
     'Spalled concrete slab edge with its reinforcing bars exposed',

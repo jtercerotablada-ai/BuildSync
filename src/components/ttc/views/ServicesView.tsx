@@ -4,8 +4,6 @@ import { imagery } from '@/lib/ttc/site';
 import type { Lang } from '@/lib/ttc/i18n';
 import { PageHero } from '@/components/ttc/mp/PageHero';
 import { ServiceCard } from '@/components/ttc/mp/ServiceCard';
-import { TypesPlate } from '@/components/ttc/mp/plates/TypesPlate';
-import { HowWeWork } from '@/components/ttc/mp/HowWeWork';
 import { HomeContact } from '@/components/ttc/mp/home/HomeContact';
 import { Reveal } from '@/components/ttc/mp/primitives';
 import { Words } from '@/components/ttc/mp/home/Words';
@@ -27,8 +25,10 @@ import { breadcrumbLd, JsonLd } from './meta';
  *                 the plate side by side; their titles went with the
  *                 two-column-by-track layout, which left one card alone
  *                 under "Design review" (the home's lesson of 2026-10-26).
- *   building types   the six kinds of building as the home's cards (TypesPlate)
- *   how we work   the five steps, as hairline columns (HowWeWork, dark skin)
+ *   (the building types left this page on 2026-10-26 — the owner: "solo
+ *   los 6 servicios"; they are a plate of the two county-program pages now)
+ *   (the five steps of "How we work" moved to /about on 2026-10-26 — the
+ *   owner: this page shows the six services and nothing else)
  *   closing band
  *
  * The hero has no facts panel: a count of services beside a headline that
@@ -87,8 +87,6 @@ export function ServicesView({ lang }: { lang: Lang }) {
         </div>
       </section>
 
-      <TypesPlate lang={lang} />
-      <HowWeWork n="04" surface="paper" />
       <HomeContact closing lang={lang} notice={false} />
     </div>
   );

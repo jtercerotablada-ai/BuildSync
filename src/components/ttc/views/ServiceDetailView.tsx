@@ -10,6 +10,8 @@ import { COST_PATH } from '@/lib/ttc/cost-path';
 import { guidePath } from '@/lib/ttc/guides';
 import { getGuides, guideLabels } from '@/lib/ttc/guide-content';
 import { PageHero } from '@/components/ttc/mp/PageHero';
+import { ServiceBuildings } from '@/components/ttc/mp/plates/ServiceBuildings';
+import { ServiceClock } from '@/components/ttc/mp/plates/ServiceClock';
 import { HomeContact } from '@/components/ttc/mp/home/HomeContact';
 import { JUMP_ID, JumpLinks } from '@/components/ttc/mp/JumpLinks';
 import { ReachRow } from '@/components/ttc/mp/ReachRow';
@@ -471,12 +473,13 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
         {program ? <JumpLinks c={c} service={service} /> : null}
 
         {lean ? (
-          /* At a glance: why it matters, then when you need it, what is
+          <>
+          {/* At a glance: why it matters, then when you need it, what is
              included and what you receive, side by side — one band where
              there were two, each with a half-empty column. The h2 is the
              short `problemTitle`; the `problem` paragraph opens the RIGHT
              column (`.mp-split__title` is sticky, and a paragraph in the
-             same wrapper would let the title slide over it). */
+             same wrapper would let the title slide over it). */}
           <section className="mp-section mp-surface--paper">
             <div className="mp-shell">
               <SectionHeading n={next()} label={u.atAGlance} />
@@ -508,6 +511,12 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
               </div>
             </div>
           </section>
+          {/* The buildings this service reaches (2026-10-26, the owner:
+              "edificios construidos… en todos"), then — on a page with no
+              timing rows of its own (threshold) — its numbers. */}
+          <ServiceBuildings lang={lang} slug={service.slug} />
+          {service.timing ? null : <ServiceClock lang={lang} slug={service.slug} />}
+          </>
         ) : (
           <>
             {/* Why it matters + when you need it. */}
@@ -527,6 +536,11 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
               </div>
             </section>
 
+            {/* The buildings the program reaches, and what it leaves out
+                (2026-10-26): a reader sees at once whether the letter is
+                theirs. */}
+            <ServiceBuildings lang={lang} slug={service.slug} />
+
             {/* What's included + what you receive. The label names the pair;
                 the two column titles are the h2s, so the label never repeats
                 one. The two titles stand OUTSIDE the reveal: "What you
@@ -543,9 +557,14 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
                     <Reveal>{scopeList}</Reveal>
                   </div>
                   <div>
-                    <h2 id={JUMP_ID.receive} className="mp-h3 mp-cols2__title">
+                    {/* A label, not a heading, since 2026-10-26: the section's
+                        h2 is the column beside it, and the buildings plate
+                        took the place in the page's ceiling of 23. A <div>,
+                        not a <p>: the bar's link says the same two words,
+                        and the page's paragraphs are counted for repeats. */}
+                    <div id={JUMP_ID.receive} className="mp-h3 mp-cols2__title">
                       {u.whatYouReceive}
-                    </h2>
+                    </div>
                     <Reveal delay={0.05}>
                       {receiveList}
                       {nextBox}
@@ -598,6 +617,8 @@ export function ServiceDetailView({ lang, slug }: { lang: Lang; slug: string }) 
 
         {/* When it applies — regulated services only. The notes, the button
             and the links stand in the column beside the card. */}
+        {/* The program's numbers, large, then the rows they come from. */}
+        {service.timing ? <ServiceClock lang={lang} slug={service.slug} /> : null}
         {service.timing ? (
           <section
             id={JUMP_ID.applies}

@@ -964,21 +964,21 @@ const services: SiteContent['services'] = [
     track: 'existing',
     coverage: 'Condados de Miami-Dade y Broward, Florida',
     summary:
-      'Los programas de inspección del condado aplicados a un edificio threshold — de más de tres pisos o cincuenta pies — con el informe estructural, la carta de autocalificación y la revisión de fachada que su tamaño exige.',
+      'Los programas de inspección del condado aplicados a un edificio threshold — de más de tres pisos o cincuenta pies — con el informe estructural calificado, la carta de autocalificación de Miami-Dade y la revisión de fachada que su tamaño exige.',
     card: {
       when: 'Su edificio tiene más de tres pisos o cincuenta pies, y la notificación del condado ya llegó o su fecha está cerca.',
-      receive: 'El paquete completo del condado para un edificio threshold: informes estructural y eléctrico, la carta de autocalificación del ingeniero estructural y la revisión de fachada donde el acristalamiento lo exige.',
+      receive: 'El paquete completo del condado para un edificio threshold: informes estructural y eléctrico, la carta de autocalificación que pide Miami-Dade y la revisión de fachada donde el acristalamiento lo exige.',
       next: 'Envíenos la notificación, o la dirección del edificio y su número de pisos, y le decimos qué programa y qué informe necesita.',
     },
     heroSub:
-      'Un edificio de más de tres pisos o cincuenta pies responde al condado con un expediente más completo: un ingeniero estructural con la especialización del estado, una carta de autocalificación y la fachada también revisada.',
+      'Un edificio de más de tres pisos o cincuenta pies responde al condado con un expediente más completo: un ingeniero estructural con la especialización del estado — carta de autocalificación en Miami-Dade, licencia de Inspector Especial en Broward — y la fachada también revisada.',
     headings: {
       faq: 'Preguntas sobre los edificios threshold',
       considerations: 'Qué hace que un edificio sea threshold, y qué cambia con eso.',
     },
     problemTitle: 'Un edificio alto le debe al condado más que un informe.',
     problem:
-      'Miami-Dade y Broward aplican los mismos programas de inspección a todo edificio que envejece, pero a un edificio threshold — de más de tres pisos o cincuenta pies, o con un gran espacio de reunión — le exigen más: su informe estructural tiene que venir de un ingeniero estructural con la especialización estructural del estado, con una carta de autocalificación adjunta, y una fachada acristalada tiene una inspección propia. Muchos propietarios se enteran cuando el condado devuelve el informe.',
+      'Miami-Dade y Broward aplican los mismos programas de inspección a todo edificio que envejece, pero a un edificio threshold — de más de tres pisos o cincuenta pies, o con un gran espacio de reunión — le exigen más: su informe estructural tiene que venir de un ingeniero estructural con la especialización estructural del estado — con carta de autocalificación en Miami-Dade, con licencia de Inspector Especial en Broward — y una fachada de acristalamiento estructural tiene una inspección propia. La regla se cumple mejor antes de escribir el informe.',
     audience: [
       'Juntas de condominios y cooperativas de edificios de más de tres pisos',
       'Propietarios y administradores de torres, estacionamientos y grandes edificios de reunión',
@@ -986,13 +986,13 @@ const services: SiteContent['services'] = [
     ],
     when: [
       'La notificación del condado nombra un edificio de más de tres pisos o cincuenta pies, o un gran espacio de reunión.',
-      'Un informe presentado por un edificio threshold volvió por la calificación del ingeniero estructural o por faltar la carta de autocalificación.',
+      'Un informe presentado por un edificio threshold volvió por la calificación del ingeniero estructural, o porque Miami-Dade no encontró en él la carta de autocalificación.',
       'La fachada lleva acristalamiento estructural sellado y le toca su propia inspección.',
     ],
-    capabilities: ['Informe estructural', 'Carta de autocalificación', 'Informe eléctrico', 'Revisión de fachada'],
+    capabilities: ['Informe estructural', 'Carta de autocalificación (Miami-Dade)', 'Informe eléctrico', 'Revisión de fachada'],
     scope: [
       'Qué programa y qué informe debe el edificio: la recertificación, el Programa de Inspección de Seguridad de Edificios o la inspección de hito que ambos satisfacen',
-      'Inspección y informe estructural por un ingeniero estructural que cumple los requisitos de los condados para edificios threshold, con la carta de autocalificación',
+      'Inspección y informe estructural por un ingeniero estructural que cumple los requisitos de los condados para edificios threshold, con la carta de autocalificación en Miami-Dade',
       'Inspección y informe eléctrico por un ingeniero de la disciplina eléctrica',
       'Revisión de la fachada y del acristalamiento estructural sellado donde el edificio lo tiene',
       'Alcance de reparaciones para lo que la inspección encuentra, y la reinspección que cierra el expediente',
@@ -1001,11 +1001,11 @@ const services: SiteContent['services'] = [
     process: [
       { step: 'Clasificar', detail: 'La altura, la ocupación y el acristalamiento del edificio deciden el programa, el informe y quién puede prepararlo.' },
       { step: 'Inspeccionar', detail: 'Inspecciones estructural y eléctrica en sitio, y la fachada donde el edificio tiene acristalamiento estructural.' },
-      { step: 'Informar', detail: 'Los informes en los formularios del condado, con la carta de autocalificación adjunta, presentados ante el oficial de construcción.' },
+      { step: 'Informar', detail: 'Los informes en los formularios del condado — en Miami-Dade con la carta de autocalificación adjunta — presentados ante el oficial de construcción.' },
       { step: 'Cerrar', detail: 'Alcance de reparaciones si algo aparece, la reinspección y la carta que cierra el expediente.' },
     ],
     deliverables: [
-      'Informe estructural en el formulario del condado, con la carta de autocalificación',
+      'Informe estructural en el formulario del condado, con la carta de autocalificación donde Miami-Dade la pide',
       'Informe eléctrico en el formulario del condado',
       'Informe de fachada y acristalamiento estructural donde aplica',
       'Alcance de reparaciones, y la reinspección que cierra el expediente',
@@ -1014,7 +1014,7 @@ const services: SiteContent['services'] = [
       'Envíenos la notificación, o la dirección y el número de pisos, y le decimos bajo qué programa cae el edificio y qué debe llevar su informe.',
     considerations: [
       'Un edificio threshold tiene más de tres pisos o cincuenta pies, o una ocupación de reunión de más de 5,000 pies cuadrados y 500 personas; Miami-Dade inspecciona igual cualquier edificio de cuatro pisos o más.',
-      'Los dos condados piden que el informe estructural de un edificio threshold venga de un ingeniero estructural con la especialización estructural del estado — en Broward, uno con licencia de Inspector Especial — con una carta de autocalificación; el informe eléctrico, de un ingeniero de la disciplina eléctrica.',
+      'Los dos condados piden que el informe estructural de un edificio threshold venga de un ingeniero estructural con la especialización estructural del estado — en Miami-Dade con una carta de autocalificación, en Broward uno que además tenga licencia de Inspector Especial; el informe eléctrico, de un profesional de la disciplina eléctrica.',
       'En Miami-Dade, un edificio threshold con fachada de acristalamiento estructural sellado tiene esa fachada inspeccionada en su propio ciclo, cada cinco años.',
     ],
     faq: [
@@ -1024,7 +1024,7 @@ const services: SiteContent['services'] = [
       },
       {
         q: '¿Por qué nos devolvieron el informe?',
-        a: 'Casi siempre por la calificación: los condados aceptan el informe estructural de un edificio threshold solo de un ingeniero estructural con la especialización estructural del estado — en Broward, uno que además tiene licencia de Inspector Especial — y solo con una carta de autocalificación adjunta. Un informe sin ese expediente se devuelve, y el plazo sigue corriendo.',
+        a: 'Mire primero quién lo preparó: los condados aceptan el informe estructural de un edificio threshold solo de un ingeniero estructural con la especialización estructural del estado — en Miami-Dade con una carta de autocalificación adjunta, en Broward de uno que además tiene licencia de Inspector Especial. Eso lo resolvemos antes de escribir el informe, mientras el plazo todavía corre a su favor.',
       },
       {
         q: '¿La fachada necesita su propia inspección?',
@@ -1495,6 +1495,8 @@ export const es: SiteContent = {
         'Viviendas',
         'Townhouses',
         'Concreto de mediana altura',
+        'Almacenes',
+        'Edificios industriales',
         'Uso mixto',
         'Estructuras comerciales',
         'Cimentaciones',
@@ -1564,7 +1566,7 @@ export const es: SiteContent = {
     eyebrow: 'Qué inspeccionamos',
     title: '¿Inspeccionamos su tipo de edificio?',
     accentWord: 'su tipo',
-    lede: 'El mismo ingeniero y el mismo estándar de inspección, a la escala del edificio que tenemos enfrente. Si su edificio no está en esta lista, vale más una conversación que una suposición.',
+    lede: 'Todo tipo de edificio, sin excepción: casas y townhouses, edificios de concreto de mediana altura y torres, estructuras comerciales y de uso mixto, warehouses y edificios industriales. El mismo estándar de inspección, a la escala del edificio que tenemos enfrente.',
   },
 
   typologies: [
@@ -1572,8 +1574,9 @@ export const es: SiteContent = {
     { n: '02', title: 'Townhouses y dúplex', lede: 'Muros medianeros, cimentaciones compartidas y crujías repetidas: un defecto en una crujía se lee contra las demás, y la reparación se define una vez y se cotiza una vez.', track: 'existing', href: '/services/structural-condition-assessments', photo: photo.houseTownhouses },
     { n: '03', title: 'Concreto reforzado de mediana altura', lede: 'Losas planas, núcleos de muros de corte y balcones en voladizo, el sistema con el que se construye el Sur de Florida: inspeccionado para el condado, para la ley de hitos y para la junta que tiene que decidir.', track: 'existing', href: '/services/milestone-inspections', photo: photo.frameCurvedBalconies },
     { n: '04', title: 'Estructuras comerciales y de uso mixto', lede: 'Luces largas sobre el comercio de planta baja, estructura de transferencia donde cambia la retícula, estacionamiento debajo: evaluadas como un solo camino de cargas, con los hallazgos en el orden en que importan.', track: 'existing', href: '/services/structural-condition-assessments', photo: photo.frameCraneClean },
-    { n: '05', title: 'Edificios threshold', lede: 'Más de tres pisos o cincuenta pies: los mismos programas del condado, pero un expediente más completo — un ingeniero estructural con la especialización del estado, una carta de autocalificación y la fachada acristalada también revisada.', track: 'existing', href: '/services/threshold-inspections', photo: photo.recertMiamiDade },
+    { n: '05', title: 'Edificios threshold', lede: 'Más de tres pisos o cincuenta pies: los mismos programas del condado, pero un expediente más completo — un ingeniero estructural con la especialización del estado, la carta de autocalificación de Miami-Dade y la fachada acristalada también revisada.', track: 'existing', href: '/services/threshold-inspections', photo: photo.recertMiamiDade },
     { n: '06', title: 'Reparaciones de estructuras existentes', lede: 'Balcones, fachadas, losas y columnas con décadas en servicio — condición documentada, reparaciones diseñadas, y la documentación que pide el condado.', track: 'existing', href: '/existing-buildings', photo: photo.repairSoffitTrowel },
+    { n: '07', title: 'Warehouses y edificios industriales', lede: 'Estructuras de acero, muros tilt-up, cubiertas de gran luz y vigas carrileras: inspeccionados para los programas del condado y para el propietario que los opera, con la visita planeada alrededor de la operación.', track: 'existing', href: '/services/building-recertification', photo: photo.typeWarehouses },
   ],
 
   howWeWork: {
@@ -1627,7 +1630,7 @@ export const es: SiteContent = {
     { n: '02', title: 'Inspección de seguridad estructural', need: 'Grietas, manchas de óxido o concreto que se desprende, y necesita saber qué tan grave es.', start: 'Para empezar, bastan unas fotos de las grietas, las manchas o el concreto suelto.', projectType: 'Edificio existente — inspección de seguridad', location: 'Miami-Dade o Broward', scope: 'Inspección estructural visual, mapeo de deterioro del concreto, hallazgos priorizados', structuralSystem: 'Estructura de concreto reforzado, losas postensadas', deliverables: 'Informe de inspección · Mapeo de deterioro · Alcance de seguimiento' },
     { n: '03', title: 'Diseño de reparación tras una inspección', need: 'Una inspección encontró daños, y las reparaciones necesitan planos que un contratista pueda cotizar y el condado pueda permitir.', start: 'Para empezar, basta el informe de la inspección, sea nuestro o de otro ingeniero.', projectType: 'Edificio existente — diseño de reparación', location: 'Miami-Dade o Broward', scope: 'Hallazgos confirmados en sitio, diseño de la reparación del concreto y del refuerzo, planos firmados y sellados para el permiso, respuestas a los comentarios del revisor, visitas durante la obra', structuralSystem: 'Estructura de concreto reforzado, balcones y losas con deterioro', deliverables: 'Planos de reparación firmados y sellados · Especificaciones · Cartas de cierre' },
     { n: '04', title: 'Inspección de hito (milestone) de un condominio', need: 'Su asociación de condominio o cooperativa debe documentar la inspección de hito del estado, y la junta quiere un solo ingeniero que la lleve desde la primera visita hasta el informe presentado.', start: 'Para empezar, bastan el año en que se terminó el edificio y el nombre de la asociación.', projectType: 'Edificio existente — inspección de hito', location: 'Miami-Dade o Broward', scope: 'Inspección visual de fase uno, fase dos cuando la primera lo exige, el informe a la asociación y al oficial de construcción, alcance de reparaciones', structuralSystem: 'Estructura de concreto reforzado con balcones en voladizo y losas postensadas', deliverables: 'Informe de fase uno · Informe de fase dos cuando se requiere · Alcance de reparaciones' },
-    { n: '05', title: 'Inspección del condado de un edificio threshold', need: 'Su edificio tiene más de tres pisos o cincuenta pies, y el programa del condado le pide a su informe más que al de un edificio menor.', start: 'Para empezar, basta la notificación del condado, o la dirección y el número de pisos.', projectType: 'Edificio existente — threshold', location: 'Miami-Dade o Broward', scope: 'Qué programa e informe debe el edificio, inspección estructural y eléctrica, el informe estructural con su carta de autocalificación, fachada y acristalamiento estructural donde aplican, alcance de reparaciones', structuralSystem: 'Estructura de concreto reforzado de más de tres pisos, losas postensadas', deliverables: 'El paquete del condado para un edificio threshold · Carta de autocalificación · Alcance de reparaciones' },
+    { n: '05', title: 'Inspección del condado de un edificio threshold', need: 'Su edificio tiene más de tres pisos o cincuenta pies, y el programa del condado le pide a su informe más que al de un edificio menor.', start: 'Para empezar, basta la notificación del condado, o la dirección y el número de pisos.', projectType: 'Edificio existente — threshold', location: 'Miami-Dade o Broward', scope: 'Qué programa e informe debe el edificio, inspección estructural y eléctrica, el informe estructural con la carta de autocalificación donde Miami-Dade la pide, fachada y acristalamiento estructural donde aplican, alcance de reparaciones', structuralSystem: 'Estructura de concreto reforzado de más de tres pisos, losas postensadas', deliverables: 'El paquete del condado para un edificio threshold · Carta de autocalificación en Miami-Dade · Alcance de reparaciones' },
     { n: '06', title: 'Revisión estructural independiente por pares', need: 'Un diseño necesita una segunda revisión independiente antes del permiso o de la obra.', start: 'Para empezar, bastan los planos y cálculos que se van a revisar.', projectType: 'Revisión de diseño — terceros', location: 'Miami-Dade o Broward', scope: 'Revisión independiente de planos y cálculos, registro de comentarios, seguimiento hasta el cierre', structuralSystem: 'Concreto reforzado y acero estructural, sistema mixto', deliverables: 'Informe de revisión · Registro de comentarios priorizados · Registro de resolución' },
   ],
 
@@ -1796,6 +1799,160 @@ export const es: SiteContent = {
     },
   },
 
+  /* The buildings each service reaches, and each program's clock: see the
+     English (site.ts, `serviceBuildings`) for the sources and the rules. */
+  serviceBuildings: {
+    'building-recertification': {
+      label: 'Los edificios que alcanza',
+      title: 'Casi todos los edificios del condado.',
+      accentWord: 'todos los edificios',
+      lede: 'Torres de condominios y cooperativas, edificios de apartamentos en alquiler, oficinas, comercios, hoteles, iglesias, garajes de estacionamiento, warehouses y edificios industriales: el programa de Miami-Dade alcanza a todo tipo de edificio cuando llega a su edad. Solo quedan fuera las viviendas más pequeñas.',
+      items: [
+        { title: 'Torres de condominios y cooperativas', photo: photo.typeCondoTowers },
+        { title: 'Edificios de apartamentos', photo: photo.typeApartments },
+        { title: 'Edificios de oficinas', photo: photo.typeOffices },
+        { title: 'Comercios y centros comerciales', photo: photo.typeRetail },
+        { title: 'Hoteles', photo: photo.typeHotels },
+        { title: 'Iglesias y salones de reunión', photo: photo.typeChurches },
+        { title: 'Garajes de estacionamiento', photo: photo.typeParkingGarages },
+        { title: 'Warehouses y edificios industriales', photo: photo.typeWarehouses },
+      ],
+      outside: {
+        label: 'Fuera del programa',
+        items: ['Viviendas unifamiliares', 'Dúplex', 'Edificios de 2,000 sq ft o menos que albergan diez personas o menos'],
+        note: 'A esos también los inspeccionamos, con una evaluación estructural propia.',
+        link: { label: 'Evaluaciones y reparaciones', href: '/services/structural-condition-assessments' },
+      },
+    },
+    'broward-bsip': {
+      label: 'Los edificios que alcanza',
+      title: 'Todo tipo de edificio, y lo que está a su lado.',
+      accentWord: 'lo que está a su lado.',
+      lede: 'El programa de Broward alcanza a todo edificio, sea cual sea su uso, y nombra entre lo que inspecciona los garajes de estacionamiento, las barandas, los balcones, las terrazas elevadas, los muelles y los muros de contención unidos a un edificio. Las excepciones son las viviendas pequeñas, las estructuras menores y algunos propietarios públicos.',
+      items: [
+        { title: 'Torres de condominios', photo: photo.condoBalconiesTower },
+        { title: 'Condominios y cooperativas de baja altura', photo: photo.guideWhiteCondoBalconies },
+        { title: 'Edificios de apartamentos', photo: photo.typeApartments },
+        { title: 'Edificios de oficinas', photo: photo.typeOffices },
+        { title: 'Plazas comerciales', photo: photo.typeRetail },
+        { title: 'Hoteles', photo: photo.typeHotels },
+        { title: 'Garajes de estacionamiento', photo: photo.typeParkingGarages },
+        { title: 'Warehouses y edificios industriales', photo: photo.typeIndustrial },
+      ],
+      outside: {
+        label: 'Fuera del programa',
+        items: ['Viviendas de una a cuatro familias, de tres pisos o menos', 'Townhouses en propiedad plena (fee simple)', 'Edificios de menos de 3,500 sq ft', 'Edificios federales y estatales, escuelas del School Board, tierras tribales, ferrocarriles'],
+        note: 'Con programa o sin él, nuestras evaluaciones estructurales también los alcanzan.',
+        link: { label: 'Evaluaciones y reparaciones', href: '/services/structural-condition-assessments' },
+      },
+    },
+    'milestone-inspections': {
+      label: 'Los edificios que alcanza',
+      title: 'Un solo tipo de edificio: el condominio residencial.',
+      accentWord: 'el condominio residencial.',
+      lede: 'La ley de inspecciones de hito de Florida alcanza a los edificios de condominio y de cooperativa de tres pisos habitables o más — las torres frente al agua, los edificios de mediana altura tierra adentro, el condominio de jardín de tres plantas y las viviendas en condominio sobre una fila de comercios. En Miami-Dade y Broward, todo otro edificio responde al programa propio del condado.',
+      items: [
+        { title: 'Torres de condominios frente al agua', photo: photo.miamiCondoAerial },
+        { title: 'Torres de condominios', photo: photo.thresholdTowerUp },
+        { title: 'Condominios de mediana altura', photo: photo.midriseClean },
+        { title: 'Condominios de jardín y sin ascensor', photo: photo.guideWhiteCondoBalconies },
+        { title: 'Edificios de cooperativa', photo: photo.guideOlderCondoTower },
+        { title: 'Viviendas en condominio sobre comercios', photo: photo.typeApartments },
+      ],
+      outside: {
+        label: 'Fuera de la ley',
+        items: ['Edificios de apartamentos en alquiler', 'Oficinas, comercios, hoteles y warehouses', 'Condominios comerciales', 'Casas de una a cuatro familias, hasta tres pisos'],
+        note: 'En Miami-Dade y Broward esos edificios siguen respondiendo al programa del condado.',
+        link: { label: 'Los seis servicios', href: '/services' },
+      },
+    },
+    'threshold-inspections': {
+      label: 'Edificios que pasan el umbral',
+      title: 'La altura o la multitud marcan el umbral.',
+      accentWord: 'el umbral.',
+      lede: 'Sea cual sea su uso, un edificio cruza el umbral pasados los tres pisos o los cincuenta pies, y a cualquier altura cuando tiene un espacio de reunión de más de 5,000 sq ft para más de 500 personas: torres residenciales, edificios de mediana altura más altos, torres de oficinas, hoteles, garajes altos y las salas donde la gente se reúne.',
+      items: [
+        { title: 'Torres residenciales', photo: photo.thresholdTowerUp },
+        { title: 'Edificios de más de tres pisos', photo: photo.midriseGlassBalconies },
+        { title: 'Torres de oficinas', photo: photo.typeOffices },
+        { title: 'Hoteles', photo: photo.typeHotels },
+        { title: 'Garajes de más de cincuenta pies', photo: photo.typeParkingGarages },
+        { title: 'Iglesias, auditorios y estadios', photo: photo.typeChurches },
+      ],
+    },
+    'structural-condition-assessments': {
+      label: 'Los edificios que inspeccionamos',
+      title: 'Todo tipo de edificio, sin excepción.',
+      accentWord: 'sin excepción.',
+      lede: 'Ningún programa decide qué evaluamos. La casa y el dúplex que los condados dejan fuera, la torre después de una tormenta, el warehouse antes de una venta, el garaje cuya losa se desconcha, la iglesia, la escuela, la planta: si está en pie, lo inspeccionamos.',
+      items: [
+        { title: 'Viviendas unifamiliares', photo: photo.houseConcreteGarden },
+        { title: 'Townhouses y dúplex', photo: photo.houseTownhouses },
+        { title: 'Torres de condominios', photo: photo.condoBalconiesTower },
+        { title: 'Edificios de apartamentos', photo: photo.typeApartments },
+        { title: 'Edificios de oficinas', photo: photo.typeOffices },
+        { title: 'Comercios y centros comerciales', photo: photo.typeRetail },
+        { title: 'Hoteles', photo: photo.typeHotels },
+        { title: 'Garajes de estacionamiento', photo: photo.typeParkingGarages },
+        { title: 'Warehouses', photo: photo.typeWarehouses },
+        { title: 'Edificios industriales', photo: photo.typeIndustrial },
+        { title: 'Iglesias y salones de reunión', photo: photo.typeChurches },
+        { title: 'Escuelas y campus', photo: photo.typeSchools },
+      ],
+    },
+    'peer-review': {
+      label: 'Los diseños que revisamos',
+      title: 'Cualquier estructura, leída antes de construirse.',
+      accentWord: 'antes de construirse.',
+      lede: 'Algunos oficiales de construcción exigen la segunda lectura antes del permiso: el Condado de Miami-Dade, en su área no incorporada, para edificios de diez pisos o 100 pies; la Ciudad de Miami y Coral Gables para edificios de más de tres pisos o cincuenta pies; y los tres para instalaciones esenciales como hospitales y refugios. En el resto de Florida, la puede pedir un propietario, un prestamista o una aseguradora.',
+      items: [
+        { title: 'Torres de gran altura', photo: photo.peerTowerBw },
+        { title: 'Residencial de mediana altura', photo: photo.midriseBalconies },
+        { title: 'Edificios de oficinas y comerciales', photo: photo.typeOffices },
+        { title: 'Warehouses y centros de distribución', photo: photo.typeWarehouses },
+        { title: 'Estructuras de estacionamiento', photo: photo.typeParkingGarages },
+        { title: 'Hospitales, escuelas y refugios', photo: photo.typeSchools },
+      ],
+    },
+  },
+  serviceClock: {
+    'building-recertification': {
+      label: 'El reloj del condado',
+      items: [
+        { n: '30', unit: 'años', k: 'Primera vez, contados desde el año de construcción', sub: '25 para edificios de condominio y cooperativa de tres pisos o más a menos de 3 millas de la costa' },
+        { n: '10', unit: 'años', k: 'Después, durante toda la vida del edificio' },
+        { n: '90', unit: 'días', k: 'Para presentar, desde la notificación de inspección requerida' },
+        { n: '150', unit: 'días', k: 'Para terminar las reparaciones, o para obtener sus permisos' },
+      ],
+    },
+    'broward-bsip': {
+      label: 'El reloj del condado',
+      items: [
+        { n: '25', unit: 'años', k: 'Primera vez, desde el certificado de ocupación' },
+        { n: '10', unit: 'años', k: 'Después, en cada ciclo' },
+        { n: '180', unit: 'días', k: 'Para presentar, desde que recibe la notificación' },
+        { n: '180', unit: 'días', k: 'Para reparar, desde la fecha del informe' },
+      ],
+    },
+    'milestone-inspections': {
+      label: 'El reloj de la ley',
+      items: [
+        { n: '3', unit: 'pisos', k: 'Habitables, en un edificio de condominio o cooperativa' },
+        { n: '30', unit: 'años', k: 'Primera vez, desde el certificado de ocupación', sub: '25 donde la autoridad local lo exige' },
+        { n: '10', unit: 'años', k: 'Después, cada diez años' },
+        { n: '2', unit: 'fases', k: 'La segunda solo si la primera encuentra un deterioro estructural sustancial' },
+      ],
+    },
+    'threshold-inspections': {
+      label: 'El umbral, en números',
+      items: [
+        { n: '3', unit: 'pisos', k: 'Más de tres, sea cual sea el uso del edificio' },
+        { n: '50', unit: 'pies', k: 'O más de cincuenta pies de altura' },
+        { n: '500', unit: 'personas', k: 'O un espacio de reunión de más de 5,000 sq ft, a cualquier altura' },
+        { n: '5', unit: 'años', k: 'El ciclo de una fachada de acristalamiento estructural' },
+      ],
+    },
+  },
   servicesPage: {
     eyebrow: 'Servicios',
     titleLines: ['Seis servicios para', 'los edificios de Florida.'],
@@ -1852,7 +2009,7 @@ export const es: SiteContent = {
         { slug: 'broward-bsip', k: 'Llegó una notificación en Broward.', v: 'Es el Programa de Inspección de Seguridad de Edificios, el BSIP, y la carta de su ciudad fija su propia fecha. Partimos de esa carta y entregamos el paquete completo — las inspecciones estructural y eléctrica, el informe escrito y los formularios oficiales del programa.' },
         { slug: 'milestone-inspections', k: 'La junta directiva pregunta si la ley de inspecciones de hito alcanza al edificio.', v: 'La ley estatal y los programas de los condados se superponen. Le decimos qué reglas alcanzan a su edificio y cómo se cumplen en su condado — e inspeccionamos cuando no ha llegado ninguna notificación pero una compra, un prestamista o un deterioro visible dan motivo para revisar.' },
         { slug: 'structural-condition-assessments', k: 'Un informe enumera reparaciones, o algo le preocupa.', v: 'Antes de que los contratistas coticen, un ingeniero dice qué condiciones afectan la estructura y define la reparación, para que todas las ofertas respondan al mismo alcance. La misma evaluación sirve antes de comprar un edificio o de modificarlo.' },
-        { slug: 'threshold-inspections', k: 'El edificio tiene más de tres pisos, o el condado devolvió el informe.', v: 'Un edificio threshold responde a los mismos programas del condado con un expediente más completo: un ingeniero estructural con la especialización del estado, una carta de autocalificación y la fachada cuando es acristalamiento estructural. Preparamos ese expediente, para que el informe no vuelva por su calificación.' },
+        { slug: 'threshold-inspections', k: 'El edificio tiene más de tres pisos, o el condado devolvió el informe.', v: 'Un edificio threshold responde a los mismos programas del condado con un expediente más completo: un ingeniero estructural con la especialización del estado — carta de autocalificación en Miami-Dade, Inspector Especial en Broward — y la fachada cuando es acristalamiento estructural. Preparamos ese expediente antes de presentar el informe.' },
       ],
     },
     /* The one sequence both county programs share — NO age and NO deadline

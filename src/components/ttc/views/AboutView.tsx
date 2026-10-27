@@ -4,6 +4,7 @@ import { imagery } from '@/lib/ttc/site';
 import type { Lang } from '@/lib/ttc/i18n';
 import { PageHero } from '@/components/ttc/mp/PageHero';
 import { PartnerSection } from '@/components/ttc/mp/PartnerSection';
+import { HowWeWork } from '@/components/ttc/mp/HowWeWork';
 import { HomeContact } from '@/components/ttc/mp/home/HomeContact';
 import { SectionHeading, Reveal } from '@/components/ttc/mp/primitives';
 import { accentLines } from '@/components/ttc/mp/text';
@@ -113,7 +114,12 @@ export function AboutView({ lang }: { lang: Lang }) {
         </div>
       </section>
 
-      <PartnerSection n="03" lang={lang} variant="about" surface="paper" />
+      {/* How the firm works, in five steps — on this page since 2026-10-26
+          (the owner took it off /services, which shows the six services and
+          nothing else). */}
+      <HowWeWork n="03" surface="paper" />
+
+      <PartnerSection n="04" lang={lang} variant="about" surface="concrete" />
 
       {/* The default secondary ("Meet the Team" → /about#team) would point
           back up this same page. */}

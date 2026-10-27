@@ -551,9 +551,10 @@ body:has(.mp-dark) .mp-header.is-stuck:not(.is-menu-open) {
 /* ═══ 12 · THE HOME'S PLATES ON AN INNER PAGE ═════════════════════════════ */
 
 /* A plate's content lines up with the page's shell and the header (the
-   home's own plates run wider, to 2200px). */
+   home's own plates run wider, to 2200px): the shell is --mp-w wide WITH its
+   gutters, so a plate's content box is that width less the two gutters. */
 .mp-dark {
-  --h-max: var(--mp-w);
+  --h-max: calc(var(--mp-w) - 2 * var(--mp-pad));
   --h-pad: var(--mp-pad);
 }
 /* Two ledes open the services plate, side by side while they fit. */
@@ -721,4 +722,192 @@ body:has(.mp-dark) .mp-header.is-stuck:not(.is-menu-open) {
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--mp-snow-3);
+}
+
+/* ═══ 13 · THE BUILDINGS A SERVICE REACHES ════════════════════════════════ */
+
+/* ServiceBuildings: the home's photo cards, 4/5, three or four to a row
+   (`--cols`), the type's name under each with the gold ◆; then a hairline
+   row naming what the program leaves out. */
+.mp-dark .h-bld__h {
+  max-width: 15ch;
+}
+.mp-dark .h-bld__grid {
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr));
+  gap: clamp(36px, 4.4vw, 72px) clamp(18px, 2.2vw, 36px);
+  margin: var(--h-head-gap) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.mp-dark .h-bld__card {
+  position: relative;
+}
+.mp-dark .h-bld__t {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin: 18px 0 0;
+  font-size: clamp(19px, 1.6vw, 26px);
+  font-weight: 500;
+  line-height: 1.12;
+  letter-spacing: -0.03em;
+  color: var(--mp-snow);
+  text-wrap: balance;
+}
+.mp-dark .h-bld__t .h-dia {
+  position: relative;
+  top: -0.22em;
+}
+@media (hover: hover) and (pointer: fine) {
+  .mp-dark .h-bld__card:hover .h-ph__in img {
+    filter: none;
+    transform: scale(1.045);
+  }
+}
+/* What the program leaves out: a label, then the names on one ruled line. */
+.mp-dark .h-bld__out {
+  display: grid;
+  grid-template-columns: minmax(0, 220px) minmax(0, 1fr);
+  align-items: baseline;
+  gap: 12px clamp(24px, 4vw, 64px);
+  margin-top: clamp(48px, 6vw, 96px);
+  padding-top: 22px;
+  border-top: 1px solid var(--h-hair);
+}
+.mp-dark .h-bld__out-k {
+  margin: 0;
+  font-family: var(--mp-mono);
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--mp-snow-3);
+}
+.mp-dark .h-bld__out-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 28px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: clamp(16px, 1.25vw, 20px);
+  line-height: 1.4;
+  color: var(--mp-snow-2);
+}
+.mp-dark .h-bld__out-list li {
+  position: relative;
+  padding-left: 22px;
+}
+/* A thin struck line in front of each name: outside, not crossed out. */
+.mp-dark .h-bld__out-list li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.7em;
+  width: 12px;
+  height: 1px;
+  background: var(--mp-snow-3);
+}
+@media (max-width: 1100px) {
+  .mp-dark .h-bld__grid {
+    grid-template-columns: repeat(min(var(--cols, 3), 3), minmax(0, 1fr));
+  }
+}
+@media (max-width: 899px) {
+  .mp-dark .h-bld__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .mp-dark .h-bld__out {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 420px) {
+  .mp-dark .h-bld__t {
+    font-size: 17px;
+  }
+}
+
+/* The line under what a program leaves out: who inspects those buildings. */
+.mp-dark .h-bld__out-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 22px;
+  margin: 18px 0 0;
+  font-size: clamp(15px, 1.1vw, 17px);
+  color: var(--mp-snow-3);
+}
+
+/* ═══ 14 · THE PROGRAM'S CLOCK ════════════════════════════════════════════ */
+
+/* ServiceClock: four numerals on one gold hairline. The hairline runs under
+   the label across the shell; each item hangs from it on a short gold tick. */
+.mp-dark .h-clock {
+  padding-block: clamp(56px, 7vw, 120px);
+}
+.mp-dark .h-clock__line {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 32px clamp(20px, 3vw, 56px);
+  margin: clamp(28px, 3.6vw, 52px) 0 0;
+  padding: clamp(28px, 3vw, 44px) 0 0;
+  list-style: none;
+  border-top: 1px solid var(--mp-gold);
+}
+.mp-dark .h-clock__item {
+  position: relative;
+}
+.mp-dark .h-clock__item::before {
+  content: '';
+  position: absolute;
+  top: calc(-1 * clamp(28px, 3vw, 44px));
+  left: 0;
+  width: 1px;
+  height: 14px;
+  background: var(--mp-gold);
+}
+.mp-dark .h-clock__n {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0;
+  color: var(--mp-snow);
+}
+.mp-dark .h-clock__num {
+  font-size: clamp(64px, 8.4vw, 150px);
+  font-weight: 500;
+  line-height: 0.9;
+  letter-spacing: -0.06em;
+  font-variant-numeric: tabular-nums;
+}
+.mp-dark .h-clock__unit {
+  font-size: clamp(22px, 2.2vw, 38px);
+  line-height: 1;
+  color: var(--mp-gold);
+}
+.mp-dark .h-clock__k {
+  margin: 16px 0 0;
+  max-width: 26ch;
+  font-family: var(--mp-mono);
+  font-size: 12px;
+  line-height: 1.6;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--mp-snow-2);
+}
+.mp-dark .h-clock__sub {
+  margin: 10px 0 0;
+  max-width: 30ch;
+  font-size: clamp(14px, 1vw, 16px);
+  line-height: 1.5;
+  color: var(--mp-snow-3);
+}
+@media (max-width: 899px) {
+  .mp-dark .h-clock__line {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .mp-dark .h-clock__item:nth-child(n + 3)::before {
+    display: none;
+  }
 }

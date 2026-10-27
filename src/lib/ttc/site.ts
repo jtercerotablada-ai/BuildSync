@@ -2182,21 +2182,21 @@ export const services: Service[] = [
     track: 'existing',
     coverage: 'Miami-Dade & Broward County, Florida',
     summary:
-      'The county inspection programs applied to a threshold building — over three stories or fifty feet — with the structural report, the self-qualification letter and the façade review its size requires.',
+      'The county inspection programs applied to a threshold building — over three stories or fifty feet — with the qualified structural report, Miami-Dade’s self-qualification letter and the façade review its size requires.',
     card: {
       when: 'Your building is over three stories or fifty feet, and the county’s notice has arrived or its date is near.',
-      receive: 'The complete county package for a threshold building: structural and electrical reports, the structural engineer’s self-qualification letter, and the façade review where glazing calls for it.',
+      receive: 'The complete county package for a threshold building: structural and electrical reports, the self-qualification letter Miami-Dade asks for, and the façade review where glazing calls for it.',
       next: 'Send the notice, or the building’s address and number of stories, and we tell you which program and which report it needs.',
     },
     heroSub:
-      'A building over three stories or fifty feet answers the county with a fuller file: a structural engineer with the state’s specialization, a self-qualification letter, and the façade looked at as well.',
+      'A building over three stories or fifty feet answers the county with a fuller file: a structural engineer with the state’s specialization — a self-qualification letter in Miami-Dade, a Special Inspector’s licence in Broward — and the façade looked at as well.',
     headings: {
       faq: 'Questions about threshold buildings',
       considerations: 'What makes a building a threshold building, and what that changes.',
     },
     problemTitle: 'A tall building owes the county more than a report.',
     problem:
-      'Miami-Dade and Broward run the same inspection programs for every aging building, but a threshold building — more than three stories or fifty feet, or a large assembly space — is held to more: its structural report has to come from a structural engineer with the state’s structural specialization, with a self-qualification letter attached, and a glazed façade has an inspection of its own. Many owners learn this only when the county sends the report back.',
+      'Miami-Dade and Broward run the same inspection programs for every aging building, but a threshold building — more than three stories or fifty feet, or a large assembly space — is held to more: its structural report has to come from a structural engineer with the state’s structural specialization — with a self-qualification letter in Miami-Dade, licensed as a Special Inspector in Broward — and a façade of structural glazing has an inspection of its own. The rule is easiest to meet before the report is written.',
     audience: [
       'Condominium and cooperative boards of buildings over three stories',
       'Owners and managers of towers, parking structures and large assembly buildings',
@@ -2204,13 +2204,13 @@ export const services: Service[] = [
     ],
     when: [
       'The county’s notice names a building over three stories or fifty feet, or a large assembly space.',
-      'A report filed for a threshold building came back for the structural engineer’s qualification or for the missing self-qualification letter.',
+      'A report filed for a threshold building came back for the structural engineer’s qualification, or for a self-qualification letter Miami-Dade did not find in it.',
       'The façade carries structural sealant glazing and its own inspection is due.',
     ],
-    capabilities: ['Structural report', 'Self-qualification letter', 'Electrical report', 'Façade review'],
+    capabilities: ['Structural report', 'Self-qualification letter (Miami-Dade)', 'Electrical report', 'Façade review'],
     scope: [
       'Which program and which report the building owes: recertification, the Building Safety Inspection Program, or the milestone inspection they satisfy',
-      'Structural inspection and report by a structural engineer who meets the counties’ requirements for threshold buildings, with the self-qualification letter',
+      'Structural inspection and report by a structural engineer who meets the counties’ requirements for threshold buildings, with the self-qualification letter in Miami-Dade',
       'Electrical inspection and report by an engineer of the electrical discipline',
       'Review of the façade and of structural sealant glazing where the building has it',
       'Repair scope for what the inspection finds, and the reinspection that closes the file',
@@ -2219,11 +2219,11 @@ export const services: Service[] = [
     process: [
       { step: 'Classify', detail: 'The building’s height, occupancy and glazing decide the program, the report and who may prepare it.' },
       { step: 'Inspect', detail: 'Structural and electrical inspections on site, and the façade where the building has structural glazing.' },
-      { step: 'Report', detail: 'The reports on the county’s forms, the self-qualification letter attached, filed with the building official.' },
+      { step: 'Report', detail: 'The reports on the county’s forms — in Miami-Dade with the self-qualification letter attached — filed with the building official.' },
       { step: 'Close', detail: 'Repair scope if anything is found, the reinspection, and the letter that closes the file.' },
     ],
     deliverables: [
-      'Structural report on the county’s form, with the self-qualification letter',
+      'Structural report on the county’s form, with the self-qualification letter where Miami-Dade asks for it',
       'Electrical report on the county’s form',
       'Façade and structural glazing report where it applies',
       'Repair scope, and the reinspection that closes the file',
@@ -2232,7 +2232,7 @@ export const services: Service[] = [
       'Send the notice, or the address and the number of stories, and we tell you which program the building falls under and what its report has to carry.',
     considerations: [
       'A threshold building is more than three stories or fifty feet, or an assembly occupancy over 5,000 square feet and 500 people; Miami-Dade inspects any building of four stories or more the same way.',
-      'Both counties ask that the structural report of a threshold building come from a structural engineer with the state’s structural specialization — in Broward, one licensed as a Special Inspector — with a self-qualification letter; the electrical report, from an engineer of the electrical discipline.',
+      'Both counties ask that the structural report of a threshold building come from a structural engineer with the state’s structural specialization — in Miami-Dade with a self-qualification letter, in Broward one also licensed as a Special Inspector; the electrical report, from a professional of the electrical discipline.',
       'In Miami-Dade, a threshold building with a façade of structural sealant glazing has that façade inspected on its own cycle, every five years.',
     ],
     faq: [
@@ -2242,7 +2242,7 @@ export const services: Service[] = [
       },
       {
         q: 'Why was our report sent back?',
-        a: 'Usually for the qualification: the counties accept a threshold building’s structural report only from a structural engineer with the state’s structural specialization — in Broward, one who is also a licensed Special Inspector — and only with a self-qualification letter attached. A report without that file is returned, and the clock keeps running.',
+        a: 'Look first at who prepared it: the counties accept a threshold building’s structural report only from a structural engineer with the state’s structural specialization — in Miami-Dade with a self-qualification letter attached, in Broward from one who is also a licensed Special Inspector. We settle that before the report is written, while the clock is still running for you.',
       },
       {
         q: 'Does the façade need its own inspection?',
@@ -2486,7 +2486,9 @@ export const typologiesSection = {
   eyebrow: 'What we inspect',
   title: 'Do we inspect your kind of building?',
   accentWord: 'your kind',
-  lede: 'The same engineer and the same standard of inspection, scaled to the building in front of us. If your building is not on this list, it is worth a conversation rather than an assumption.',
+  /* The owner, 2026-10-26: "inspeccionamos todo tipo de edificio sin
+     excepción — warehouse, edificios industriales, de todo". */
+  lede: 'Every kind of building, without exception: houses and townhouses, concrete mid-rises and towers, mixed-use and commercial frames, warehouses and industrial buildings. The same standard of inspection, scaled to the building in front of us.',
 } as const;
 
 export const typologies: Typology[] = [
@@ -2494,8 +2496,11 @@ export const typologies: Typology[] = [
   { n: '02', title: 'Townhouses & duplexes', lede: 'Party walls, shared foundations and repeated bays: a defect in one bay is read against the others, so the repair is scoped once and priced once.', track: 'existing', href: '/services/structural-condition-assessments', photo: photo.houseTownhouses },
   { n: '03', title: 'Mid-rise reinforced concrete', lede: 'Flat plates, shear-wall cores and cantilevered balconies, the system South Florida is built from: inspected for the county, for the milestone law and for the board that has to decide.', track: 'existing', href: '/services/milestone-inspections', photo: photo.frameCurvedBalconies },
   { n: '04', title: 'Mixed-use & commercial frames', lede: 'Long spans over ground-floor retail, transfer structure where the grid changes, parking below: assessed as one load path, with the findings in the order they matter.', track: 'existing', href: '/services/structural-condition-assessments', photo: photo.frameCraneClean },
-  { n: '05', title: 'Threshold buildings', lede: 'More than three stories or fifty feet: the same county programs, but a fuller file — a structural engineer with the state’s specialization, a self-qualification letter, and the glazed façade looked at too.', track: 'existing', href: '/services/threshold-inspections', photo: photo.recertMiamiDade },
+  { n: '05', title: 'Threshold buildings', lede: 'More than three stories or fifty feet: the same county programs, but a fuller file — a structural engineer with the state’s specialization, Miami-Dade’s self-qualification letter, and the glazed façade looked at too.', track: 'existing', href: '/services/threshold-inspections', photo: photo.recertMiamiDade },
   { n: '06', title: 'Repairs to existing structures', lede: 'Balconies, facades, slabs and columns that have been in service for decades — condition documented, repairs engineered, and the paperwork the county asks for.', track: 'existing', href: '/existing-buildings', photo: photo.repairSoffitTrowel },
+  /* The owner, 2026-10-26: warehouses and industrial buildings are inspected
+     like any other. A seventh card; the home's rail keeps its first five. */
+  { n: '07', title: 'Warehouses & industrial buildings', lede: 'Steel frames, tilt-up walls, long-span roofs and crane runways: inspected for the county programs and for the owner who runs them, with the visit planned around the operation.', track: 'existing', href: '/services/building-recertification', photo: photo.typeWarehouses },
 ];
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -2595,6 +2600,8 @@ export const home = {
       'Residences',
       'Townhouses',
       'Mid-rise Concrete',
+      'Warehouses',
+      'Industrial Buildings',
       'Mixed-use',
       'Commercial Frames',
       'Foundations',
@@ -2813,7 +2820,7 @@ export const engagements: Engagement[] = [
   { n: '02', title: 'Structural safety inspection', need: 'Cracks, rust stains or concrete breaking off, and you need to know how serious it is.', start: 'To start, a few pictures of the cracks, stains or loose concrete are enough.', projectType: 'Existing building — safety inspection', location: 'Miami-Dade or Broward', scope: 'Visual structural inspection, concrete distress mapping, prioritized findings', structuralSystem: 'Reinforced concrete frame, post-tensioned slabs', deliverables: 'Inspection report · Distress mapping · Follow-up scope' },
   { n: '03', title: 'Repair design after an inspection', need: 'An inspection found damage, and the repairs need drawings a contractor can price and the county can permit.', start: 'To start, the inspection report is enough, ours or another engineer’s.', projectType: 'Existing building — repair design', location: 'Miami-Dade or Broward', scope: 'Findings confirmed on site, design of the concrete and reinforcement repair, signed and sealed drawings for permit, replies to the reviewer’s comments, site visits during the work', structuralSystem: 'Reinforced concrete frame, balconies and slabs with distress', deliverables: 'Signed and sealed repair drawings · Specifications · Close-out letters' },
   { n: '04', title: 'Milestone inspection of a condominium', need: 'Your condominium or cooperative association has to document the state’s milestone inspection, and the board wants one engineer to carry it from the first visit to the filed report.', start: 'To start, the year the building was finished and the association’s name are enough.', projectType: 'Existing building — milestone inspection', location: 'Miami-Dade or Broward', scope: 'Phase one visual inspection, phase two where phase one calls for it, the report to the association and the building official, repair scope', structuralSystem: 'Reinforced concrete frame with cantilevered balconies and post-tensioned slabs', deliverables: 'Phase one report · Phase two report where required · Repair scope' },
-  { n: '05', title: 'County inspection of a threshold building', need: 'Your building is over three stories or fifty feet, and the county’s program asks more of its report than of a smaller building’s.', start: 'To start, the county’s notice, or the address and the number of stories, is enough.', projectType: 'Existing building — threshold', location: 'Miami-Dade or Broward', scope: 'Which program and report the building owes, structural and electrical inspection, the structural report with its self-qualification letter, façade and structural glazing where they apply, repair scope', structuralSystem: 'Reinforced concrete frame over three stories, post-tensioned slabs', deliverables: 'The county’s package for a threshold building · Self-qualification letter · Repair scope' },
+  { n: '05', title: 'County inspection of a threshold building', need: 'Your building is over three stories or fifty feet, and the county’s program asks more of its report than of a smaller building’s.', start: 'To start, the county’s notice, or the address and the number of stories, is enough.', projectType: 'Existing building — threshold', location: 'Miami-Dade or Broward', scope: 'Which program and report the building owes, structural and electrical inspection, the structural report with the self-qualification letter where Miami-Dade asks for it, façade and structural glazing where they apply, repair scope', structuralSystem: 'Reinforced concrete frame over three stories, post-tensioned slabs', deliverables: 'The county’s package for a threshold building · Self-qualification letter in Miami-Dade · Repair scope' },
   { n: '06', title: 'Independent structural peer review', need: 'A design needs an independent second check before permit or construction.', start: 'To start, the drawings and calculations under review are enough.', projectType: 'Design review — third party', location: 'Miami-Dade or Broward', scope: 'Independent review of drawings and calculations, comment log, close-out tracking', structuralSystem: 'Reinforced concrete and structural steel, mixed system', deliverables: 'Review report · Prioritized comment log · Resolution record' },
 ];
 
@@ -3025,6 +3032,225 @@ export const aboutPage = {
    PAGE COPY — heroes and intros for the internal pages
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/* ── The buildings each service reaches, and each program's clock ─────────
+   2026-10-26, the owner: "edificios construidos… en todos; investiga, sé
+   creativo, ten visión" and "inspeccionamos todo tipo de edificio sin
+   excepción — warehouse, edificios industriales, de todo". One plate per
+   service page (plates/ServiceBuildings.tsx) and, on the four regulated
+   ones, a band of the program's numbers (plates/ServiceClock.tsx).
+
+   THE SOURCES, read and cross-checked on 2026-10-26 (a researcher and a
+   skeptic per program; the research is in the session notes):
+     · Miami-Dade — Code Sec. 8-11(f)(2)(A): "all buildings, except
+       single-family residences, duplexes, and minor structures"; a minor
+       structure has BOTH an occupant load of 10 or less and 2,000 sq ft or
+       less (the verified "Applies to" row says the same).
+     · Broward — BORA Policy #05-05 (Aug 9, 2024) and FBC Broward
+       amendments 110.15: every building or structure at 25 years from its
+       certificate of occupancy; parking garages, guardrails, balconies,
+       elevated decks, docks and seawalls attached to a building are named
+       as included; exempt: federal and State buildings, tribal lands,
+       School Board schools, one- to four-family dwellings of three or fewer
+       habitable stories, fee-simple townhouses, minor structures under
+       3,500 sq ft (unless they house the building's support equipment),
+       railroads.
+     · Milestone — F.S. 553.899(3)(a): buildings of three HABITABLE
+       stories or more subject in whole or in part to residential
+       condominium or cooperative ownership; rental apartments and
+       commercial condominiums are outside.
+     · Threshold — F.S. 553.71(12): greater than three stories or 50 ft,
+       or an assembly occupancy over 5,000 sq ft with more than 500
+       persons; Miami-Dade inspects every building of four stories or more
+       the same way; structural glazing on its own five-year cycle (FBC
+       2415.7.4, the HVHZ).
+     · Peer review — no statewide mandate; Miami-Dade County RER
+       (unincorporated): ten stories or 100 ft, Risk Category IV; City of
+       Miami Bulletin 2024-001 (Feb 6, 2024): over three stories or 50 ft,
+       Risk Category IV; Coral Gables: threshold buildings. No Broward rule
+       was found — there it is an owner's, a lender's or an insurer's ask.
+   Hotels, churches and parking garages are named by no Miami-Dade source;
+   they are inside "all buildings" because nothing takes them out.
+
+   Each card is a FINISHED, occupied building (media.ts `type*`), never a
+   project of the firm. The clock's numbers repeat the program's verified
+   rows (`timing`, `considerations`); service-clock.test.ts holds every
+   number to those rows, so a row that changes cannot leave the band
+   behind. */
+export type ServiceBuildings = {
+  label: string;
+  title: string;
+  accentWord: string;
+  lede: string;
+  items: readonly { title: string; photo: Photo }[];
+  outside?: {
+    label: string;
+    items: readonly string[];
+    /* The line under them, and the page that covers what the program leaves
+       out — every building is inspected by one service or another. */
+    note?: string;
+    link?: { label: string; href: string };
+  };
+};
+
+export const serviceBuildings: Record<string, ServiceBuildings> = {
+  'building-recertification': {
+    label: 'The buildings it reaches',
+    title: 'Almost every building in the county.',
+    accentWord: 'every building',
+    lede: 'Condominium and co-op towers, rental apartments, offices, shops, hotels, churches, parking garages, warehouses and industrial buildings: Miami-Dade’s program reaches every kind of building once it comes of age. Only the smallest homes stay out.',
+    items: [
+      { title: 'Condominium & co-op towers', photo: photo.typeCondoTowers },
+      { title: 'Apartment buildings', photo: photo.typeApartments },
+      { title: 'Office buildings', photo: photo.typeOffices },
+      { title: 'Shops & shopping centers', photo: photo.typeRetail },
+      { title: 'Hotels', photo: photo.typeHotels },
+      { title: 'Churches & assembly halls', photo: photo.typeChurches },
+      { title: 'Parking garages', photo: photo.typeParkingGarages },
+      { title: 'Warehouses & industrial buildings', photo: photo.typeWarehouses },
+    ],
+    outside: {
+      label: 'Outside the program',
+      items: ['Single-family homes', 'Duplexes', 'Buildings of 2,000 sq ft or less that hold ten people or fewer'],
+      note: 'Those we inspect as well, as a structural assessment of their own.',
+      link: { label: 'Assessments & Repair Design', href: '/services/structural-condition-assessments' },
+    },
+  },
+  'broward-bsip': {
+    label: 'The buildings it reaches',
+    title: 'Every kind of building, and what stands beside it.',
+    accentWord: 'what stands beside it.',
+    lede: 'Broward’s program reaches every building, whatever it is used for, and names the parking garages, guardrails, balconies, elevated decks, docks and seawalls attached to a building among what it inspects. Small homes, small structures and a few public owners are the exceptions.',
+    items: [
+      { title: 'Condominium towers', photo: photo.condoBalconiesTower },
+      { title: 'Garden condos & co-ops', photo: photo.guideWhiteCondoBalconies },
+      { title: 'Apartment buildings', photo: photo.typeApartments },
+      { title: 'Office buildings', photo: photo.typeOffices },
+      { title: 'Shopping plazas', photo: photo.typeRetail },
+      { title: 'Hotels', photo: photo.typeHotels },
+      { title: 'Parking garages', photo: photo.typeParkingGarages },
+      { title: 'Warehouses & industrial buildings', photo: photo.typeIndustrial },
+    ],
+    outside: {
+      label: 'Outside the program',
+      items: ['Homes of one to four families, three stories or fewer', 'Fee-simple townhouses', 'Buildings under 3,500 sq ft', 'Federal and State buildings, School Board schools, tribal lands, railroads'],
+      note: 'Program or no program, our structural assessments reach them too.',
+      link: { label: 'Assessments & Repair Design', href: '/services/structural-condition-assessments' },
+    },
+  },
+  'milestone-inspections': {
+    label: 'The buildings it reaches',
+    title: 'One kind of building: the residential condominium.',
+    accentWord: 'residential condominium.',
+    lede: 'Florida’s milestone law reaches condominium and cooperative buildings of three habitable stories or more — the towers on the water, the mid-rises inland, the garden condominium of three floors and the condo homes above a row of shops. In Miami-Dade and Broward, every other building answers to the county’s own program.',
+    items: [
+      { title: 'Condominium towers on the water', photo: photo.miamiCondoAerial },
+      { title: 'Condominium towers', photo: photo.thresholdTowerUp },
+      { title: 'Mid-rise condominiums', photo: photo.midriseClean },
+      { title: 'Garden & walk-up condominiums', photo: photo.guideWhiteCondoBalconies },
+      { title: 'Co-op apartment buildings', photo: photo.guideOlderCondoTower },
+      { title: 'Condo homes over shops', photo: photo.typeApartments },
+    ],
+    outside: {
+      label: 'Outside the law',
+      items: ['Rental apartment buildings', 'Offices, shops, hotels and warehouses', 'Commercial condominiums', 'One- to four-family homes of three stories or fewer'],
+      note: 'In Miami-Dade and Broward those buildings still answer to the county’s program.',
+      link: { label: 'All six services', href: '/services' },
+    },
+  },
+  'threshold-inspections': {
+    label: 'Buildings past the threshold',
+    title: 'Height or a crowd makes the threshold.',
+    accentWord: 'threshold.',
+    lede: 'Whatever it is used for, a building crosses the threshold past three stories or fifty feet, and at any height when it holds an assembly space over 5,000 sq ft for more than 500 people: residential towers, taller mid-rises, office towers, hotels, tall garages and the halls where people gather.',
+    items: [
+      { title: 'Residential towers', photo: photo.thresholdTowerUp },
+      { title: 'Mid-rises past the third story', photo: photo.midriseGlassBalconies },
+      { title: 'Office towers', photo: photo.typeOffices },
+      { title: 'Hotels', photo: photo.typeHotels },
+      { title: 'Parking garages over fifty feet', photo: photo.typeParkingGarages },
+      { title: 'Churches, auditoriums & arenas', photo: photo.typeChurches },
+    ],
+  },
+  'structural-condition-assessments': {
+    label: 'The buildings we inspect',
+    title: 'Every kind of building, without exception.',
+    accentWord: 'without exception.',
+    lede: 'No program decides what we assess. The house and the duplex the counties leave out, the tower after a storm, the warehouse before a sale, the garage whose deck is spalling, the church, the school, the plant: if it stands, we inspect it.',
+    items: [
+      { title: 'Single-family homes', photo: photo.houseConcreteGarden },
+      { title: 'Townhouses & duplexes', photo: photo.houseTownhouses },
+      { title: 'Condominium towers', photo: photo.condoBalconiesTower },
+      { title: 'Apartment buildings', photo: photo.typeApartments },
+      { title: 'Office buildings', photo: photo.typeOffices },
+      { title: 'Shops & shopping centers', photo: photo.typeRetail },
+      { title: 'Hotels', photo: photo.typeHotels },
+      { title: 'Parking garages', photo: photo.typeParkingGarages },
+      { title: 'Warehouses', photo: photo.typeWarehouses },
+      { title: 'Industrial buildings', photo: photo.typeIndustrial },
+      { title: 'Churches & assembly halls', photo: photo.typeChurches },
+      { title: 'Schools & campuses', photo: photo.typeSchools },
+    ],
+  },
+  'peer-review': {
+    label: 'The designs we review',
+    title: 'Any structure, read before it is built.',
+    accentWord: 'before it is built.',
+    lede: 'Some building officials require the second read before the permit: Miami-Dade County, in its unincorporated area, for buildings of ten stories or 100 feet; the City of Miami and Coral Gables for buildings past three stories or fifty feet; and all three for essential facilities such as hospitals and shelters. Anywhere else in Florida, an owner, a lender or an insurer can ask for one.',
+    items: [
+      { title: 'High-rise towers', photo: photo.peerTowerBw },
+      { title: 'Mid-rise residential', photo: photo.midriseBalconies },
+      { title: 'Office & commercial buildings', photo: photo.typeOffices },
+      { title: 'Warehouses & distribution centers', photo: photo.typeWarehouses },
+      { title: 'Parking structures', photo: photo.typeParkingGarages },
+      { title: 'Hospitals, schools & shelters', photo: photo.typeSchools },
+    ],
+  },
+};
+
+export type ServiceClock = {
+  label: string;
+  items: readonly { n: string; unit: string; k: string; sub?: string }[];
+};
+
+export const serviceClock: Record<string, ServiceClock> = {
+  'building-recertification': {
+    label: 'The county’s clock',
+    items: [
+      { n: '30', unit: 'years', k: 'First due, counted from the year built', sub: '25 for condo and co-op buildings of three stories or more within 3 miles of the coast' },
+      { n: '10', unit: 'years', k: 'Then again, for the life of the building' },
+      { n: '90', unit: 'days', k: 'To file, from the Notice of Required Inspection' },
+      { n: '150', unit: 'days', k: 'To finish the repairs, or to permit them' },
+    ],
+  },
+  'broward-bsip': {
+    label: 'The county’s clock',
+    items: [
+      { n: '25', unit: 'years', k: 'First due, from the certificate of occupancy' },
+      { n: '10', unit: 'years', k: 'Then again, every cycle after' },
+      { n: '180', unit: 'days', k: 'To file, from receiving the Notice' },
+      { n: '180', unit: 'days', k: 'To repair, from the date of the report' },
+    ],
+  },
+  'milestone-inspections': {
+    label: 'The law’s clock',
+    items: [
+      { n: '3', unit: 'stories', k: 'Habitable, in a condominium or co-op building' },
+      { n: '30', unit: 'years', k: 'First due, from the certificate of occupancy', sub: '25 where the local enforcement agency requires it' },
+      { n: '10', unit: 'years', k: 'Then again, every ten years' },
+      { n: '2', unit: 'phases', k: 'The second only where the first finds substantial structural deterioration' },
+    ],
+  },
+  'threshold-inspections': {
+    label: 'The threshold, in numbers',
+    items: [
+      { n: '3', unit: 'stories', k: 'More than three, whatever the building is used for' },
+      { n: '50', unit: 'feet', k: 'Or taller than fifty feet' },
+      { n: '500', unit: 'people', k: 'Or an assembly space over 5,000 sq ft, at any height' },
+      { n: '5', unit: 'years', k: 'The cycle of a façade of structural glazing' },
+    ],
+  },
+};
+
 export const servicesPage = {
   eyebrow: 'Services',
   /* The firm's six services for the whole state (the owner, 2026-10-26: the
@@ -3114,7 +3340,7 @@ export const existingPage = {
       { slug: 'broward-bsip', k: 'A notice arrived in Broward.', v: 'That is the Building Safety Inspection Program, the BSIP, and your city’s letter sets its own date. We start from that letter and deliver the whole package — the structural and electrical inspections, the written report and the program’s official forms.' },
       { slug: 'milestone-inspections', k: 'The board asks whether the milestone law reaches the building.', v: 'The state law and the county programs overlap. We tell you which rules reach your building and how they are met in your county — and we inspect when no notice has come but a purchase, a lender or visible distress gives a reason to look.' },
       { slug: 'structural-condition-assessments', k: 'A report lists repairs, or something worries you.', v: 'Before contractors price anything, an engineer says which conditions affect the structure and defines the repair, so every bid answers the same scope. The same assessment serves before you buy a building or alter one.' },
-      { slug: 'threshold-inspections', k: 'The building is over three stories, or the county sent the report back.', v: 'A threshold building answers the same county programs with a fuller file: a structural engineer with the state’s specialization, a self-qualification letter, and the façade where it is structural glazing. We prepare that file, so the report is not returned for its qualification.' },
+      { slug: 'threshold-inspections', k: 'The building is over three stories, or the county sent the report back.', v: 'A threshold building answers the same county programs with a fuller file: a structural engineer with the state’s specialization — a self-qualification letter in Miami-Dade, a Special Inspector in Broward — and the façade where it is structural glazing. We prepare that file before the report goes in.' },
     ],
   },
   /* The one sequence both county programs share. It carries NO age and NO
@@ -3749,6 +3975,8 @@ export const en = {
   reach,
   aboutPage,
   servicesPage,
+  serviceBuildings,
+  serviceClock,
   existingPage,
   workPage,
   contactPage,

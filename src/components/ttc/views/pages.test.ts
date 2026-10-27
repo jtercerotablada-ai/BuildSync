@@ -256,20 +256,33 @@ describe('links: the text of a link is the name of where it goes', () => {
     const c = getContent(lang);
     const html = pages.get(`${lang} /services`)!.html;
 
-    // Typologies.tsx: the <a> is the title; its ::after covers the card.
-    it(`${lang}: a typology card is linked by its title alone`, () => {
-      const cards = [
-        ...html.matchAll(/<li class="[^"]*mp-typo__card[^"]*"[^>]*>([\s\S]*?)<\/li>/g),
-      ].map((m) => links(m[1]));
-      expect(cards).toHaveLength(c.typologies.length);
-      cards.forEach((inCard, i) => {
-        const t = c.typologies[i];
-        expect(inCard.map((a) => [a.href, a.text])).toEqual([
-          [localePath(t.href, lang), text(esc(t.title))],
-        ]);
-        expect(inCard[0].inner).not.toMatch(/<img\b/);
-      });
+    // /services shows the six services and nothing else (the owner,
+    // 2026-10-26): no building-type cards, no process.
+    it(`${lang}: /services prints the six services and nothing else`, () => {
+      expect(html).not.toContain('mp-typo__card');
+      expect(html).not.toContain('h-bld__card');
+      expect(html).not.toContain('mp-stepcard');
     });
+
+    // ServiceBuildings.tsx: every service page shows the buildings it
+    // reaches, card for card as `serviceBuildings` lists them, none of them a
+    // link; what a program leaves out is named under the cards, and its link
+    // goes to the service that inspects those buildings.
+    for (const s of c.services) {
+      const page = pages.get(`${lang} /services/${s.slug}`)!.html;
+      const b = c.serviceBuildings[s.slug];
+      it(`${lang} ${s.slug}: the buildings plate lists its cards, none a link`, () => {
+        expect(b, s.slug).toBeTruthy();
+        const plate = page.match(/<section id="buildings"[\s\S]*?<\/section>/)?.[0] ?? '';
+        const cards = [...plate.matchAll(/<li class="h-bld__card">([\s\S]*?)<\/li>/g)].map((m) => m[1]);
+        expect(cards.map((x) => text(x))).toEqual(b.items.map((it) => text(esc(it.title))));
+        for (const card of cards) expect(card).not.toMatch(/<a\b/);
+        if (b.outside) {
+          for (const x of b.outside.items) expect(plate).toContain(esc(x));
+          if (b.outside.link) expect(plate).toContain(`href="${esc(localePath(b.outside.link.href, lang))}"`);
+        }
+      });
+    }
 
     // ServiceCard.tsx: the photograph is reached through the title's link,
     // not through an <a> of its own with nothing but an image in it.
