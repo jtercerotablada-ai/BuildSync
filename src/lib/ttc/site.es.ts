@@ -1745,16 +1745,28 @@ export const es: SiteContent = {
      short phrase (it does not wrap), and is never the two counties. */
   aboutPage: {
     eyebrow: 'Sobre la firma',
-    titleLines: ['Tercero Tablada Civil and Structural', 'Engineering Inc., en toda Florida.'],
-    accentWord: 'toda Florida.',
-    sub: 'Construida alrededor de un solo equipo responsable. Tercero Tablada Civil and Structural Engineering Inc. inspecciona y evalúa los edificios que ya están en pie, entre ellos los edificios threshold, y revisa los diseños de otros, en toda Florida.',
+    titleLines: ['Miramos de cerca', 'los edificios de Florida.'],
+    accentWord: 'de cerca',
+    sub: 'Construida alrededor de un solo equipo responsable. Tercero Tablada Civil and Structural Engineering Inc. es una firma de Florida de Ingenieros Profesionales con licencia en ingeniería civil, estructural y eléctrica, que trabaja para los dueños, juntas, administradores y equipos de diseño que necesitan saber en qué estado está un edificio.',
+    story: {
+      label: 'Nuestra historia',
+      paras: [
+        'Seis servicios sostienen ese trabajo: la recertificación de Miami-Dade y el Programa de Inspección de Seguridad de Edificios de Broward, las inspecciones de hito del estado, las inspecciones del condado a los edificios threshold, las evaluaciones estructurales con el diseño de las reparaciones que piden, y la revisión independiente de diseños estructurales ajenos.',
+        'En edificios existentes el trabajo empieza en campo: miramos el edificio de cerca, en sitio, antes de analizarlo, y nada se concluye a partir de un plano que no se haya confirmado allí en persona.',
+        'Cada informe sale de esta oficina con el nombre de la firma, escrito para que una junta, un propietario y un funcionario de construcción puedan seguir el razonamiento sin llamarnos, y queda archivado para que el siguiente ciclo empiece por lo que encontró el anterior.',
+      ],
+      facts: [
+        { k: 'Disciplinas', v: 'Civil · Estructural · Eléctrica' },
+        { k: 'Servicios', v: 'Seis, para edificios y diseños' },
+        { k: 'Licencia', v: 'Junta de Ingenieros Profesionales de Florida' },
+        { k: 'Dónde', v: 'En toda Florida' },
+      ],
+    },
     approach: {
       eyebrow: 'Enfoque',
       title: 'Revisado línea por línea, antes de salir.',
       body: [
         'Por esta firma pasan dos tipos de trabajo, y cada uno enriquece al otro. Leer los diseños de otros enseña qué falla sobre el papel; inspeccionar edificios que llevan décadas en pie enseña qué buscar la próxima vez.',
-        'En edificios existentes el trabajo empieza en campo: el edificio se revisa en sitio antes de analizarse, y nada se concluye a partir de un plano que no se haya confirmado allí en persona.',
-        'Cada informe sale de esta oficina con el nombre de la firma, escrito para que una junta, un propietario y un funcionario de construcción puedan seguir el razonamiento sin llamarnos, y queda archivado para que el siguiente ciclo empiece por lo que encontró el anterior.',
       ],
     },
     forYouTitle: 'Una sola firma, responsable desde la primera llamada hasta el informe presentado.',
@@ -2074,6 +2086,12 @@ export const es: SiteContent = {
        comment. The H1's "Cuéntenos" and "enviamos" are here (seo.test.ts).
        "Building Official" carries its gloss at its first use on the page
        (the row for a date already passed), the short form after it. */
+    steps: [
+      { t: 'Cuéntenos del edificio', v: 'Llene el formulario: quién es usted, el servicio, dónde está el edificio y unas líneas sobre él. Adjunte la notificación, fotos o planos si los tiene; nada de eso es obligatorio.' },
+      { t: 'Lo leemos y respondemos', v: 'Normalmente en menos de dos horas en un día hábil, con nuestras preguntas o una propuesta por escrito: qué incluye el trabajo, qué recibe y el precio.' },
+      { t: 'Usted aprueba y empezamos', v: 'Nada empieza hasta que usted acepta la propuesta. La visita se programa para un día en que se pueda abrir el edificio, y el informe viene después.' },
+    ],
+    promises: ['Propuesta gratis', 'Precio fijo para recertificación y BSIP', 'Ingenieros Profesionales con licencia en Florida', 'Respuesta, normalmente el mismo día'],
     before: {
       eyebrow: 'Cómo funciona',
       title: 'Qué enviar y qué pasa después.',
@@ -2085,7 +2103,7 @@ export const es: SiteContent = {
         { k: 'Para un edificio de más de tres pisos', v: 'Díganos también el número de pisos o la altura. Pasados los tres pisos, o los cincuenta pies de altura, el condado le pide más al informe — un ingeniero con la especialización estructural que reconoce el estado, y una carta que lo acredite — y la propuesta tiene que contemplarlo desde el principio.' },
         { k: 'Si escribe en nombre de una junta o una asociación', v: 'Una sola persona puede escribir por toda la junta. Enviamos la propuesta en una forma que pueda compartirse con los directores, y respondemos sus preguntas en una llamada si eso ayuda a la votación.' },
         { k: 'Después de enviarlo', v: 'Si hay una carta, el ingeniero lee primero lo que pide su Building Official. Después le enviamos preguntas o una propuesta escrita con el alcance: qué incluye el trabajo, qué queda fuera, qué recibe usted y cuánto cuesta — en una recertificación o un BSIP, un precio fijo. Nada comienza hasta que usted la acepte.' },
-        { k: 'Dónde y en qué idioma', v: 'Trabajamos en Miami-Dade y Broward, en todas las ciudades de ambos condados: de Miami, Hialeah y Coral Gables a Fort Lauderdale, Hollywood y Pompano Beach. Indíquenos la ciudad, o si el edificio está fuera de los límites de una ciudad: de eso depende qué oficina envía la carta y recibe el informe. El formulario y este sitio están en español y en inglés; escríbanos en el idioma que le resulte más cómodo.' },
+        { k: 'Dónde y en qué idioma', v: 'Trabajamos en toda Florida. Para un programa del condado, indíquenos la ciudad, o si el edificio está fuera de los límites de una ciudad: de eso depende qué oficina envía la carta y recibe el informe. El formulario y este sitio están en español y en inglés; escríbanos en el idioma que le resulte más cómodo.' },
       ],
     },
   },

@@ -605,7 +605,9 @@ describe('H1: the subject and the place, where a slogan used to be', () => {
         });
 
       it(`${name}: the line it replaced opens the lede`, () => {
-        const sub = html.match(/<p class="mp-phero__sub[^>]*>(.*?)<\/p>/)?.[1] ?? '';
+        // /about opens on its story since 2026-10-26: the slogan opens the
+        // story's first paragraph (`h-story__lede`).
+        const sub = html.match(/<p class="(?:mp-phero__sub|h-story__lede)[^>]*>(.*?)<\/p>/)?.[1] ?? '';
         expect(text(sub).startsWith(SLOGAN[lang][path])).toBe(true);
       });
 

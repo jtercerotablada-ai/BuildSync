@@ -1,10 +1,11 @@
 import React from 'react';
 import { getContent, navLabelOf } from '@/lib/ttc/content';
-import { holdsNotice, imagery } from '@/lib/ttc/site';
+import { holdsNotice } from '@/lib/ttc/site';
 import type { Lang } from '@/lib/ttc/i18n';
-import { PageHero } from '@/components/ttc/mp/PageHero';
 import { ContactForm } from '@/components/ttc/mp/ContactForm';
-import { accentLines } from '@/components/ttc/mp/text';
+import { DarkHeroSentinel, Reveal } from '@/components/ttc/mp/primitives';
+import { Words } from '@/components/ttc/mp/home/Words';
+import { Diamond } from '@/components/ttc/mp/home/glyphs';
 import { breadcrumbLd, JsonLd } from './meta';
 import { whatsappHref } from '@/components/ttc/mp/ReachRow';
 
@@ -42,7 +43,7 @@ import { whatsappHref } from '@/components/ttc/mp/ReachRow';
    sit beside the form, at body size; the rest (what happens
    next, where and in which language) run in two columns under both from
    1181px. Below that the two lists read as one. */
-const SITUATIONS = 4;
+const SITUATIONS = 6;
 export function ContactView({ lang, presetService }: { lang: Lang; presetService?: string }) {
   const c = getContent(lang);
   // With a new-building service chosen (?service=…), the hero's sub asks
@@ -64,13 +65,33 @@ export function ContactView({ lang, presetService }: { lang: Lang; presetService
     <div className="mp-plates mp-dark">
       <JsonLd data={breadcrumbLd(lang, [{ name: c.ui.home, path: '/' }, { name: navLabel, path: '/contact' }])} />
 
-      <PageHero
-        eyebrow={p.eyebrow}
-        crumbs={[{ href: '/', label: c.ui.home }, { label: navLabel }]}
-        titleLines={accentLines(p.titleLines, p.accentWord)}
-        sub={isNew ? p.subNew : p.sub}
-        photo={imagery.pages.contact}
-      />
+      {/* The opening, as the home's "Get in touch." plate (2026-10-26, the
+          owner: "algo claro, lindo, pro, entendible, para que los clientes
+          coticen sin confusión"): the label, the headline, the line for this
+          visitor, then the three steps from sending to the visit. No photo:
+          the form is the page. The sentinel keeps the header transparent
+          over it, as over every inner page's hero. */}
+      <section className="h-cq mp-surface--graphite" aria-labelledby="mp-phero-title">
+        <div className="h-wrap">
+          <p className="h-label">{p.eyebrow}</p>
+          <h1 id="mp-phero-title" className="h-h2 h-cq__h">
+            <Words text={p.titleLines.join(' ')} accent={p.accentWord} />
+          </h1>
+          <p className="mp-phero__sub h-cq__sub">{isNew ? p.subNew : p.sub}</p>
+          <ol className="h-cq__steps">
+            {p.steps.map((st, i) => (
+              <Reveal as="li" fx="up" delay={i * 0.08} key={st.t} className="h-cq__step">
+                <span className="h-cq__n" aria-hidden="true">
+                  {String(i + 1).padStart(2, '0')}
+                </span>
+                <p className="h-cq__t">{st.t}</p>
+                <p className="h-cq__v">{st.v}</p>
+              </Reveal>
+            ))}
+          </ol>
+        </div>
+        <DarkHeroSentinel />
+      </section>
 
       <section className="mp-section mp-surface--paper mp-contact" aria-labelledby="mp-contact-title">
         <div className="mp-shell">
@@ -79,7 +100,9 @@ export function ContactView({ lang, presetService }: { lang: Lang; presetService
           </h2>
 
           <div className="mp-contact__grid">
-            <div>
+            {/* The form in the home's skin: large type, mono labels, gold on
+                focus (home-lower.css, `.h-contact__form`). */}
+            <div className="h-contact__form">
               <ContactForm presetService={presetService} />
               {/* WhatsApp, under the form: since 2026-10-24 the hero
                   has no side panel (the owner: "quita"), and this pair is the
@@ -114,6 +137,19 @@ export function ContactView({ lang, presetService }: { lang: Lang; presetService
               </ul>
             </aside>
           </div>
+
+          {/* What a visitor weighs before sending: four promises, each a fact
+              the site states (the proposal is free, the fee for the two
+              county programs is fixed, the engineers are licensed, the reply
+              usually comes the same day). */}
+          <ul className="h-cq__promises">
+            {p.promises.map((x) => (
+              <li key={x}>
+                <Diamond />
+                <span>{x}</span>
+              </li>
+            ))}
+          </ul>
 
           <ul className="mp-pillars mp-pillars--rail mp-pillars--next">
             {b.items.slice(SITUATIONS).map((it) => (

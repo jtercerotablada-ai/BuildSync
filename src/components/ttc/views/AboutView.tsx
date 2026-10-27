@@ -1,13 +1,13 @@
 import React from 'react';
 import { getContent, navLabelOf } from '@/lib/ttc/content';
-import { imagery } from '@/lib/ttc/site';
 import type { Lang } from '@/lib/ttc/i18n';
-import { PageHero } from '@/components/ttc/mp/PageHero';
+import { photo } from '@/lib/ttc/media';
+import { Img } from '@/components/ttc/mp/media';
 import { PartnerSection } from '@/components/ttc/mp/PartnerSection';
 import { HowWeWork } from '@/components/ttc/mp/HowWeWork';
 import { HomeContact } from '@/components/ttc/mp/home/HomeContact';
-import { SectionHeading, Reveal } from '@/components/ttc/mp/primitives';
-import { accentLines } from '@/components/ttc/mp/text';
+import { DarkHeroSentinel, SectionHeading, Reveal } from '@/components/ttc/mp/primitives';
+import { accent } from '@/components/ttc/mp/text';
 import { breadcrumbLd, JsonLd } from './meta';
 
 /**
@@ -43,13 +43,49 @@ export function AboutView({ lang }: { lang: Lang }) {
     <div className="mp-plates mp-dark">
       <JsonLd data={breadcrumbLd(lang, [{ name: c.ui.home, path: '/' }, { name: navLabel, path: '/about' }])} />
 
-      <PageHero
-        eyebrow={p.eyebrow}
-        crumbs={[{ href: '/', label: c.ui.home }, { label: navLabel }]}
-        titleLines={accentLines(p.titleLines, p.accentWord)}
-        sub={p.sub}
-        photo={imagery.pages.about}
-      />
+      {/* OUR STORY — after EMX's Our Story page (the owner, 2026-10-26: "como
+          EMX mejorado"): the label over a full-width hairline, the
+          photograph on the left, the headline and the story on the right,
+          then the four facts under both. No photo hero and no breadcrumb on
+          screen: the story is the opening. The sentinel at its foot keeps
+          the header transparent over it, as over every inner page's hero. */}
+      <section className="h-story mp-surface--graphite" aria-labelledby="mp-story-title">
+        <div className="h-wrap">
+          <div className="h-story__top">
+            <p className="h-story__label">{p.story.label}</p>
+          </div>
+          <div className="h-story__grid">
+            <Reveal fx="img" className="h-ph h-story__ph" style={{ '--ar': '4 / 5' } as React.CSSProperties}>
+              <div className="h-ph__in">
+                <Img photo={photo.inspectBalconyPair} priority sizes="(min-width: 900px) 40vw, 92vw" />
+              </div>
+            </Reveal>
+            <div className="h-story__text">
+              {/* Plain text with its one accent (text.tsx `accent`), not the
+                  home's word masks: the accent stays one short phrase in the
+                  markup (seo.test.ts). */}
+              <h1 id="mp-story-title" className="h-h2 h-story__h">
+                {accent(p.titleLines.join(' '), p.accentWord)}
+              </h1>
+              <p className="h-story__lede">{p.sub}</p>
+              {p.story.paras.map((par) => (
+                <p key={par} className="h-story__p">
+                  {par}
+                </p>
+              ))}
+            </div>
+          </div>
+          <dl className="h-story__facts">
+            {p.story.facts.map((f) => (
+              <div key={f.k}>
+                <dt>{f.k}</dt>
+                <dd>{f.v}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+        <DarkHeroSentinel />
+      </section>
 
       <section className="mp-section mp-surface--paper mp-about-how" aria-labelledby="mp-about-how-title">
         <div className="mp-shell">

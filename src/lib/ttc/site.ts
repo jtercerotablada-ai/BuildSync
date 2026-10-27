@@ -2933,23 +2933,41 @@ export const aboutPage = {
      said the same three words as the home page's headline and named neither
      the firm nor the engineer this page is about. The line under it opens
      with what is particular to the practice instead of repeating the H1. */
-  titleLines: ['Tercero Tablada Civil and Structural', 'Engineering Inc., across Florida.'],
-  accentWord: 'across Florida.',
+  /* The story's headline (2026-10-26, the owner: /about "como EMX Our
+     Story, mejorado"): a sentence about the firm, as EMX's "We Are Creators
+     of Solid Foundations." — the place in it (seo.test), the firm's full
+     name in the first paragraph under it. */
+  titleLines: ['We look closely', 'at Florida’s buildings.'],
+  accentWord: 'look closely',
   /* The slogan opens it (seo.test). The written-down reasoning is the
      Approach section's to say, and "one engineer" is already its first
      sentence: the lede says each once. */
-  sub: 'Built around one accountable team. Tercero Tablada Civil and Structural Engineering Inc. inspects and assesses the buildings already standing, the threshold buildings among them, and reviews the designs of others, across all of Florida.',
+  /* The story's first paragraph; the slogan opens it (seo.test). */
+  sub: 'Built around one accountable team. Tercero Tablada Civil and Structural Engineering Inc. is a Florida firm of licensed Professional Engineers — civil, structural and electrical — working for the owners, boards, managers and design teams who need to know where a building stands.',
+  /* The rest of the story, beside the photograph, and the four facts under
+     it — each a fact the site states elsewhere, none a figure invented. */
+  story: {
+    label: 'Our story',
+    paras: [
+      'Six services carry that work: the Miami-Dade recertification and the Broward Building Safety Inspection Program, the state’s milestone inspections, the county inspections of threshold buildings, structural assessments with the design of the repairs they call for, and the independent review of structural designs by others.',
+      'On existing buildings the field comes first: we look at the building closely, on site, before it is analyzed, and nothing is concluded from a drawing that has not been confirmed there in person.',
+      'Every report leaves this office with the firm’s name on it, written so that a board, an owner and a building official can follow the reasoning without calling us, and kept on file so the next cycle starts from what the last one found.',
+    ],
+    facts: [
+      { k: 'Disciplines', v: 'Civil · Structural · Electrical' },
+      { k: 'Services', v: 'Six, for buildings and designs' },
+      { k: 'Licensed by', v: 'Florida Board of Professional Engineers' },
+      { k: 'Where', v: 'Across Florida' },
+    ],
+  },
   /* One section on /about: the two paragraphs beside the title, then the
      five principles under their own label (`principles.eyebrow`). */
   approach: {
     eyebrow: 'Approach',
     title: 'Reviewed line by line, before it leaves.',
+    /* The other two paragraphs moved into the story (2026-10-26). */
     body: [
       'Two kinds of work run through this practice, and they inform each other. Reading the designs of others teaches you what fails on paper; inspecting buildings that have been standing for decades teaches you what to look for the next time.',
-      'On existing buildings the field comes first: the building is checked on site before it is analyzed, and nothing is concluded from a drawing that has not been confirmed there in person.',
-      /* The firm's voice (the owner, 2026-10-26: "somos empresa"): what every
-         report has in common, whoever on the team worked on it. */
-      'Every report leaves this office with the firm’s name on it, written so that a board, an owner and a building official can follow the reasoning without calling us, and kept on file so the next cycle starts from what the last one found.',
     ],
   },
   /* Over the three rows of `leadership.forYou` (AboutView, since 2026-10-26
@@ -3454,6 +3472,17 @@ export const contactPage = {
      "tell", "about" and "scope" are here (seo.test.ts). ORDER MATTERS: the
      first four rows (the situations) sit beside the form, the two others
      under it (`SITUATIONS` in ContactView). */
+  /* The three steps under the headline (2026-10-26, the owner: "contact,
+     algo claro, lindo, pro, entendible, para que los clientes coticen sin
+     confusión"): what the visitor does, what comes back, what follows. The
+     reply time is the owner's ("usually"); no figure is typed. */
+  steps: [
+    { t: 'Tell us about the building', v: 'Fill in the form: who you are, the service, where the building is and a few lines about it. Attach the notice, photos or drawings if you have them; none is required.' },
+    { t: 'We read it and reply', v: 'Usually within two hours on a working day, with our questions or a written proposal: what the work includes, what you receive, and the fee.' },
+    { t: 'You approve, we begin', v: 'Nothing starts until you agree to the proposal. The visit is booked for a day the building can be opened, and the report follows it.' },
+  ],
+  /* Under the form: the four promises a visitor weighs before sending. */
+  promises: ['A free proposal', 'A fixed fee for recertification and BSIP', 'Licensed Professional Engineers in Florida', 'A reply, usually the same day'],
   before: {
     eyebrow: 'How it works',
     title: 'What to send, and what happens next.',
@@ -3469,7 +3498,9 @@ export const contactPage = {
       { k: 'For a building over three stories', v: 'Tell us the number of stories or the height as well. Past three stories, or fifty feet of height, the county asks more of the report — an engineer with the structural specialization the state recognizes, and a letter that says so — and the proposal has to account for it from the start.' },
       { k: 'If you write for a board or an association', v: 'One person can write for the whole board. We send the proposal in a form that can be shared with the directors, and we answer their questions on a call if that helps the vote.' },
       { k: 'After you send it', v: 'When there is a notice, the engineer first reads what your Building Official is asking for. Our reply is a set of questions or a written proposal with the scope: what the work includes, what it leaves out, what you will receive and what it costs — for a recertification or a BSIP, a fixed fee. Nothing begins until you have agreed to it.' },
-      { k: 'Where, and in which language', v: 'We work in Miami-Dade and Broward, in every city of both counties — from Miami, Hialeah and Coral Gables to Fort Lauderdale, Hollywood and Pompano Beach. Tell us the city, or that the building is outside city limits: that decides which office sends the notice and receives the report. The form and this site are in English and in Spanish; write in whichever is easier for you.' },
+      /* Across Florida since 2026-10-26 (the owner: the firm works in the
+         whole state; only the two county programs are the counties'). */
+      { k: 'Where, and in which language', v: 'We work across Florida. For a county program, tell us the city, or that the building is outside city limits: that decides which office sends the notice and receives the report. The form and this site are in English and in Spanish; write in whichever is easier for you.' },
     ],
   },
 } as const;
