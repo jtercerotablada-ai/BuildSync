@@ -3282,15 +3282,6 @@ export const servicesPage = {
      their counties on their own pages. */
   titleLines: ['Six services for', 'Florida’s buildings.'],
   accentWord: 'buildings.',
-  /* Existing buildings first — in the sub-line and the tracks — because the
-     page opens with them. "Eight" follows the `services` array (four and
-     four); change them together. The line used to explain how to read the
-     page ("…start with existing buildings… Each service says when you need
-     it…") and a facts panel counted the services again; the owner's rule of
-     October 20, 2026 is no "how to read this page" text. It ends on the
-     step that costs nothing. Keep "structural engineering services" whole:
-     it is where the H1's words are answered on the page (seo.test.ts). */
-  sub: 'Organized by what you need, not by what we do. Six engineering services, for buildings already standing and for the designs behind new ones. The proposal is free.',
   /* The label of each service row's disclosure (ServiceCard): when you need
      it, what is included, what you receive. Short, so it never wraps. */
   cardMore: 'Details',
@@ -3298,7 +3289,7 @@ export const servicesPage = {
      home's order, each card tagged with its track). The two tracks' ledes
      open it side by side. */
   grid: {
-    label: 'Services',
+    label: 'The six services',
     title: 'Pick the service your building needs.',
     accentWord: 'needs.',
   },

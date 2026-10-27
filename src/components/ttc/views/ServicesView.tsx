@@ -54,7 +54,8 @@ export function ServicesView({ lang }: { lang: Lang }) {
         eyebrow={p.eyebrow}
         crumbs={[{ href: '/', label: c.ui.home }, { label: navLabelOf(c, '/services') }]}
         titleLines={accentLines(p.titleLines, p.accentWord)}
-        sub={p.sub}
+        // No line under the headline (the owner, 2026-10-27: "Organized by
+        // what you need… me parece estúpido"): the six cards say it.
         photo={imagery.pages.services}
       />
 
@@ -69,14 +70,9 @@ export function ServicesView({ lang }: { lang: Lang }) {
             <Reveal as="h2" fx="words" id="mp-services-title" className="h-h2">
               <Words text={p.grid.title} accent={p.grid.accentWord} />
             </Reveal>
-            <div className="h-head__foot h-head__foot--two">
-              <Reveal fx="up" className="h-head__lede">
-                <p className="h-lede">{p.tracks.existing.lede}</p>
-              </Reveal>
-              <Reveal fx="up" delay={0.08} className="h-head__lede">
-                <p className="h-lede">{p.tracks.new.lede}</p>
-              </Reveal>
-            </div>
+            {/* No lines under the headline (the owner, 2026-10-27: "ya se sabe
+                que es para ellos los servicios"): the two tracks' ledes that
+                stood here said who each track was for. */}
           </header>
 
           <div className="h-svc__grid">

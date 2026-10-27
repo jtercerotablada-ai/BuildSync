@@ -604,6 +604,9 @@ describe('H1: the subject and the place, where a slogan used to be', () => {
           }
         });
 
+      // /services has no line under its H1 since 2026-10-27 (the owner: the
+      // slogan was "estúpido"; the six cards say what the page is).
+      if (path !== '/services')
       it(`${name}: the line it replaced opens the lede`, () => {
         // /about opens on its story since 2026-10-26: the slogan opens the
         // story's first paragraph (`h-story__lede`).
