@@ -26,7 +26,7 @@ catalogue entry at a time (`src/lib/ttc/media.ts`). No component changes.
 
 | Source | What | Terms |
 |---|---|---|
-| **Pexels** | All 42 photographs in `public/ttc/img/site/`; clip `hero-miami` | Free for commercial use, modification allowed, **no attribution required**, no share-alike |
+| **Pexels** | All the photographs in `public/ttc/img/site/`; clip `hero-miami` | Free for commercial use, modification allowed, **no attribution required**, no share-alike |
 | **Artgrid / Artlist** (the firm's paid subscription) | Clip `bim-assembly` | Commercial use, **no attribution required**. A different license from Pexels: an asset is covered only if it was downloaded while the subscription was active. Record the provenance of any future Artgrid clip here for the same reason. |
 
 The Pexels license still forbids some uses, and they apply here:
@@ -99,11 +99,19 @@ delete them if no slot claims them.
 | guide-coastal-condo-towers | guideCoastalCondoTowers | Guide: milestone vs recertification vs SIRS — hero + card *(new 2026-10-17)* | 15979033 |
 | guide-spalled-concrete | guideSpalledConcrete | Guide: failed recertification — hero + card *(new 2026-10-17)* | 10224710 |
 | guide-parking-lot-night | guideParkingLotNight | Guide: parking-lot certificates — hero + card *(new 2026-10-17)* | 10471102 |
-| inspect-balcony-pair | inspectBalconyPair | Service: Milestone & Structural Safety Inspections (`pos 50% 30%`) | 8961152 |
-| inspect-wall | inspectWall | Service: Condition Assessments (`pos 50% 30%`) | 8961700 |
+| svc-lot-lights-night | svcLotLightsNight | Miami-Dade recertification page, card “Parking-lot lighting” (`pos 50% 70%`) *(new 2026-10-27)* | 13140025 |
+| svc-wall-check | svcWallCheck | Broward BSIP page, card “Structural inspection” *(new 2026-10-27)* | 8961703 |
+| svc-core-bit | svcCoreBit | Broward BSIP page, card “Tests only where needed” (`pos 50% 85%`) *(new 2026-10-27; 16280548 rejected: a drill brand legible)* | 8853535 |
+| svc-electrical-inspection | svcElectricalInspection | Miami-Dade recertification page, card “Electrical inspection” *(new 2026-10-27)* | 10871929 |
+| svc-switchgear-room | svcSwitchgearRoom | Miami-Dade recertification page, card “Infrared thermography” — the equipment scanned, not a thermal image *(new 2026-10-27)* | 39639325 |
+| svc-lot-guardrail | svcLotGuardrail | Miami-Dade recertification page, card “Parking-lot guardrail” *(new 2026-10-27)* | 35069846 |
+| svc-breaker-check | svcBreakerCheck | Broward BSIP page, card “Electrical inspection” *(new 2026-10-27)* | 10871737 |
+| svc-canal-docks | svcCanalDocks | Broward BSIP page, card “Balconies, docks & seawalls” *(new 2026-10-27)* | 33397570 |
+| inspect-balcony-pair | inspectBalconyPair | /about story (`pos 50% 30%`) | 8961152 |
+| inspect-wall | inspectWall | Miami-Dade recertification page, card “Structural inspection” *(2026-10-27)* (`pos 50% 30%`) | 8961700 |
 | peer-tower-bw | peerTowerBw | Service: Peer Review | 15786966 |
 | south-florida-aerial | southFloridaAerial | *Spare since 2026-10-20.* Was Home, "Engineered for this coast" band | 30147234 |
-| concrete-ramp | concreteRamp | *Spare since 2026-10-20.* Was the About engineer plate, shown while there was no portrait | 38539691 |
+| concrete-ramp | concreteRamp | Broward BSIP page, card “Garages & parking lots” *(2026-10-27)*. Was the About engineer plate | 38539691 |
 | frame-under-construction | frameUnderConstruction | *Spare since 2026-10-20.* Was Work, engagement 01 | 13094084 |
 | midrise-glass-balconies | midriseGlassBalconies | *Spare since 2026-10-20.* Was Work, engagement 02 | 11916565 |
 | miami-towers-up | miamiTowersUp | *Spare since 2026-10-20.* Was Work, engagement 03 | 33664887 |

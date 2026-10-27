@@ -327,6 +327,12 @@ describe('links out: the hosts the site may link', () => {
     'www.leg.state.fl.us', // the milestone page's timing row: the statute
     'www.linkedin.com', // the footer: the firm's LinkedIn page
     'www.miamidade.gov', // Miami-Dade's forms: the county's recertification page
+    /* The Property Appraiser's search, under the Miami-Dade recertification
+       clock (2026-10-27, the owner pointing at a competitor's "check the
+       status of your building"): the code counts Building Age from the year
+       built on that record, Sec. 8-11(f)(1)(D). A county office's own site;
+       it answered a browser and a crawler with a 200 on 2026-10-27. */
+    'www.miamidadepa.gov',
     'www.myfloridalicense.com', // "Verify with the Florida DBPR"
   ];
   const out = (html: string) =>
@@ -336,7 +342,7 @@ describe('links out: the hosts the site may link', () => {
       .map((href) => new URL(href))
       .filter((u) => !getContent('en').company.url.includes(u.hostname));
 
-  it('every outbound link on every page, in both languages, goes to one of nine hosts', () => {
+  it('every outbound link on every page, in both languages, goes to one of ten hosts', () => {
     const hosts = new Set<string>();
     for (const { html } of pages.values()) for (const u of out(html)) hosts.add(u.hostname);
     expect([...hosts].sort()).toEqual(MAY_LINK);
@@ -478,6 +484,26 @@ describe('service pages: enough words of their own to be a page', () => {
           .match(/<main\b[\s\S]*<\/main>/)![0]
           .replace(/<section class="[^"]*mp-close[^"]*"[\s\S]*?<\/section>/g, '');
         expect(words(text(main))).toBeGreaterThanOrEqual(500);
+      });
+    }
+  }
+});
+
+/* Who does what (ServiceFlow, 2026-10-27): one row per step of the
+   program's own process, and the table is on the page — a row count that
+   drifted from the steps would drop the table without a word. */
+describe('county program pages: who does what, one row per step', () => {
+  for (const lang of LANGS) {
+    for (const slug of PROGRAMS) {
+      it(`${slug} (${lang}): serviceFlow has a row per process step, and the table renders`, () => {
+        const c = getContent(lang);
+        const s = c.services.find((x) => x.slug === slug)!;
+        const f = c.serviceFlow[slug];
+        expect(f, `serviceFlow['${slug}']`).toBeDefined();
+        expect(f.rows).toHaveLength(s.process.length);
+        const main = pages.get(`${lang} /services/${slug}`)!.html.match(/<main\b[\s\S]*<\/main>/)![0];
+        expect(main).toContain('<table class="h-flow__t">');
+        expect(main.match(/<th scope="row">/g) ?? []).toHaveLength(s.process.length);
       });
     }
   }

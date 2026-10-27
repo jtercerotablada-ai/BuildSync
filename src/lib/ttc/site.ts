@@ -365,8 +365,6 @@ export const ui = {
   whenYouNeedIt: 'When you need it',
   whatsIncluded: "What's included",
   whatYouReceive: 'What you receive',
-  /** Section label above the two columns "What's included" / "What you receive". */
-  scopeAndDeliverables: 'Scope & deliverables',
   nextStep: 'Next step',
   whenItApplies: 'When it applies',
   howItRuns: 'How the work runs',
@@ -988,8 +986,8 @@ export type Service = {
    * The one place on a program's page that lays out everything that county
    * asks for with the filing, and that the team delivers: one row per part,
    * its name and ONE plain sentence on what it is and when it applies.
-   * Rendered under the two columns of "Scope & deliverables", right after
-   * "What you receive" (ServiceDetailView): a definition list, and its
+   * Rendered in the "What you receive" band, under its two columns
+   * (ServiceDetailView): a definition list, and its
    * `label` a <p>. NOT headings — the page stands at its ceiling of 23
    * (pages.test.ts), and a part of a packet is not a section of the page.
    *
@@ -1141,7 +1139,7 @@ export const services: Service[] = [
       { step: 'Report filed', detail: 'The structural and electrical reports go on the county’s own forms, signed and sealed, with the certificates and attachments your building needs, and are filed even when they list repairs. The county asks for the reports first, not after the work.' },
       { step: 'Repairs under permit', detail: 'Where repairs are needed, we define what has to be corrected so contractors bid the same work. Repairs that need a permit wait for it, then follow its schedule.' },
       { step: 'Reinspection', detail: 'Completed repairs are reinspected and documented against the original findings.' },
-      { step: 'Close-out', detail: 'An amended report states that the repairs are complete. That is what closes the recertification, until the next cycle.' },
+      { step: 'Close-out', detail: 'An amended report states that the repairs are complete and goes back to the Building Official, whose approval closes the recertification until the next cycle.' },
     ],
     /* The first line is the whole package, named once; its parts, each with
        what it is and when it applies, are `packet`, printed right under
@@ -1215,7 +1213,7 @@ export const services: Service[] = [
             { k: 'First due', v: 'At 30 years — 25 for condominium and cooperative buildings of three or more stories within 3 miles of the coast. Age is counted from the year built on the Property Appraiser’s record.', home: true },
             { k: 'Then', v: 'Every 10 years, for the life of the structure.', home: true },
             { k: 'Time to file', v: '90 days from the Notice of Required Inspection. Courtesy notices should arrive two years and one year ahead; not receiving them does not move the deadline.', filing: true, home: true },
-            { k: 'If repairs are needed', v: '150 days from the Notice to finish repairs that need no permit and to obtain permits for the rest. Permitted work then follows its permit, and an amended report closes the recertification.', home: true },
+            { k: 'If repairs are needed', v: '150 days from the Notice to finish repairs that need no permit and to obtain permits for the rest. Permitted work then follows its permit, and the Building Official’s approval of the amended report closes the recertification.', home: true },
             { k: 'Condominiums & co-ops', v: 'The recertification serves as compliance with the state milestone inspection — no separate milestone report is filed.', home: true },
           ],
         },
@@ -1302,7 +1300,7 @@ export const services: Service[] = [
       },
       {
         q: 'What if the recertification report lists repairs?',
-        a: 'The report is filed anyway: the county asks for it first, not after the work. Where repairs are needed, we define what has to be corrected so contractors bid the same work; repairs that need a permit wait for it, and an amended report stating that the repairs are complete closes the recertification. The time allowed is in the “If repairs are needed” row above.',
+        a: 'The report is filed anyway: the county asks for it first, not after the work. Where repairs are needed, we define what has to be corrected so contractors bid the same work; repairs that need a permit wait for it, and the Building Official’s approval of the amended report closes the recertification. The time allowed is in the “If repairs are needed” row above.',
       },
       {
         /* The county's own published answer (miamidade.gov, Common
@@ -1336,7 +1334,7 @@ export const services: Service[] = [
          the county's own sheets. Never "we certify that the lot complies". */
       'The parking-lot certifications record what was measured and found, not a promise that a lot passes: light levels that meet the county’s standard or do not, and whether a lot beside water has the guardrail the county requires. Where a guardrail is missing, the owner needs a permit to install one.',
       /* "Complete" is the package, never the outcome — see the header. */
-      'A complete package is not yet a closed recertification. Where the reports list repairs, the repairs come first — under permit where one is needed — and the amended report is what closes it.',
+      'A complete package is not yet a closed recertification. Where the reports list repairs, the repairs come first — under permit where one is needed — and the Building Official’s approval of the amended report is what closes it.',
       'The Building Official may grant an extension of up to 60 days to file the report or to obtain permits, on a signed and sealed request from the engineer stating that the building can remain occupied.',
       'The amended report that closes a recertification comes from the engineer or architect who filed the original report. If another firm filed yours, say so when you write — we confirm what closing it will take before we propose.',
       'A condition that puts life or property in danger is reported to the owner and to the Building Official of your city, or of the county in unincorporated areas; the engineer has a duty to do so.',
@@ -3232,6 +3230,9 @@ export const serviceBuildings: Record<string, ServiceBuildings> = {
 export type ServiceClock = {
   label: string;
   items: readonly { n: string; unit: string; k: string; sub?: string }[];
+  /** Where an owner checks the number the clock counts from (2026-10-27):
+   *  an official county page only, opened and confirmed that day. */
+  lookup?: { text: string; label: string; url: string };
 };
 
 export const serviceClock: Record<string, ServiceClock> = {
@@ -3243,6 +3244,14 @@ export const serviceClock: Record<string, ServiceClock> = {
       { n: '90', unit: 'days', k: 'To file, from the Notice of Required Inspection' },
       { n: '150', unit: 'days', k: 'To finish the repairs, or to permit them' },
     ],
+    /* The code counts Building Age from the year built on the Property
+       Appraiser's record (Sec. 8-11(f)(1)(D)); the county's own page links
+       this search. Opened 2026-10-27 in a browser and as a crawler: 200. */
+    lookup: {
+      text: 'The county counts from the year built that the Property Appraiser shows for your building.',
+      label: 'Miami-Dade Property Appraiser: property search',
+      url: 'https://www.miamidadepa.gov/pa/real-estate/property-search.page',
+    },
   },
   'broward-bsip': {
     label: 'The county’s clock',
@@ -3288,7 +3297,11 @@ export const serviceClock: Record<string, ServiceClock> = {
    on-page report counts twice (programs-own-words.test.ts). */
 export type ServiceLook = {
   glance: { label: string; keys: readonly [string, string, string]; more: string };
+  /** The headline of the plain-words plate: the question an owner types. */
+  question: Record<string, string>;
   scopeMore: string;
+  /** The fold under the who-does-what table: the steps, sentence by sentence. */
+  flowMore: string;
   notesAll: string;
   fee: {
     label: string;
@@ -3305,7 +3318,18 @@ export type ServiceLook = {
 
 export const serviceLook: ServiceLook = {
   glance: { label: 'In plain words', keys: ['What it is', 'Who it is for', 'What you get'], more: 'Read the full explanation' },
+  /* 2026-10-27, after the owner pointed at a competitor's page ("bien
+     claro"): the plate opens on the question, and the tiles answer it. */
+  question: {
+    'building-recertification': 'What is building recertification?',
+    'broward-bsip': 'What is the BSIP?',
+    'milestone-inspections': 'What is a milestone inspection?',
+    'structural-condition-assessments': 'What is a structural condition assessment?',
+    'threshold-inspections': 'What is a threshold building inspection?',
+    'peer-review': 'What is a structural peer review?',
+  },
   scopeMore: 'The full scope, line by line',
+  flowMore: 'Each step in detail',
   notesAll: 'All {n} notes',
   fee: {
     label: 'The fee',
@@ -3344,6 +3368,119 @@ export const serviceLook: ServiceLook = {
       'An independent check of a structural design — code, load path, constructability — while changes are still cheap.',
       'Developers, owners, design teams, lenders and insurers — and projects whose building official requires one.',
       'An independent review report and a comment log ranked by priority, tracked until every comment is closed.',
+    ],
+  },
+};
+
+/* What the inspection includes, as cards (2026-10-27, after a competitor's
+   "inspections include…" row that the owner called "bien claro"). One card
+   per part of the work: a short name and one plain sentence, each a shorter
+   telling of the service's own scope, packet or considerations — checked
+   line by line against them (no new fact, no figure the page does not state,
+   nothing about who signs, no Miami-Dade-only part on another page). The two
+   county programs show a photograph on each card (media.ts says why the
+   thermography card shows the equipment, not a thermal image); the four
+   others are numbered cards. The name is a <div>, not a heading: the program
+   pages sit at their ceiling of headings. */
+export type ServiceIncludes = {
+  items: readonly { title: string; line: string; photo?: Photo }[];
+};
+
+export const serviceIncludes: Record<string, ServiceIncludes> = {
+  'building-recertification': {
+    items: [
+      { title: 'Structural inspection', photo: photo.inspectWall, line: 'On site, we check the building from its foundations to its roof — frame, slabs, balconies and facade — and note what needs attention.' },
+      { title: 'Electrical inspection', photo: photo.svcElectricalInspection, line: 'Our team checks the building’s electrical systems, from the meter rooms and panels to the emergency lights and fire alarm.' },
+      { title: 'Infrared thermography', photo: photo.svcSwitchgearRoom, line: 'Where the building’s electrical service calls for it, the electrical equipment is inspected in infrared and a written report is attached to the electrical one.' },
+      { title: 'Parking-lot lighting', photo: photo.svcLotLightsNight, line: 'Where it applies, we measure the parking lot’s light levels and record whether they reach the county’s standard.' },
+      { title: 'Parking-lot guardrail', photo: photo.svcLotGuardrail, line: 'Where it applies, we record whether the lot is beside water — a canal, a lake — and, if so, whether the guardrail the county asks for is in place.' },
+    ],
+  },
+  'broward-bsip': {
+    items: [
+      { title: 'Structural inspection', photo: photo.svcWallCheck, line: 'The program’s structural form is followed item by item: foundations, walls, framing, floors, roof, windows and exterior doors.' },
+      { title: 'Electrical inspection', photo: photo.svcBreakerCheck, line: 'We check how power reaches the building and moves through it, down to the exit lights, the emergency lighting and the fire alarm.' },
+      { title: 'Garages & parking lots', photo: photo.concreteRamp, line: 'Where there is a parking garage, its structure is inspected, and the wiring of parking lots and garages is checked too.' },
+      { title: 'Balconies, docks & seawalls', photo: photo.svcCanalDocks, line: 'Inspected too: what is attached to the building or supports it — balconies, guardrails, docks, seawalls and elevated decks.' },
+      { title: 'Tests only where needed', photo: photo.svcCoreBit, line: 'The inspection is visual; a test or an opened finish is added only if the conditions seen on site call for one.' },
+    ],
+  },
+  'milestone-inspections': {
+    items: [
+      { title: 'Which rules apply', line: 'First we tell you whether the state law, your county’s program, both or neither reach the building.' },
+      { title: 'Structural inspection', line: 'We inspect the building’s main structure visually, photograph what we find and record where each condition is.' },
+      { title: 'Balconies, walkways & railings', line: 'The structural review takes in the balconies, the walkways and the railings.' },
+      { title: 'Concrete damage mapped', line: 'We map where the concrete is cracking, breaking away or showing rust stains, and separate what is cosmetic from what is structural.' },
+      { title: 'Further investigation', line: 'Where a report finds substantial structural deterioration, we plan the tests or openings it calls for, placed where they disturb least.' },
+    ],
+  },
+  'structural-condition-assessments': {
+    items: [
+      { title: 'Field assessment', line: 'We look at the structure as it stands today, element by element, starting from your photographs and any earlier report.' },
+      { title: 'Concrete & rusting steel', line: 'We judge how far the concrete has deteriorated and whether the steel inside it is rusting.' },
+      { title: 'Capacity check', line: 'Where use or condition has changed, we check whether beams, columns and slabs can still carry their loads.' },
+      { title: 'Alterations & new uses', line: 'We check what a new floor, a heavier load, a new use or a new opening does to the structure.' },
+      { title: 'Repair design', line: 'Repairs are detailed so they can be bid, built and inspected, with the urgent ones first; their design is quoted apart from the assessment.' },
+    ],
+  },
+  'threshold-inspections': {
+    items: [
+      { title: 'Is it a threshold building?', line: 'Height and use decide whether the building is a threshold building and what its report must carry; glazing decides whether the façade is inspected too.' },
+      { title: 'Structural inspection', line: 'The inspection and its report follow each county’s rules for a threshold building; in Miami-Dade, the self-qualification letter goes with the report.' },
+      { title: 'Electrical inspection', line: 'The building’s electrical systems are inspected on site and reported on the county’s own form.' },
+      { title: 'Façade & glazing', line: 'A façade of structural glazing is reviewed too; in Miami-Dade it is inspected on a cycle of its own.' },
+    ],
+  },
+  'peer-review': {
+    items: [
+      { title: 'Drawings & calculations', line: 'We read your structural drawings and calculations independently, the whole set or just the part in question.' },
+      { title: 'Code & load path', line: 'We check the design against the governing code and follow the loads down through the structure to the foundations.' },
+      { title: 'Assumptions & model', line: 'We review the assumptions behind the analysis and the way the computer model represents the structure.' },
+      { title: 'Constructability & details', line: 'We look at whether the details can actually be built as drawn, before a crew finds out on site.' },
+      { title: 'Comments to closure', line: 'Findings come as a ranked list of comments, and we read each answer from the design team until every one is closed.' },
+    ],
+  },
+};
+
+/* Who does what, step by step — the two county programs (2026-10-27, after
+   the competitor's swimlane the owner called "bien claro"). One row per step
+   of the service's own `process` (the same order and the same names), four
+   lanes: the authority, the owner, our team, the contractor. Every cell was
+   checked on 2026-10-27 against the official texts — Miami-Dade Sec.
+   8-11(f) and the county's recertification page and 2025 guidelines; BORA
+   Policy 05-05 — and kept to what they support: no fee, no figure, nothing
+   about who signs. '' = nothing for that lane at that step. No cell of six
+   words or more is the same on both program pages (programs-own-words.test.ts
+   counts table cells too). */
+export type ServiceFlow = {
+  caption: string;
+  lanes: readonly [string, string, string, string];
+  rows: readonly (readonly [string, string, string, string])[];
+};
+
+export const serviceFlow: Record<string, ServiceFlow> = {
+  'building-recertification': {
+    caption: 'Who does what',
+    lanes: ['Your city or the county', 'You', 'Our team', 'Your contractor'],
+    rows: [
+      ['Sends the Notice of Required Inspection', 'Send us the notice', 'Reads the notice and the building’s records', ''],
+      ['', 'Give access, balconies included', 'Inspects the structure and the electrical systems on site', ''],
+      ['Receives the reports and reviews them', 'Are responsible for filing on time', 'Prepares the reports and files them', ''],
+      ['Issues the repair permits', 'Hire a contractor for the repairs', 'Defines the repairs; states whether the building can stay occupied', 'Does the repairs under permit'],
+      ['Inspects the work under its permits', '', 'Reinspects the completed repairs', 'Finishes the work'],
+      ['Reviews the amended report and approves the recertification', '', 'Prepares the amended report and files it', ''],
+    ],
+  },
+  'broward-bsip': {
+    caption: 'Who does what',
+    lanes: ['Your city or the county', 'You', 'Our team', 'Your contractor'],
+    rows: [
+      ['Sends the notice by certified mail', 'Send us the letter', 'Reads the certified letter and the records on file', ''],
+      ['', 'Give access to every area needed', 'Carries out the visual examination, structural and electrical', ''],
+      ['Receives the report and the Board’s forms', 'Must have the report filed in time', 'Issues the report and files it', ''],
+      ['Issues the repair permits', 'Hire a contractor; show the repairs are scheduled or under way', 'Identifies the repairs; issues the letter on occupancy', 'Does the repairs under permit'],
+      ['Inspects the permitted work', '', 'Reinspects the repaired areas', 'Finishes the work'],
+      ['Receives the amended report and the completion letter', '', 'Issues the amended report and the completion letter', ''],
     ],
   },
 };
@@ -4079,6 +4216,8 @@ export const en = {
   serviceBuildings,
   serviceClock,
   serviceLook,
+  serviceIncludes,
+  serviceFlow,
   existingPage,
   workPage,
   contactPage,

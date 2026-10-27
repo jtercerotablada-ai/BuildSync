@@ -5115,9 +5115,6 @@ a.mp-menu__mail {
   gap: clamp(2rem, 5vw, 5rem);
   align-items: start;
 }
-.mp-cols2__title {
-  margin: 0 0 var(--mp-4);
-}
 /* "Next step": the caveat callout drawn as a full box. It keeps the 2px gold
    left rule and gets an equal inset all round — the plain callout's 0 right
    padding ran the text (and on phones the full-width button) into the right
@@ -5910,7 +5907,7 @@ a.mp-menu__mail {
 }
 
 /* The complete package, part by part (`service.packet`): the two county
-   programs, under the two columns of "Scope & deliverables". The rows are
+   programs, in the "What you receive" band. The rows are
    the offices list's rows — hairlines, two columns wide and one from 1180px
    down, the name of the part in ink and medium, its sentence in the second
    ink — because it is the same kind of reading: scan for a name, read one

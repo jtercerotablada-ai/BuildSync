@@ -205,7 +205,6 @@ body:has(.mp-dark) .mp-header.is-stuck:not(.is-menu-open) {
   letter-spacing: -0.04em;
 }
 .mp-dark .mp-h3,
-.mp-dark .mp-cols2__title,
 .mp-dark .mp-juris__title,
 .mp-dark .mp-compare__title {
   font-size: clamp(22px, 1.9vw, 30px);
@@ -1369,29 +1368,258 @@ body:has(.mp-dark) .mp-header.is-stuck:not(.is-menu-open) {
   }
 }
 
-/* What is included, in short names: a row of hairline pills. */
-.mp-dark .mp-caps {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin: 4px 0 0;
-}
-.mp-dark .mp-caps__item {
-  display: inline-flex;
-  align-items: center;
-  min-height: 40px;
-  padding: 8px 16px;
-  border: 1px solid var(--mp-line-strong);
-  border-radius: 999px;
-  font-size: clamp(14px, 1vw, 16px);
-  line-height: 1.3;
-  color: var(--mp-snow);
-}
+/* The full scope, folded under the cards. */
 .mp-dark .mp-svcd__scope {
-  margin-block-start: 18px;
+  margin-block-start: clamp(22px, 2.4vw, 34px);
 }
 .mp-dark .mp-svcd__scope[open] .mp-speclist {
   margin-block-start: 6px;
+}
+
+/* What's included, as cards (ServiceIncludes, 2026-10-27): the photograph
+   at 4:3 in black and white, the number in gold mono, the name, one line.
+   As many to a row as there are parts on a desktop (`--n`, four or five),
+   three to a row down to 900px, two to 641px, one on a phone. The four
+   services without photographs set their number large instead. */
+.mp-dark .h-inc {
+  display: grid;
+  grid-template-columns: repeat(var(--n, 5), minmax(0, 1fr));
+  gap: clamp(28px, 3vw, 44px) clamp(14px, 1.6vw, 24px);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mp-dark .h-inc__card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.mp-dark .h-inc__ph {
+  margin-block-end: 6px;
+}
+.mp-dark .h-inc__t {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: clamp(18px, 1.35vw, 21px);
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--mp-snow);
+}
+.mp-dark .h-inc__n {
+  flex: none;
+  font-family: var(--mp-mono);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.14em;
+  color: var(--mp-gold);
+}
+.mp-dark .h-inc__v {
+  margin: 0;
+  font-size: clamp(15px, 1.05vw, 16.5px);
+  line-height: 1.55;
+  color: var(--mp-snow-2);
+  text-wrap: pretty;
+}
+.mp-dark .h-inc--text .h-inc__card {
+  padding: clamp(22px, 2.2vw, 32px);
+  background: var(--mp-card);
+  border: 1px solid var(--h-hair-2);
+  border-top: 1px solid var(--mp-gold);
+}
+.mp-dark .h-inc--text .h-inc__t {
+  flex-direction: column;
+  gap: 14px;
+}
+.mp-dark .h-inc--text .h-inc__n {
+  font-family: inherit;
+  font-size: clamp(36px, 3.4vw, 54px);
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -0.05em;
+}
+@media (max-width: 1180px) {
+  .mp-dark .h-inc {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+/* Four parts (threshold): two by two where the others are three to a row —
+   in three columns the fourth sat alone beside two empty cells. */
+@media (min-width: 900px) and (max-width: 1180px) {
+  .mp-dark .h-inc:has(> .h-inc__card:nth-child(4):last-child) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 899px) {
+  .mp-dark .h-inc {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 640px) {
+  .mp-dark .h-inc {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* What you receive: the documents, the next step beside them. */
+.mp-dark .mp-svcd__receive {
+  align-items: start;
+}
+.mp-dark .mp-svcd__receive .mp-callout--spaced {
+  margin-block-start: 0;
+}
+
+/* Who does what (ServiceFlow, 2026-10-27): a ruled table — the step on the
+   left, four lanes across, our team's lane lifted in gold. From 900px down
+   each step is a card: its name, then every lane that acts at it, its name
+   in mono over what it does; an empty cell is not drawn. */
+.mp-dark .h-flow__t {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.mp-dark .h-flow__cap {
+  caption-side: top;
+  margin: 0 0 18px;
+  text-align: start;
+  font-family: var(--mp-mono);
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--mp-snow-2);
+}
+.mp-dark .h-flow__t thead th {
+  padding: 0 16px 14px;
+  text-align: start;
+  vertical-align: bottom;
+  font-family: var(--mp-mono);
+  font-size: 11.5px;
+  font-weight: 400;
+  line-height: 1.5;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--mp-snow-2);
+  border-bottom: 1px solid var(--mp-gold);
+}
+.mp-dark .h-flow__t thead th.is-us {
+  color: var(--mp-gold);
+}
+.mp-dark .h-flow__corner {
+  width: 22%;
+  border-bottom: 1px solid var(--mp-gold);
+}
+.mp-dark .h-flow__t tbody th,
+.mp-dark .h-flow__t tbody td {
+  padding: 18px 16px;
+  vertical-align: top;
+  text-align: start;
+  border-bottom: 1px solid var(--h-hair-2);
+}
+.mp-dark .h-flow__t tbody th {
+  padding-inline-start: 0;
+  font-size: clamp(16px, 1.2vw, 18.5px);
+  font-weight: 500;
+  line-height: 1.3;
+  letter-spacing: -0.015em;
+  color: var(--mp-snow);
+}
+.mp-dark .h-flow__n {
+  margin-inline-end: 8px;
+  font-family: var(--mp-mono);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.14em;
+  color: var(--mp-gold);
+}
+.mp-dark .h-flow__t tbody td {
+  font-size: clamp(14.5px, 1.05vw, 16px);
+  line-height: 1.5;
+  color: var(--mp-snow-2);
+}
+.mp-dark .h-flow__t tbody td.is-us {
+  color: var(--mp-snow);
+  background: rgba(201, 154, 56, 0.08);
+}
+.mp-dark .h-flow__t tbody td.is-empty::before {
+  /* Drawn, not read: an empty lane is nothing to announce. */
+  content: '—';
+  content: '—' / '';
+  color: var(--mp-snow-3);
+  opacity: 0.5;
+}
+.mp-dark .mp-svcd__steps {
+  margin-block-start: clamp(26px, 3vw, 40px);
+}
+.mp-dark .mp-svcd__steps[open] > .mp-timeline {
+  margin-block-start: 18px;
+}
+@media (max-width: 899px) {
+  .mp-dark .h-flow__t,
+  .mp-dark .h-flow__t tbody,
+  .mp-dark .h-flow__t tr,
+  .mp-dark .h-flow__t tbody th,
+  .mp-dark .h-flow__t tbody td {
+    display: block;
+    width: auto;
+  }
+  /* Each cell names its lane (td::before, read with the cell), so the
+     header row goes: kept, a screen reader would say every lane twice. */
+  .mp-dark .h-flow__t thead {
+    display: none;
+  }
+  .mp-dark .h-flow__cap {
+    display: block;
+  }
+  .mp-dark .h-flow__t tbody tr {
+    padding: 18px 0 8px;
+    border-top: 1px solid var(--mp-gold);
+  }
+  .mp-dark .h-flow__t tbody th {
+    padding: 0 0 10px;
+    border: 0;
+  }
+  .mp-dark .h-flow__t tbody td {
+    display: grid;
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 2fr);
+    gap: 14px;
+    padding: 10px 0;
+    border: 0;
+    border-top: 1px solid var(--h-hair-2);
+  }
+  .mp-dark .h-flow__t tbody td::before {
+    content: attr(data-lane);
+    font-family: var(--mp-mono);
+    font-size: 11px;
+    line-height: 1.6;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--mp-snow-3);
+  }
+  .mp-dark .h-flow__t tbody td.is-us {
+    background: none;
+  }
+  .mp-dark .h-flow__t tbody td.is-us::before {
+    color: var(--mp-gold);
+  }
+  .mp-dark .h-flow__t tbody td.is-empty {
+    display: none;
+  }
+}
+
+/* Under the clock: where to look the first number up. */
+.mp-dark .h-clock__look {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 18px;
+  margin: clamp(30px, 3.4vw, 48px) 0 0;
+  padding-block-start: 18px;
+  border-top: 1px solid var(--h-hair-2);
+  font-size: clamp(15px, 1.1vw, 17px);
+  line-height: 1.5;
+  color: var(--mp-snow-2);
 }
 
 /* The fee: the clock's figures, three to a row; one line, the button and

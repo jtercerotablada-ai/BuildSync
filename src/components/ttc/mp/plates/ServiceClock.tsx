@@ -1,6 +1,8 @@
 import React from 'react';
 import { getContent } from '@/lib/ttc/content';
 import type { Lang } from '@/lib/ttc/i18n';
+import { Arrow } from '../home/glyphs';
+import { Outbound } from '../Outbound';
 import { Reveal } from '../primitives';
 
 /**
@@ -43,6 +45,18 @@ export function ServiceClock({ lang, slug }: { lang: Lang; slug: string }) {
             </Reveal>
           ))}
         </ol>
+        {/* Where the owner checks the number the clock counts from — an
+            official county page (2026-10-27, after the competitor's "check
+            the status of your building"). */}
+        {k.lookup ? (
+          <Reveal as="p" fx="up" className="h-clock__look">
+            <span>{k.lookup.text}</span>{' '}
+            <Outbound href={k.lookup.url} className="h-link">
+              <span>{k.lookup.label}</span>
+              <Arrow />
+            </Outbound>
+          </Reveal>
+        ) : null}
       </div>
     </section>
   );

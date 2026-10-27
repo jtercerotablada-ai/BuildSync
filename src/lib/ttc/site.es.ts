@@ -166,7 +166,7 @@ const services: SiteContent['services'] = [
       { step: 'Informe presentado', detail: 'Los informes estructural y eléctrico se preparan en los formularios del propio condado, firmados y sellados, con los certificados y anexos que su edificio necesite, y se presentan aunque enumeren reparaciones. El condado pide los informes primero, no después de la obra.' },
       { step: 'Reparaciones con permiso', detail: 'Donde se requieran reparaciones, definimos qué debe corregirse para que los contratistas coticen el mismo trabajo. Las reparaciones que requieren permiso esperan a tenerlo y luego siguen su calendario.' },
       { step: 'Reinspección', detail: 'Las reparaciones terminadas se reinspeccionan, se documentan y se comparan con los hallazgos originales.' },
-      { step: 'Cierre', detail: 'Un informe enmendado indica que las reparaciones están completas. Eso es lo que cierra la recertificación, hasta el siguiente ciclo.' },
+      { step: 'Cierre', detail: 'Un informe enmendado indica que las reparaciones están completas y vuelve al Building Official, cuya aprobación cierra la recertificación hasta el siguiente ciclo.' },
     ],
     /* The whole package, named once; its parts are `packet`, printed right
        under this list — see the EN block. */
@@ -206,7 +206,7 @@ const services: SiteContent['services'] = [
             { k: 'Primer vencimiento', v: 'A los 30 años — 25 para edificios de condominio y cooperativa de tres pisos o más a 3 millas o menos de la costa. La edad se cuenta desde el año de construcción que figura en el registro del Property Appraiser (el tasador de propiedades del condado).', home: true },
             { k: 'Después', v: 'Cada 10 años, durante la vida de la estructura.', home: true },
             { k: 'Plazo para presentar', v: '90 días desde la Notificación de Inspección Requerida (Notice of Required Inspection). Los avisos de cortesía deberían llegar dos años y un año antes; no recibirlos no mueve el plazo.', filing: true, home: true },
-            { k: 'Si hay reparaciones', v: '150 días desde la notificación para terminar las reparaciones que no requieren permiso y obtener los permisos de las demás. La obra con permiso sigue luego el calendario de su permiso, y un informe enmendado cierra la recertificación.', home: true },
+            { k: 'Si hay reparaciones', v: '150 días desde la notificación para terminar las reparaciones que no requieren permiso y obtener los permisos de las demás. La obra con permiso sigue luego el calendario de su permiso, y la aprobación del informe enmendado por el Building Official cierra la recertificación.', home: true },
             { k: 'Condominios y cooperativas', v: 'La recertificación sirve como cumplimiento de la inspección de hito (milestone) del estado — no se presenta un informe de hito aparte.', home: true },
           ],
         },
@@ -268,7 +268,7 @@ const services: SiteContent['services'] = [
       },
       {
         q: '¿Qué pasa si el informe de recertificación enumera reparaciones?',
-        a: 'El informe se presenta igual: el condado lo pide primero, no después de la obra. Donde se requieran reparaciones, definimos qué debe corregirse para que los contratistas coticen el mismo trabajo; las que requieren permiso esperan a tenerlo, y un informe enmendado que indica que las reparaciones están completas cierra la recertificación. El plazo está en la fila “Si hay reparaciones” de la tabla de arriba.',
+        a: 'El informe se presenta igual: el condado lo pide primero, no después de la obra. Donde se requieran reparaciones, definimos qué debe corregirse para que los contratistas coticen el mismo trabajo; las que requieren permiso esperan a tenerlo, y la aprobación del informe enmendado por el Building Official cierra la recertificación. El plazo está en la fila “Si hay reparaciones” de la tabla de arriba.',
       },
       {
         q: '¿Qué pasa si no recertificamos a tiempo?',
@@ -291,7 +291,7 @@ const services: SiteContent['services'] = [
          Never "certificamos que el estacionamiento cumple". */
       'Los certificados del estacionamiento no prometen que un estacionamiento cumpla; dejan constancia de lo que se midió y se encontró: si los niveles de iluminación alcanzan o no el estándar del condado, y si un estacionamiento junto al agua tiene la baranda que el condado exige. Donde falte la baranda, el propietario necesita un permiso para instalarla.',
       /* "Completo" is the package, never the outcome — see the EN header. */
-      'Un paquete completo todavía no es una recertificación cerrada. Donde los informes enumeren reparaciones, primero se hacen — con permiso donde haga falta — y el informe enmendado es lo que la cierra.',
+      'Un paquete completo todavía no es una recertificación cerrada. Donde los informes enumeren reparaciones, primero se hacen — con permiso donde haga falta — y lo que la cierra es la aprobación del informe enmendado por el Building Official.',
       'El Building Official puede conceder una prórroga de hasta 60 días para presentar el informe o para obtener los permisos, a solicitud firmada y sellada del ingeniero en la que declare que el edificio puede seguir ocupado.',
       'El informe enmendado que cierra una recertificación lo emite el ingeniero o arquitecto que presentó el informe original. Si el suyo lo presentó otra firma, indíquelo al escribirnos — confirmamos qué hará falta para cerrarla antes de presentar una propuesta.',
       'Una condición que ponga en peligro la vida o la propiedad se informa al propietario y al Building Official de su ciudad, o del condado en las áreas no incorporadas; el ingeniero tiene el deber de hacerlo.',
@@ -1299,7 +1299,6 @@ export const es: SiteContent = {
     whenYouNeedIt: 'Cuándo lo necesita',
     whatsIncluded: 'Qué incluye',
     whatYouReceive: 'Qué recibe',
-    scopeAndDeliverables: 'Alcance y entregables',
     nextStep: 'Siguiente paso',
     whenItApplies: 'Cuándo aplica',
     howItRuns: 'Cómo se desarrolla el trabajo',
@@ -1935,6 +1934,11 @@ export const es: SiteContent = {
         { n: '90', unit: 'días', k: 'Para presentar, desde la notificación de inspección requerida' },
         { n: '150', unit: 'días', k: 'Para terminar las reparaciones, o para obtener sus permisos' },
       ],
+      lookup: {
+        text: 'El condado parte del año de construcción que muestra el Property Appraiser para su edificio.',
+        label: 'Property Appraiser de Miami-Dade: búsqueda de propiedades',
+        url: 'https://www.miamidadepa.gov/pa/real-estate/property-search.page',
+      },
     },
     'broward-bsip': {
       label: 'El reloj del condado',
@@ -1966,7 +1970,16 @@ export const es: SiteContent = {
   },
   serviceLook: {
     glance: { label: 'En pocas palabras', keys: ['Qué es', 'Para quién es', 'Qué recibe'], more: 'Leer la explicación completa' },
+    question: {
+      'building-recertification': '¿Qué es la recertificación de edificios?',
+      'broward-bsip': '¿Qué es el BSIP?',
+      'milestone-inspections': '¿Qué es una inspección de hito (milestone)?',
+      'structural-condition-assessments': '¿Qué es una evaluación de condición estructural?',
+      'threshold-inspections': '¿Qué es una inspección de edificio threshold?',
+      'peer-review': '¿Qué es una revisión estructural por pares?',
+    },
     scopeMore: 'El alcance completo, punto por punto',
+    flowMore: 'Cada paso en detalle',
     notesAll: 'Las {n} notas',
     fee: {
       label: 'El precio',
@@ -2005,6 +2018,90 @@ export const es: SiteContent = {
         'Una revisión independiente de un diseño estructural — código, trayectoria de carga, constructibilidad — cuando los cambios aún son baratos.',
         'Desarrolladores, propietarios, equipos de diseño, prestamistas y aseguradoras, y proyectos cuyo funcionario de construcción la exija.',
         'Un informe de revisión independiente y un registro de comentarios por prioridad, seguido hasta cerrar cada uno.',
+      ],
+    },
+  },
+  /* What the inspection includes and who does what — see the English
+     (site.ts, `serviceIncludes`, `serviceFlow`) for the sources and the rules.
+     Same photographs, the site's Spanish terms. */
+  serviceIncludes: {
+    'building-recertification': {
+      items: [
+        { title: 'Inspección estructural', photo: photo.inspectWall, line: 'En sitio revisamos el edificio desde las cimentaciones hasta el techo — estructura, losas, balcones y fachada — y anotamos lo que requiere atención.' },
+        { title: 'Inspección eléctrica', photo: photo.svcElectricalInspection, line: 'Revisamos los sistemas eléctricos del edificio, desde los tableros y el cuarto de medidores hasta la iluminación de emergencia y la alarma contra incendios.' },
+        { title: 'Termografía infrarroja', photo: photo.svcSwitchgearRoom, line: 'Donde el servicio eléctrico de su edificio lo exija, los equipos eléctricos se inspeccionan con termografía infrarroja y se adjunta un informe escrito al informe eléctrico.' },
+        { title: 'Iluminación del estacionamiento', photo: photo.svcLotLightsNight, line: 'Donde aplique, medimos la iluminación del estacionamiento y dejamos constancia de si llega o no al estándar del condado.' },
+        { title: 'Baranda del estacionamiento', photo: photo.svcLotGuardrail, line: 'Donde aplique, dejamos constancia de si el estacionamiento está junto al agua — un canal, un lago — y, en ese caso, si tiene la baranda que pide el condado.' },
+      ],
+    },
+    'broward-bsip': {
+      items: [
+        { title: 'Inspección estructural', photo: photo.svcWallCheck, line: 'El formulario estructural del programa se sigue punto por punto: cimentaciones, muros, estructura, pisos, techo, ventanas y puertas exteriores.' },
+        { title: 'Inspección eléctrica', photo: photo.svcBreakerCheck, line: 'Revisamos cómo llega la electricidad al edificio y cómo se reparte, hasta las luces de salida, la iluminación de emergencia y la alarma contra incendios.' },
+        { title: 'Garajes y estacionamientos', photo: photo.concreteRamp, line: 'Si hay un garaje de estacionamiento, su estructura también se inspecciona, y se revisa el cableado de los garajes y de los estacionamientos.' },
+        { title: 'Balcones, muelles y seawalls', photo: photo.svcCanalDocks, line: 'También se inspecciona lo que está unido al edificio o lo sostiene: balcones, barandas, muelles, muros de contención costeros (seawalls) y terrazas elevadas.' },
+        { title: 'Ensayos solo si hacen falta', photo: photo.svcCoreBit, line: 'La inspección es visual; solo se hace un ensayo o se abre un acabado si lo que se observa en sitio lo pide.' },
+      ],
+    },
+    'milestone-inspections': {
+      items: [
+        { title: 'Qué reglas aplican', line: 'Primero le decimos si al edificio lo alcanza la ley estatal, el programa de su condado, los dos o ninguno.' },
+        { title: 'Inspección estructural', line: 'Inspeccionamos visualmente la estructura principal del edificio, fotografiamos lo que encontramos y registramos dónde está cada condición.' },
+        { title: 'Balcones, pasillos y barandas', line: 'La revisión estructural incluye los balcones, los pasillos y las barandas.' },
+        { title: 'Mapeo del deterioro', line: 'Mapeamos dónde el concreto se agrieta, se desprende o muestra manchas de óxido, y separamos lo cosmético de lo estructural.' },
+        { title: 'Investigación adicional', line: 'Donde un informe encuentra deterioro estructural sustancial, definimos los ensayos o aperturas que exige, ubicados donde menos afecten.' },
+      ],
+    },
+    'structural-condition-assessments': {
+      items: [
+        { title: 'Evaluación en campo', line: 'Revisamos la estructura tal como está hoy, elemento por elemento, a partir de sus fotografías y de cualquier informe anterior.' },
+        { title: 'Concreto y acero oxidado', line: 'Evaluamos cuánto se ha deteriorado el concreto y si el acero de refuerzo se está oxidando.' },
+        { title: 'Evaluación de capacidad', line: 'Donde el uso o la condición han cambiado, verificamos si las vigas, las columnas y las losas todavía resisten sus cargas.' },
+        { title: 'Modificaciones y cambios de uso', line: 'Verificamos qué le hacen a la estructura un piso nuevo, una carga mayor, un cambio de uso o un vano nuevo.' },
+        { title: 'Diseño de reparaciones', line: 'Las reparaciones se detallan para que puedan cotizarse, construirse e inspeccionarse, con lo urgente primero; su diseño se cotiza aparte de la evaluación.' },
+      ],
+    },
+    'threshold-inspections': {
+      items: [
+        { title: '¿Es un edificio threshold?', line: 'La altura y el uso deciden si el edificio es threshold y qué tiene que llevar su informe; el acristalamiento, si también se inspecciona la fachada.' },
+        { title: 'Inspección estructural', line: 'La inspección y su informe siguen las reglas de cada condado para un edificio threshold; en Miami-Dade, la carta de autocalificación acompaña al informe.' },
+        { title: 'Inspección eléctrica', line: 'Los sistemas eléctricos del edificio se inspeccionan en sitio, y el informe va en el formulario del condado.' },
+        { title: 'Fachada y acristalamiento', line: 'Una fachada de acristalamiento estructural también se revisa; en Miami-Dade se inspecciona en un ciclo propio.' },
+      ],
+    },
+    'peer-review': {
+      items: [
+        { title: 'Planos y cálculos', line: 'Leemos de forma independiente sus planos y cálculos estructurales, el juego completo o solo la parte en cuestión.' },
+        { title: 'Código y trayectoria de carga', line: 'Comparamos el diseño con el código aplicable y seguimos las cargas a través de la estructura hasta las cimentaciones.' },
+        { title: 'Hipótesis y modelo', line: 'Revisamos las hipótesis del análisis y la forma en que el modelo de computadora representa la estructura.' },
+        { title: 'Constructibilidad y detallado', line: 'Revisamos si los detalles se pueden construir tal como están dibujados, antes de que la cuadrilla lo descubra en obra.' },
+        { title: 'Comentarios hasta el cierre', line: 'Los hallazgos llegan en un registro de comentarios ordenado por prioridad, y leemos cada respuesta del equipo de diseño hasta cerrarlos todos.' },
+      ],
+    },
+  },
+  serviceFlow: {
+    'building-recertification': {
+      caption: 'Quién hace qué',
+      lanes: ['Su ciudad o el condado', 'Usted', 'Nuestro equipo', 'Su contratista'],
+      rows: [
+        ['Envía la Notificación de Inspección Requerida', 'Nos envía la notificación', 'Lee la notificación y los registros del edificio', ''],
+        ['', 'Da acceso, incluidos los balcones', 'Inspecciona en sitio la estructura y los sistemas eléctricos', ''],
+        ['Recibe los informes y los revisa', 'Es responsable de presentar a tiempo', 'Prepara los informes y los presenta', ''],
+        ['Emite los permisos de reparación', 'Contrata a un contratista para las reparaciones', 'Define las reparaciones; indica si el edificio puede seguir ocupado', 'Hace las reparaciones con permiso'],
+        ['Inspecciona la obra bajo sus permisos', '', 'Reinspecciona las reparaciones terminadas', 'Termina la obra'],
+        ['Revisa el informe enmendado y aprueba la recertificación', '', 'Prepara el informe enmendado y lo presenta', ''],
+      ],
+    },
+    'broward-bsip': {
+      caption: 'Quién hace qué',
+      lanes: ['Su ciudad o el condado', 'Usted', 'Nuestro equipo', 'Su contratista'],
+      rows: [
+        ['Envía la notificación por correo certificado', 'Nos envía la carta', 'Lee la carta certificada y los registros archivados', ''],
+        ['', 'Da acceso a todas las áreas necesarias', 'Realiza el examen visual, estructural y eléctrico', ''],
+        ['Recibe el informe y los formularios de la Junta', 'Debe lograr que el informe se presente a tiempo', 'Emite el informe y lo presenta', ''],
+        ['Emite los permisos de reparación', 'Contrata a un contratista; demuestra que las reparaciones están programadas o en marcha', 'Identifica las reparaciones; emite la carta sobre la ocupación', 'Hace las reparaciones con permiso'],
+        ['Inspecciona la obra con permiso', '', 'Reinspecciona las áreas reparadas', 'Termina la obra'],
+        ['Recibe el informe enmendado y la carta de finalización', '', 'Emite el informe enmendado y la carta de finalización', ''],
       ],
     },
   },

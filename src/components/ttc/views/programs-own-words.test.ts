@@ -81,7 +81,7 @@ const words = (s: string) => (s.match(/[\p{L}\p{N}][\p{L}\p{N}'’-]*/gu) ?? [])
 /** Every paragraph, list item, table cell and heading of a page's <main>. */
 const blocks = (html: string) => {
   const main = html.match(/<main\b[\s\S]*<\/main>/)?.[0] ?? html;
-  return [...main.matchAll(/<(p|dd|dt|li|h[1-6])\b[^>]*>([\s\S]*?)<\/\1>/g)]
+  return [...main.matchAll(/<(p|dd|dt|li|h[1-6]|td|th)\b[^>]*>([\s\S]*?)<\/\1>/g)]
     .map((m) => text(m[2]))
     .filter(Boolean);
 };

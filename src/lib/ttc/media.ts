@@ -552,6 +552,55 @@ const catalogue = {
     'A parking lot at night seen from above, lit by its light poles',
     'Un estacionamiento de noche visto desde arriba, iluminado por sus postes',
   ),
+  /* "What the inspection includes" on the two county programs (2026-10-27,
+     the owner pointing at a competitor's page: "bien claro"), one card per
+     part of the inspection (site.ts, `serviceIncludes`). Pexels, picked from
+     black-and-white 4:3 contact sheets. No thermal image is used: Pexels has
+     none of electrical equipment, and a picture made to look thermal would
+     show something that did not happen — the thermography card shows the
+     equipment that is scanned. */
+  svcElectricalInspection: p(
+    'svc-electrical-inspection', 2000, 1502,
+    'An inspector in a hard hat checks the breakers of a building switchboard',
+    'Un inspector con casco revisa los interruptores del tablero de un edificio',
+  ),
+  svcSwitchgearRoom: p(
+    'svc-switchgear-room', 2000, 2667,
+    'A row of electrical switchgear cabinets in a building electric room',
+    'Una fila de gabinetes de distribución eléctrica en el cuarto eléctrico de un edificio',
+  ),
+  svcLotGuardrail: p(
+    'svc-lot-guardrail', 2000, 1325,
+    'A parking lot at the edge of the water, a railing between the spaces and the bay',
+    'Un estacionamiento al borde del agua, con una baranda entre los puestos y la bahía',
+  ),
+  svcBreakerCheck: p(
+    'svc-breaker-check', 2000, 2664,
+    'A gloved hand checks a breaker inside an open electrical panel',
+    'Una mano enguantada revisa un interruptor dentro de un tablero eléctrico abierto',
+  ),
+  svcCanalDocks: p(
+    'svc-canal-docks', 2000, 3000,
+    'Docks and seawalls along a palm-lined canal, boats moored at them',
+    'Muelles y muros de contención a lo largo de un canal bordeado de palmas, con lanchas amarradas',
+  ),
+  svcLotLightsNight: p(
+    'svc-lot-lights-night', 2000, 3000,
+    'An empty parking lot at night under its light poles',
+    'Un estacionamiento vacío de noche bajo sus postes de luz',
+    '50% 70%',
+  ),
+  svcWallCheck: p(
+    'svc-wall-check', 2000, 1333,
+    'An inspector in a hard hat checks a block wall by hand',
+    'Un inspector con casco revisa a mano un muro de bloques',
+  ),
+  svcCoreBit: p(
+    'svc-core-bit', 2000, 2994,
+    'A core drill bit cutting into a surface on site',
+    'Una broca sacanúcleos perforando una superficie en obra',
+    '50% 85%',
+  ),
 } as const;
 
 export const photo = catalogue;

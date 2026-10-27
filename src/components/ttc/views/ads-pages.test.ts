@@ -486,8 +486,9 @@ describe('measurement on: what the earlier releases settled still holds', () => 
   });
 
   // Nine since October 17, 2026: the footer links the firm's Facebook,
-  // Instagram and LinkedIn pages (contact.social).
-  it('the site links the same nine outside hosts and no other', () => {
+  // Instagram and LinkedIn pages (contact.social). Ten since October 27: the
+  // Miami-Dade Property Appraiser's search, under the recertification clock.
+  it('the site links the same ten outside hosts and no other', () => {
     const hosts = (s: Site) => [...new Set(s.pages.flatMap((p) => outboundHosts(p.html)))].sort();
     expect(hosts(on)).toEqual([
       'api.whatsapp.com',
@@ -498,6 +499,7 @@ describe('measurement on: what the earlier releases settled still holds', () => 
       'www.leg.state.fl.us',
       'www.linkedin.com',
       'www.miamidade.gov',
+      'www.miamidadepa.gov',
       'www.myfloridalicense.com',
     ]);
     expect(hosts(on)).toEqual(hosts(off));

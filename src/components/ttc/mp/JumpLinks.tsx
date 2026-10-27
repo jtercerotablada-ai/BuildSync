@@ -24,9 +24,9 @@ export const JUMP_ID = {
 type Service = SiteContent['services'][number];
 
 /**
- * The links for one service, in the ORDER OF THE PAGE: how the work runs,
- * what you receive, when it applies, the questions, your city's office (the
- * steps moved up on 2026-10-27, right under the buildings). A
+ * The links for one service, in the ORDER OF THE PAGE: what you receive,
+ * how the work runs (who does what, on a county program), when it applies,
+ * the questions, your city's office (the order of 2026-10-27). A
  * bar that jumps back and forth reads as a puzzle; one that follows the
  * page reads as its table of contents. A link is listed only if the section
  * it points at is rendered for this service (ServiceDetailView renders the
@@ -39,8 +39,8 @@ type Service = SiteContent['services'][number];
 export function jumpLinks(c: SiteContent, service: Service): { id: string; label: string }[] {
   const u = c.ui;
   return [
-    { id: JUMP_ID.steps, label: u.howItRuns },
     { id: JUMP_ID.receive, label: u.whatYouReceive },
+    { id: JUMP_ID.steps, label: u.howItRuns },
     service.timing ? { id: JUMP_ID.applies, label: u.whenItApplies } : null,
     service.faq?.length ? { id: JUMP_ID.questions, label: u.faqLabel } : null,
     service.offices ? { id: JUMP_ID.offices, label: u.yourCity } : null,
