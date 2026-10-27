@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
+import { usePathname } from 'next/navigation';
 import type Lenis from 'lenis';
 
 /**
@@ -16,8 +17,58 @@ import type Lenis from 'lenis';
  * in-page link is still ours: the click handler below is installed at once
  * and uses the browser's own scroll in the meantime, so the focus and the
  * history rules it exists for hold from the first click.
+ *
+ * A NEW PAGE OPENS AT ITS TOP (2026-10-27, the owner: "cuando entro a una
+ * página aparezco abajo… debe aparecer en la parte de arriba siempre").
+ * Lenis animates toward the position it was last sent to, frame after
+ * frame. A link clicked while the page was still gliding — a trackpad, a
+ * flick on a phone — left that animation running: Next scrolled the new
+ * page to its top and the next frame of the glide put it back down, at
+ * the old page's depth (measured: 5,000–6,500px down). So a click on a link
+ * to another page stops the glide first (`halt`), and when the page has
+ * changed by a link (not by Back or Forward, which put the reader back
+ * where they were, and not to a #place, which the browser lands on) the
+ * page is put at its top, Lenis with it.
  */
+/* Stop a glide where the page is: the public form of Lenis's own reset (an
+   immediate scroll to the current position halts the animation). */
+const halt = (lenis: Lenis) => lenis.scrollTo(window.scrollY, { immediate: true, force: true });
+
 export function SmoothScroll() {
+  const pathname = usePathname();
+  // The instance, for the route effect below; null until it has loaded.
+  const lenisRef = useRef<Lenis | null>(null);
+  // Set by Back/Forward: that page keeps the place the browser restores.
+  const traversing = useRef(false);
+  const firstPath = useRef(true);
+
+  useEffect(() => {
+    const onPop = () => {
+      traversing.current = true;
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
+  useEffect(() => {
+    if (firstPath.current) {
+      firstPath.current = false;
+      return;
+    }
+    // Back/Forward and a #place are the browser's and the router's to land:
+    // touching Lenis here, while they were still placing the page, left a
+    // link to "#the-package" 540px short of it. The glide was stopped at the
+    // click already.
+    if (traversing.current) {
+      traversing.current = false;
+      return;
+    }
+    if (window.location.hash.length > 1) return;
+    const lenis = lenisRef.current;
+    if (lenis) lenis.scrollTo(0, { immediate: true, force: true });
+    else window.scrollTo(0, 0);
+  }, [pathname]);
+
   useEffect(() => {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
@@ -42,6 +93,7 @@ export function SmoothScroll() {
           // pause it — and if that menu is already open, start out paused:
           // SiteHeader resumes whatever is there when the menu closes.
           (window as unknown as { __ttcLenis?: Lenis }).__ttcLenis = lenis;
+          lenisRef.current = lenis;
           if (document.querySelector('.mp-header.is-menu-open')) lenis.stop();
 
           const raf = (time: number) => {
@@ -82,6 +134,19 @@ export function SmoothScroll() {
         e.altKey
       ) {
         return;
+      }
+      // A link to another page of the site: the glide stops here, before
+      // the router scrolls the new page to its top (see above).
+      const link = (e.target as HTMLElement)?.closest?.('a[href]') as HTMLAnchorElement | null;
+      if (
+        lenis &&
+        link &&
+        !link.target &&
+        !link.hasAttribute('download') &&
+        link.origin === window.location.origin &&
+        link.pathname !== window.location.pathname
+      ) {
+        halt(lenis);
       }
       const a = (e.target as HTMLElement)?.closest?.('a[href^="#"]') as HTMLAnchorElement | null;
       if (!a || a.classList.contains('mp-skip')) return;
@@ -137,6 +202,7 @@ export function SmoothScroll() {
       document.removeEventListener('click', onClick);
       cancelAnimationFrame(rafId);
       lenis?.destroy();
+      lenisRef.current = null;
       delete (window as unknown as { __ttcLenis?: Lenis }).__ttcLenis;
     };
   }, []);
