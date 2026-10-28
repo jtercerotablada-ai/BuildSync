@@ -35,6 +35,8 @@ const TITLES: Record<Lang, Record<CityPage['program'], ((city: string) => string
     'broward-bsip': [
       (city) => `BSIP en ${city}: inspección de seguridad de edificios`,
       (city) => `BSIP en ${city}: inspección de seguridad`,
+      // "Áreas no incorporadas de Broward" fits neither of the above.
+      (city) => `${city}: inspección BSIP`,
     ],
   },
 };

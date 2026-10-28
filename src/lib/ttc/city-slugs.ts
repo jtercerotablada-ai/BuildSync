@@ -52,4 +52,6 @@ export const citySlugs: readonly { program: string; slug: string }[] = [
   { program: 'broward-bsip', slug: 'tamarac' },
   { program: 'broward-bsip', slug: 'weston' },
   { program: 'broward-bsip', slug: 'wilton-manors' },
+  { program: 'broward-bsip', slug: 'coconut-creek' },
+  { program: 'broward-bsip', slug: 'unincorporated-broward' },
 ];

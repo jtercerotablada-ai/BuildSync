@@ -84,6 +84,11 @@ export type CityPage = {
   faq: { q: string; a: string }[];
   /** The one thing to do next, naming this city's office. */
   nextStep: string;
+  /** The parts of the county package (site.ts, `serviceIncludes`, by `id`)
+      this city's own page says it does not ask for: its "What the work
+      includes" band leaves those cards out. The same in both languages
+      (cities.test.ts), and resting on a row or answer of the page. */
+  omitIncludes?: readonly string[];
   /** The day THIS city's own pages were read, for a page added after
       `citiesChecked` (ISO, a key of `readDates`). Absent: `citiesCheckedISO`. */
   checkedISO?: string;
@@ -94,10 +99,11 @@ export const citiesChecked = { en: 'October 9, 2026', es: '9 de octubre de 2026'
 export const citiesCheckedISO = '2026-10-09';
 
 /** Every day city pages were read, as each language prints it. The pages
-    added on October 17, 2026 carry that day in `checkedISO`. */
+    added on October 17 and October 28, 2026 carry that day in `checkedISO`. */
 export const readDates: Record<string, { en: string; es: string }> = {
   [citiesCheckedISO]: citiesChecked,
   '2026-10-17': { en: 'October 17, 2026', es: '17 de octubre de 2026' },
+  '2026-10-28': { en: 'October 28, 2026', es: '28 de octubre de 2026' },
 };
 
 /** The day a city’s own pages were read: ISO, and as `lang` prints it. */

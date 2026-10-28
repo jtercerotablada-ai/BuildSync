@@ -339,16 +339,25 @@ const services: SiteContent['services'] = [
         { city: 'Pinecrest', office: 'Village of Pinecrest Building Department' },
         { city: 'Sweetwater', office: 'City of Sweetwater Building and Zoning Department' },
         { city: 'West Miami', office: 'City of West Miami Building Department' },
+        { city: 'Bal Harbour', office: 'Bal Harbour Village Building Department' },
+        { city: 'Biscayne Park', office: 'Village of Biscayne Park Building Department' },
+        { city: 'Golden Beach', office: 'Town of Golden Beach Building & Zoning Department' },
+        { city: 'Hialeah Gardens', office: 'City of Hialeah Gardens Building Department' },
+        { city: 'Indian Creek', office: 'Indian Creek Village Building Department' },
+        { city: 'Miami Shores', office: 'Miami Shores Village Building Department' },
+        { city: 'Palmetto Bay', office: 'Village of Palmetto Bay Building & Permitting Department' },
+        { city: 'South Miami', office: 'City of South Miami Building Division' },
+        { city: 'Virginia Gardens', office: 'Village of Virginia Gardens Building Permits & Zoning' },
         { city: 'Áreas no incorporadas de Miami-Dade', office: 'Miami-Dade County Regulatory and Economic Resources' },
       ],
-      note: '¿Su ciudad no está en la lista? Cada municipio de Miami-Dade maneja sus propias recertificaciones, y la carta indica la oficina que la envió. Las preguntas sobre una notificación se dirigen a esa oficina. Envíenos la carta: la leemos antes de presentar una propuesta.',
+      note: 'Aparecen los 34 municipios de Miami-Dade y, al final, la oficina del condado para las áreas no incorporadas. La carta indica la oficina que la envió, y las preguntas sobre una notificación se dirigen a esa oficina. Envíenos la carta: la leemos antes de presentar una propuesta.',
       forms: {
         text: 'Estos son los formularios en los que se presenta el informe (página oficial, en inglés):',
         label: 'Condado de Miami-Dade: guías y plantillas de informe de la recertificación',
         url: 'https://www.miamidade.gov/global/economy/building/recertification.page',
       },
       checked: officeLinksChecked,
-      toggle: '{n} oficinas de construcción, ciudad por ciudad',
+      toggle: 'Oficinas de construcción de {n} lugares, ciudad por ciudad',
     },
     /* EL PAQUETE DE MIAMI-DADE — mirror of the EN `packet`: the same eight
        rows in the same order, and the same care in each (read the comment
@@ -502,14 +511,14 @@ const services: SiteContent['services'] = [
           sourceUrl: 'https://www.broward.org/codeappeals/FormsandContacts',
           /* Same six labels, same order, as the Miami-Dade row. "Plazo para
              presentar" keeps BOTH hedges of the EN row (older guides say 90;
-             the city's letter states its own date) — neither may be cut. The
+             the letter states its own date) — neither may be cut. The
              180 days run from RECEIVING the notice: "desde que se recibe". */
           facts: [
             { k: 'Aplica a', scope: true, v: 'Casi todos los tipos de edificio, en todas las ciudades de Broward y en el área no incorporada. Fuera del programa: viviendas de una a cuatro familias de tres pisos habitables o menos, townhouses en dominio pleno (fee simple) y estructuras menores con un área de edificio inferior a 3,500 pies cuadrados.' },
             { k: 'Primer vencimiento', v: 'A los 25 años, contados desde el certificado de ocupación.', home: true },
             { k: 'Después', v: 'Cada 10 años.', home: true },
-            { k: 'Plazo para presentar', v: '180 días desde que se recibe la Notificación de Inspección Requerida (Notice of Required Inspection). Las guías antiguas todavía dicen 90 días; la política vigente desde el 9 de agosto de 2024 da 180. La carta de su ciudad indica su propia fecha.', filing: true, home: true, homeWhole: true },
-            { k: 'Si hay reparaciones', v: '180 días desde la fecha del informe, con permiso, salvo que el Building Official (el funcionario de construcción) de su ciudad fije otro plazo. Una reinspección, un informe enmendado y una carta de finalización firmada y sellada cierran el expediente.', home: true },
+            { k: 'Plazo para presentar', v: '180 días desde que se recibe la Notificación de Inspección Requerida (Notice of Required Inspection). Las guías antiguas todavía dicen 90 días; la política vigente desde el 9 de agosto de 2024 da 180. La carta que recibió indica su propia fecha.', filing: true, home: true, homeWhole: true },
+            { k: 'Si hay reparaciones', v: '180 días desde la fecha del informe, con permiso, salvo que el Building Official (el funcionario de construcción) fije otro plazo. Una reinspección, un informe enmendado y una carta de finalización firmada y sellada cierran el expediente.', home: true },
             { k: 'Condominios y cooperativas', v: 'El informe del BSIP sirve como fase uno y fase dos de la inspección de hito (milestone) del estado.', home: true },
           ],
         },
@@ -599,7 +608,7 @@ const services: SiteContent['services'] = [
        Miami-Dade block above for what is specific to the Spanish. */
     offices: {
       title: '¿Quién le envió la notificación?',
-      lede: 'El programa es uno solo para todo el condado, y el Building Official (el funcionario de construcción) de cada ciudad envía las notificaciones y recibe los informes. Busque su ciudad abajo: junto a ella aparece su oficina de construcción, con su nombre en inglés.',
+      lede: 'El programa es uno solo para todo el condado, y el Building Official (el funcionario de construcción) de cada ciudad envía las notificaciones y recibe los informes; en las áreas no incorporadas de Broward, el del condado. Busque su ciudad abajo: junto a ella aparece su oficina de construcción, con su nombre en inglés.',
       rows: [
         { city: 'Fort Lauderdale', office: 'City of Fort Lauderdale Development Services Department' },
         { city: 'Hollywood', office: 'City of Hollywood Building Division' },
@@ -624,15 +633,24 @@ const services: SiteContent['services'] = [
         { city: 'Tamarac', office: 'City of Tamarac Building Department' },
         { city: 'Weston', office: 'City of Weston Building Code Services' },
         { city: 'Wilton Manors', office: 'Community Development Services Department' },
+        { city: 'Coconut Creek', office: 'City of Coconut Creek Building Department' },
+        { city: 'Lauderdale-by-the-Sea', office: 'Town of Lauderdale-by-the-Sea Building Division' },
+        { city: 'Lazy Lake', office: 'Broward County Building Code Division' },
+        { city: 'North Lauderdale', office: 'City of North Lauderdale Building Department' },
+        { city: 'Parkland', office: 'City of Parkland Building Department' },
+        { city: 'Sea Ranch Lakes', office: 'Village of Sea Ranch Lakes Building Department' },
+        { city: 'Southwest Ranches', office: 'Town of Southwest Ranches Building Permitting and Inspections' },
+        { city: 'West Park', office: 'City of West Park Building Department' },
+        { city: 'Áreas no incorporadas de Broward', office: 'Broward County Building Code Division' },
       ],
-      note: '¿Su ciudad no está en la lista? El programa alcanza a todas las ciudades de Broward, y la carta indica la oficina que la envió. Las preguntas sobre una notificación se dirigen a esa oficina. Envíenos la carta: la leemos antes de presentar una propuesta.',
+      note: 'Aparecen los 31 municipios de Broward y, al final, la oficina del condado para las áreas no incorporadas. El programa los alcanza a todos; la carta indica la oficina que la envió, y las preguntas sobre una notificación se dirigen a esa oficina. Envíenos la carta: la leemos antes de presentar una propuesta.',
       forms: {
         text: 'Estos son los formularios en los que se presenta el informe (página oficial, en inglés):',
         label: 'Junta de Reglas y Apelaciones del Condado de Broward: formularios del Programa de Inspección de Seguridad de Edificios (BSIP)',
         url: 'https://www.broward.org/codeappeals/FormsandContacts',
       },
       checked: officeLinksChecked,
-      toggle: '{n} oficinas de construcción, ciudad por ciudad',
+      toggle: 'Oficinas de construcción de {n} lugares, ciudad por ciudad',
     },
     /* EL PAQUETE DE BROWARD — mirror of the EN `packet`: the same seven
        rows in the same order. It is NOT Miami-Dade's list: no parking-lot
@@ -2029,9 +2047,9 @@ export const es: SiteContent = {
       items: [
         { title: 'Inspección estructural', photo: photo.inspectWall, line: 'En sitio revisamos el edificio desde las cimentaciones hasta el techo — estructura, losas, balcones y fachada — y anotamos lo que requiere atención.' },
         { title: 'Inspección eléctrica', photo: photo.svcElectricalInspection, line: 'Revisamos los sistemas eléctricos del edificio, desde los tableros y el cuarto de medidores hasta la iluminación de emergencia y la alarma contra incendios.' },
-        { title: 'Termografía infrarroja', photo: photo.svcSwitchgearRoom, line: 'Donde el servicio eléctrico de su edificio lo exija, los equipos eléctricos se inspeccionan con termografía infrarroja y se adjunta un informe escrito al informe eléctrico.' },
-        { title: 'Iluminación del estacionamiento', photo: photo.svcLotLightsNight, line: 'Donde aplique, medimos la iluminación del estacionamiento y dejamos constancia de si llega o no al estándar del condado.' },
-        { title: 'Baranda del estacionamiento', photo: photo.svcLotGuardrail, line: 'Donde aplique, dejamos constancia de si el estacionamiento está junto al agua — un canal, un lago — y, en ese caso, si tiene la baranda que pide el condado.' },
+        { title: 'Termografía infrarroja', id: 'thermography', when: 'donde se exija', photo: photo.svcSwitchgearRoom, line: 'Donde el servicio eléctrico de su edificio lo exija, los equipos eléctricos se inspeccionan con termografía infrarroja y se adjunta un informe escrito al informe eléctrico.' },
+        { title: 'Iluminación del estacionamiento', id: 'lot-lighting', when: 'donde aplique', photo: photo.svcLotLightsNight, line: 'Donde aplique, medimos la iluminación del estacionamiento y dejamos constancia de si llega o no al estándar del condado.' },
+        { title: 'Baranda del estacionamiento', id: 'lot-guardrail', when: 'donde aplique', photo: photo.svcLotGuardrail, line: 'Donde aplique, dejamos constancia de si el estacionamiento está junto al agua — un canal, un lago — y, en ese caso, si tiene la baranda que pide el condado.' },
       ],
     },
     'broward-bsip': {
@@ -2039,8 +2057,8 @@ export const es: SiteContent = {
         { title: 'Inspección estructural', photo: photo.svcWallCheck, line: 'El formulario estructural del programa se sigue punto por punto: cimentaciones, muros, estructura, pisos, techo, ventanas y puertas exteriores.' },
         { title: 'Inspección eléctrica', photo: photo.svcBreakerCheck, line: 'Revisamos cómo llega la electricidad al edificio y cómo se reparte, hasta las luces de salida, la iluminación de emergencia y la alarma contra incendios.' },
         { title: 'Garajes y estacionamientos', photo: photo.concreteRamp, line: 'Si hay un garaje de estacionamiento, su estructura también se inspecciona, y se revisa el cableado de los garajes y de los estacionamientos.' },
-        { title: 'Balcones, muelles y seawalls', photo: photo.svcCanalDocks, line: 'También se inspecciona lo que está unido al edificio o lo sostiene: balcones, barandas, muelles, muros de contención costeros (seawalls) y terrazas elevadas.' },
-        { title: 'Ensayos solo si hacen falta', photo: photo.svcCoreBit, line: 'La inspección es visual; solo se hace un ensayo o se abre un acabado si lo que se observa en sitio lo pide.' },
+        { title: 'Balcones, muelles y malecones', photo: photo.svcCanalDocks, line: 'También se inspecciona lo que está unido al edificio o lo sostiene: balcones, barandas, muelles, malecones (seawalls) y terrazas elevadas.' },
+        { title: 'Ensayos cuando hagan falta', photo: photo.svcCoreBit, line: 'La inspección es visual; solo se hace un ensayo o se abre un acabado si lo que se observa en sitio lo pide.' },
       ],
     },
     'milestone-inspections': {

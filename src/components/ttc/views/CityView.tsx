@@ -8,6 +8,9 @@ import { localePath, type Lang } from '@/lib/ttc/i18n';
 import { cityFaqLd, cityServiceLd, cityWebPageLd } from '@/lib/ttc/city-structured-data';
 import { PageHero } from '@/components/ttc/mp/PageHero';
 import { HomeContact } from '@/components/ttc/mp/home/HomeContact';
+import { ServiceClock } from '@/components/ttc/mp/plates/ServiceClock';
+import { ServiceFee } from '@/components/ttc/mp/plates/ServiceFee';
+import { ServiceIncludes } from '@/components/ttc/mp/plates/ServiceIncludes';
 import { JUMP_ID } from '@/components/ttc/mp/JumpLinks';
 import { ReachRow } from '@/components/ttc/mp/ReachRow';
 import { Dated, Source } from '@/components/ttc/mp/Outbound';
@@ -18,23 +21,32 @@ import { breadcrumbLd, JsonLd } from './meta';
 /**
  * One city, under its county program: /services/<program>/<city>.
  *
- * The order is the order of a board member's worries with the city's letter
- * in hand (the owner, 2026-10-20: what the reader risks comes first): is
- * this my city's page, and can it still be done if we are late (H1, the
- * office by name, "Already late?") → how long do we have (the county's
- * verified rows, by label, with the button) → how does MY city handle it
- * (the rows read on the city's own website) → the questions boards in this
- * city ask → what to send. The closing band carries the form button; the
- * last section does not repeat it.
+ * THE PROGRAM PAGE'S PARTS (2026-10-27, the owner: "mejora las páginas de
+ * las ciudades como building-recertification, ya que tenemos el diseño
+ * lindo" … "el principal de recertification y BSIP puedes aplicar a todas,
+ * lo único que en base a tus investigaciones"), in the order of a board
+ * member's worries (the owner, 2026-10-20: what the reader risks comes
+ * first): the hero names the city and, in its panel, the office → the
+ * county's clock, its numbers large, each caption naming the city → the
+ * deadline rows they come from, in one card, with the button → how THIS
+ * city runs the program, one numbered card per subject read on the city's
+ * own website, then the office's address → what the work includes, the
+ * program page's photo cards by name, with the way to who does what → the
+ * fee, every line naming the city → the questions boards in this city ask
+ * → what to send, with the way to the package on the county page. The
+ * closing band carries the form. The cards and the answers say "the rows
+ * above": keep the rows first.
  *
- * COMPACT BY LAYOUT (2026-10-20), every word still in the server HTML:
- *   • From 1000px every section is one pair on one grid line (5fr · 7fr):
- *     the heading on the left, its rows, answers or text on the right.
- *   • The city's subjects are two columns of label-over-text cells on a
- *     desktop. On a phone the first four show and the rest fold under one
- *     <details> (text in the DOM; find-in-page opens it).
- *   • The questions are closed <details>, the site's one disclosure look
- *     (`.mp-faq--acc`, the service pages'); they print open.
+ * WHAT IT DOES NOT TAKE FROM THE PROGRAM'S PAGE: the sentences under the
+ * photo cards, the who-does-what table and the reviews. Each is the same
+ * text on every page that prints it, and a city page prints nothing of six
+ * words that another page prints (below); it links to the table. (A city's
+ * office in the table's first lane was tried on 2026-10-27 and taken out:
+ * its cells are the program's, and several cities' own pages say they do
+ * not describe the step a cell gave their office.)
+ *
+ * Every word is in the server HTML: the questions are closed <details>, the
+ * site's one disclosure look (`.mp-faq--acc`); they print open.
  *
  * WHERE EACH WORD COMES FROM.
  *   • Everything specific to the city — the first line, the lede, the rows,
@@ -78,25 +90,21 @@ type Labels = {
   at: (place: string) => string;
   /** In front of the row's authority: "County rows for Hialeah". */
   rowsFor: (place: string, county: string) => string;
-  /** The line that opens the city's other subjects on a phone ("Four more
-      subjects"); a desktop shows them all and never draws it. */
-  more: (n: number) => string;
+  /** What the fee band calls the work, naming the city ("Hialeah
+      recertification"): ServiceFee's `name`. The Spanish name follows "en",
+      so it takes the place, with its article ("en la Ciudad de Miami"). */
+  feeName: (city: string, place: string) => string;
+  /** Over the photo cards of what the work includes, naming the city. */
+  includesLabel: (place: string) => string;
+  /** The way to "Who does what" on the county page, under five words: the
+      same short line on every city page (cities.test.ts counts six). */
+  flowLink: string;
   questionsTitle: (place: string) => string;
   receiveLabel: string;
   receiveTitle: (place: string) => string;
   packageLink: string;
   otherCities: (county: string) => string;
 };
-
-/** "Four more subjects": the count in words, as a reader says it. */
-const MORE_EN = ['', 'One more subject', 'Two more subjects', 'Three more subjects', 'Four more subjects', 'Five more subjects', 'Six more subjects'];
-const MORE_ES = ['', 'Un tema más', 'Dos temas más', 'Tres temas más', 'Cuatro temas más', 'Cinco temas más', 'Seis temas más'];
-const moreEn = (n: number) => MORE_EN[n] ?? `${n} more subjects`;
-const moreEs = (n: number) => MORE_ES[n] ?? `${n} temas más`;
-
-/** How many of the city's subjects a phone shows before the fold. A list
-    of five or fewer shows whole: folding one row away saves nothing. */
-const SHOWN = 4;
 
 const COUNTY: Record<CityPage['program'], string> = {
   'building-recertification': 'Miami-Dade',
@@ -121,7 +129,9 @@ const LABELS: Record<Lang, Record<CityPage['program'], Labels>> = {
         `For a building in ${place}, these are the dates that count, and an unanswered notice does not go away.`,
       at: (place) => `in ${place}`,
       rowsFor: (place, county) => `${county} County’s rows, for ${place}`,
-      more: moreEn,
+      feeName: (city) => `${city} recertification`,
+      includesLabel: (place) => `What the recertification includes in ${place}`,
+      flowLink: 'Who does each step',
       questionsTitle: (place) => `Questions boards in ${place} ask`,
       receiveLabel: 'What to send',
       // "Fixed fee": every recertification is quoted as one before any
@@ -144,7 +154,9 @@ const LABELS: Record<Lang, Record<CityPage['program'], Labels>> = {
         `For a building in ${place}, these are the dates that count, and an unanswered notice does not go away.`,
       at: (place) => `in ${place}`,
       rowsFor: (place, county) => `${county} County’s rows, for ${place}`,
-      more: moreEn,
+      feeName: (city) => `${city} BSIP`,
+      includesLabel: (place) => `What the BSIP inspection includes in ${place}`,
+      flowLink: 'Who does each step',
       questionsTitle: (place) => `Questions boards in ${place} ask`,
       receiveLabel: 'What to send',
       receiveTitle: (place) => `The complete BSIP inspection and report in ${place}, at a fixed fee`,
@@ -164,7 +176,9 @@ const LABELS: Record<Lang, Record<CityPage['program'], Labels>> = {
         `Para un edificio en ${place}, estos son los plazos que cuentan, y una notificación sin respuesta no desaparece.`,
       at: (place) => `en ${place}`,
       rowsFor: (place, county) => `Datos del Condado de ${county}, para ${place}`,
-      more: moreEs,
+      feeName: (_city, place) => `Recertificación en ${place}`,
+      includesLabel: (place) => `Qué incluye la recertificación en ${place}`,
+      flowLink: 'Quién hace cada paso',
       questionsTitle: (place) => `Preguntas de las juntas directivas en ${place}`,
       receiveLabel: 'Qué enviar',
       receiveTitle: (place) => `La recertificación completa en ${place}, a precio fijo`,
@@ -182,7 +196,9 @@ const LABELS: Record<Lang, Record<CityPage['program'], Labels>> = {
         `Para un edificio en ${place}, estos son los plazos que cuentan, y una notificación sin respuesta no desaparece.`,
       at: (place) => `en ${place}`,
       rowsFor: (place, county) => `Datos del Condado de ${county}, para ${place}`,
-      more: moreEs,
+      feeName: (_city, place) => `BSIP en ${place}`,
+      includesLabel: (place) => `Qué incluye la inspección del BSIP en ${place}`,
+      flowLink: 'Quién hace cada paso',
       questionsTitle: (place) => `Preguntas de las juntas directivas en ${place}`,
       receiveLabel: 'Qué enviar',
       receiveTitle: (place) => `La inspección y el informe completos del BSIP en ${place}, a precio fijo`,
@@ -216,19 +232,6 @@ export function CityView({ lang, program, slug }: { lang: Lang; program: string;
   let n = 0;
   const next = () => String(++n).padStart(2, '0');
 
-  // The city's subjects: a phone shows the first four and folds the rest
-  // under one line (mp.css shows them all from 1000px, the line hidden).
-  const fold = page.local.length > SHOWN + 1;
-  const shown = fold ? page.local.slice(0, SHOWN) : page.local;
-  const folded = fold ? page.local.slice(SHOWN) : [];
-  const subjects = (items: readonly { k: string; v: string }[]) =>
-    items.map((item) => (
-      <div key={item.k}>
-        <dt>{item.k}</dt>
-        <dd>{item.v}</dd>
-      </div>
-    ));
-
   return (
     <div className="mp-plates mp-dark">
       <JsonLd data={cityServiceLd(lang, service, page)} />
@@ -254,24 +257,33 @@ export function CityView({ lang, program, slug }: { lang: Lang; program: string;
         titleLines={[t.h1(page.place)]}
         sub={page.heroSub}
         actions={[{ href: contactHref, label: service.program.cta }]}
-        // No fact under the button. The county page prints the filing
-        // deadline there; this page has a section for the deadlines, and
-        // the office — the one fact that would fit — is an English name in
-        // both languages, so the same line would stand on the English page
-        // and on its Spanish twin. The first line names the office in the
-        // page's own words, and the address block prints it in full.
+        // The office, by name, in the panel beside the title (2026-10-27:
+        // the panel stood empty above the WhatsApp line). The same name is
+        // printed on the English page and its Spanish twin — a proper name,
+        // in English in both — and the address block prints it in full.
+        facts={[{ k: t.office, v: page.office.name }]}
         photo={imagery.services[service.slug]}
       >
         <ReachRow c={c} />
       </PageHero>
 
       {/* The page's sections, not the hero and not the closing band: the
-          city-page rules in mp.css are scoped under this wrapper. */}
+          city-page rules in mp.css and dark.css are scoped under this
+          wrapper. The county's numbers, large → the rows they come from →
+          how THIS city runs it, in cards → what the work includes → the fee
+          → the questions → what to send. */}
       <div className="mp-cityp">
-        {/* How long you have: the county's deadlines, read from its verified
-            row, then the button. First, because it is what the reader
-            risks. */}
-        <section className="mp-section mp-surface--paper">
+        {/* The county's clock, for this city: its numbers, large, each
+            caption and the exception line ending with the city's name
+            (ServiceClock `at`). */}
+        <ServiceClock lang={lang} slug={service.slug} at={t.at(page.place)} />
+
+        {/* The deadlines: the county's verified rows, label and first
+            sentence, each with the city in its label, in one card; then the
+            button and the way to the whole table. First, because it is what
+            the reader risks (the owner, 2026-10-20) — and the city's cards
+            and answers below refer to "the rows above". */}
+        <section className="mp-section mp-surface--concrete">
           <div className="mp-shell">
             <SectionHeading n={next()} label={u.whenItApplies} />
             <div className="mp-cityp__pair">
@@ -284,7 +296,7 @@ export function CityView({ lang, program, slug }: { lang: Lang; program: string;
                 </Reveal>
               </div>
               <div className="mp-cityp__body">
-                <Reveal delay={0.05}>
+                <Reveal delay={0.05} className="mp-city__rowscard">
                   <ul className="mp-city__rows">
                     {deadlines.map((f) => (
                       <li key={f.k}>
@@ -301,15 +313,15 @@ export function CityView({ lang, program, slug }: { lang: Lang; program: string;
                       </li>
                     ))}
                   </ul>
+                  <p className="mp-timing__src">
+                    {t.rowsFor(page.place, county)}. {u.sourceLabel}: <Source row={row} />
+                    {' · '}
+                    {/* The date in one piece, as on the program's page. */}
+                    <span className="mp-timing__checked">
+                      <Dated label={u.lastChecked} date={service.timing.checked} iso={regulatoryCheckedISO} />
+                    </span>
+                  </p>
                 </Reveal>
-                <p className="mp-timing__src">
-                  {t.rowsFor(page.place, county)}. {u.sourceLabel}: <Source row={row} />
-                  {' · '}
-                  {/* The date in one piece, as on the program's page. */}
-                  <span className="mp-timing__checked">
-                    <Dated label={u.lastChecked} date={service.timing.checked} iso={regulatoryCheckedISO} />
-                  </span>
-                </p>
                 {/* The button, then the way to the whole table — each in an
                     element of its own: side by side in one, the two labels
                     read as a single line of text, the same on every city of
@@ -327,8 +339,9 @@ export function CityView({ lang, program, slug }: { lang: Lang; program: string;
           </div>
         </section>
 
-        {/* How this city handles it: the page's own text, row by row. */}
-        <section className="mp-section mp-surface--concrete">
+        {/* How this city handles it: the page's own text, one card per
+            subject, numbered, then the office where the report goes. */}
+        <section className="mp-section mp-surface--paper">
           <div className="mp-shell">
             <SectionHeading n={next()} label={u.yourCity} />
             <div className="mp-cityp__pair">
@@ -341,14 +354,15 @@ export function CityView({ lang, program, slug }: { lang: Lang; program: string;
                 <p className="mp-intro__lede">{page.lede}</p>
               </Reveal>
             </div>
-            <Reveal as="div" delay={0.05} className="mp-packet mp-city">
-              <dl className="mp-packet__list">{subjects(shown)}</dl>
-              {folded.length ? (
-                <details className="mp-disclose mp-city__fold">
-                  <summary>{t.more(folded.length)}</summary>
-                  <dl className="mp-packet__list">{subjects(folded)}</dl>
-                </details>
-              ) : null}
+            <div className="mp-city mp-city--cards">
+              <dl className="mp-city__cards">
+                {page.local.map((item, i) => (
+                  <Reveal as="div" key={item.k} delay={Math.min(i, 5) * 0.04} className="mp-city__card">
+                    <dt>{item.k}</dt>
+                    <dd>{item.v}</dd>
+                  </Reveal>
+                ))}
+              </dl>
               {/* Where the report goes: the office, its street address and
                   its phone, as lines of one paragraph.
                     • Not an <address>: that element is the contact of the
@@ -357,40 +371,75 @@ export function CityView({ lang, program, slug }: { lang: Lang; program: string;
                     • The phone is TEXT, not a tel: link. The ads script
                       counts a tap on any tel: link as a call to the firm
                       (ads.ts); this number rings at a city office.
-                    • A space between the lines: each is drawn on its own row
-                      on a phone, and from 761px as one whole part of a
-                      wrapping row, a dot between parts and never one at the
-                      start of a row (mp.css); a reader of the plain text
-                      must not get "Section444 SW 2nd Ave". */}
-              <p className="mp-city__office">
-                <span className="mp-city__k">{t.office}</span>{' '}
-                <span className="mp-city__name">{page.office.name}</span>
-                {page.office.address?.map((line) => (
-                  <React.Fragment key={line}>
-                    {' '}
-                    <span className="mp-city__line">{line}</span>
-                  </React.Fragment>
-                ))}
-                {page.office.phone ? (
-                  <>
-                    {' '}
-                    <span className="mp-city__line">
-                      {t.phone}: {page.office.phone}
-                    </span>
-                  </>
-                ) : null}
-              </p>
+                    • A space between the lines: a phone draws each on its
+                      own row, and from 761px each is an item of one wrapping
+                      row, a dot between two items and none at a row's start
+                      (mp.css); a reader of the plain text must not get
+                      "Section444 SW 2nd Ave".
+                    • The card is drawn on the wrapper (dark.css): the
+                      paragraph clips the dot of an item that opens a row,
+                      and padding on the paragraph itself would show it. */}
+              <div className="mp-city__officebox">
+                <p className="mp-city__office">
+                  <span className="mp-city__k">{t.office}</span>{' '}
+                  <span className="mp-city__name">{page.office.name}</span>
+                  {page.office.address?.map((line) => (
+                    <React.Fragment key={line}>
+                      {' '}
+                      <span className="mp-city__line">{line}</span>
+                    </React.Fragment>
+                  ))}
+                  {page.office.phone ? (
+                    <>
+                      {' '}
+                      <span className="mp-city__line">
+                        {t.phone}: {page.office.phone}
+                      </span>
+                    </>
+                  ) : null}
+                </p>
+              </div>
               <p className="mp-timing__src">
                 <Dated label={t.read(page.office.name)} date={cityChecked(page, lang)} iso={cityCheckedISO(page)} />
               </p>
-            </Reveal>
+            </div>
           </div>
         </section>
+
+        {/* What the work includes: the program page's photo cards, the names
+            only, a part that applies only somewhere with its condition
+            (ServiceIncludes `bare`), less what this city's own page excludes
+            (`omitIncludes`). No heading: a city page has four h2
+            (cities.test.ts); the band's label names the city. Who does what
+            at each step is the county page's table, one link away: its cells
+            are the program's, and on 48 pages they would be the same block
+            48 times — under a city's office name, they also said what
+            several cities' own pages leave unsaid. */}
+        <section className="mp-section mp-surface--concrete" aria-label={t.includesLabel(page.place)}>
+          <div className="mp-shell">
+            <SectionHeading n={next()} label={t.includesLabel(page.place)} />
+            <ServiceIncludes lang={lang} slug={service.slug} bare omit={page.omitIncludes} />
+            <p className="mp-city__more mp-city__flow">
+              <TextLink href={l(`${servicePath}#${JUMP_ID.steps}`)}>{t.flowLink}</TextLink>
+            </p>
+          </div>
+        </section>
+
+        {/* The fee, as on the program's page, every line naming the city
+            (ServiceFee `name`). */}
+        <ServiceFee
+          lang={lang}
+          slug={service.slug}
+          href={contactHref}
+          cta={service.program.cta}
+          surface="mp-surface--paper"
+          name={t.feeName(page.city, page.place)}
+        />
 
         {/* Questions boards in this city ask: each an h3 in the <summary> of
             its own <details>, closed; every answer is plain text in the
             server HTML, and the page prints them open. */}
-        <section id={JUMP_ID.questions} className="mp-section mp-surface--paper">
+        <section id={JUMP_ID.questions} className="mp-section mp-surface--concrete">
           <div className="mp-shell">
             <SectionHeading n={next()} label={u.faqLabel} />
             <div className="mp-cityp__pair">
@@ -421,10 +470,10 @@ export function CityView({ lang, program, slug }: { lang: Lang; program: string;
           </div>
         </section>
 
-        {/* What to send, and the way to the whole package on the county
-            page. No button here: the closing band right under it carries
-            the form, with the program selected. */}
-        <section className="mp-section mp-surface--concrete">
+        {/* What to send, and the way to the package part by part on the
+            county page. No button here: the closing band right under it
+            carries the form, with the program selected. */}
+        <section className="mp-section mp-surface--paper">
           <div className="mp-shell">
             <SectionHeading n={next()} label={t.receiveLabel} />
             <div className="mp-cityp__pair">

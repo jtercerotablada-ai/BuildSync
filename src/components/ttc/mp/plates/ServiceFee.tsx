@@ -22,6 +22,10 @@ import { keepHyphens } from '../text';
  * The figures share the clock's look (dark.css, `.h-clock`); the clock's
  * test reads `serviceClock`, never this band.
  *
+ * ON A CITY PAGE (`name`): the program's name gives way to the city's
+ * ("Hialeah recertification") in every line that names it, so the band says
+ * nothing of six words that another page says (cities.test.ts).
+ *
  * A SERVER component.
  */
 export function ServiceFee({
@@ -30,6 +34,7 @@ export function ServiceFee({
   href,
   cta,
   surface,
+  name,
 }: {
   lang: Lang;
   slug: string;
@@ -37,11 +42,14 @@ export function ServiceFee({
   cta: string;
   /** The page's next surface, so the bands around it still alternate. */
   surface: string;
+  /** What the band calls the work, in place of the program's own name. */
+  name?: string;
 }) {
   const c = getContent(lang);
   const program = c.pricing.programs.find((p) => p.slug === slug);
   if (!program) return null;
   const f = c.serviceLook.fee;
+  const called = name ?? program.name;
   const first = program.tiers[0];
   // "From $2,500" / "Desde $2,500": the word, then the figure.
   const [, from = '', figure = first.price] = first.price.match(/^(\D+?)\s+(\$.+)$/) ?? [];
@@ -58,7 +66,7 @@ export function ServiceFee({
               {from ? <span className="h-clock__unit mp-serif">{from}</span> : null}{' '}
               <span className="h-clock__num">{figure}</span>
             </p>
-            <p className="h-clock__k">{f.fixed}</p>
+            <p className="h-clock__k">{name ? `${f.fixed} — ${name}` : f.fixed}</p>
             <p className="h-clock__sub">{first.size}</p>
           </Reveal>
           <Reveal as="li" fx="up" delay={0.08} className="h-clock__item">
@@ -66,7 +74,7 @@ export function ServiceFee({
               <span className="h-clock__num">{f.days.n}</span>{' '}
               <span className="h-clock__unit mp-serif">{f.days.unit}</span>
             </p>
-            <p className="h-clock__k">{f.days.k.replace('{name}', program.name)}</p>
+            <p className="h-clock__k">{f.days.k.replace('{name}', called)}</p>
             <p className="h-clock__sub">{f.days.sub}</p>
           </Reveal>
           <Reveal as="li" fx="up" delay={0.16} className="h-clock__item">
@@ -77,7 +85,7 @@ export function ServiceFee({
           </Reveal>
         </ol>
         <Reveal fx="up" className="h-fee__foot">
-          <p className="h-fee__text">{f.line.replace('{name}', program.name)}</p>
+          <p className="h-fee__text">{f.line.replace('{name}', called)}</p>
           <div className="h-fee__act">
             <ButtonLink href={localePath(href, lang)} variant="solid">
               {cta}
@@ -85,7 +93,7 @@ export function ServiceFee({
             {/* One <span> around the words: the link is an inline flex row,
                 and the pieces keepHyphens returns were each a flex item of it. */}
             <TextLink href={localePath(COST_PATH, lang)}>
-              <span>{keepHyphens(c.pricing.pageLink.replace('{name}', program.name))}</span>
+              <span>{keepHyphens(c.pricing.pageLink.replace('{name}', called))}</span>
             </TextLink>
           </div>
         </Reveal>

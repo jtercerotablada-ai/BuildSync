@@ -44,7 +44,12 @@
  * the same order, under the English row's city.
  */
 
-/** The day every address below was opened and read. */
+/** The day every address below was opened and read — except the rows
+    added on 2026-10-28, the municipalities the lists lacked and
+    unincorporated Broward: Bal Harbour to Virginia Gardens (Miami-Dade),
+    Coconut Creek to Unincorporated Broward (Broward). Several of those
+    towns have no page for the program, so their name was read on their
+    building department's page, their contact page or a town document. */
 export const officePagesRead = '2026-10-07';
 
 export type OfficePage = {
@@ -90,6 +95,15 @@ export const officePages: Record<string, OfficePage[]> = {
     { city: 'Pinecrest', page: 'https://www.pinecrest-fl.gov/Government/Building/Other-Building-Services/Recertification' },
     { city: 'Sweetwater', page: 'https://cityofsweetwater.fl.gov/158/Building-Zoning' },
     { city: 'West Miami', page: 'https://cityofwestmiami.gov/index.asp?SEC=DBC123E0-8D93-4518-8D26-284545C66EE0' },
+    { city: 'Bal Harbour', page: 'https://balharbourfl.gov/doing-business/building-permits/' },
+    { city: 'Biscayne Park', page: 'https://biscayneparkfl.gov/contact' },
+    { city: 'Golden Beach', page: 'https://goldenbeach.us/wp-content/uploads/2023/03/Quick-Reference-guide-outside-agencies-2.28.23.pdf' },
+    { city: 'Hialeah Gardens', page: 'https://www.cityofhialeahgardens.com/departments/building' },
+    { city: 'Indian Creek', page: 'https://indiancreekvillagefl.gov/government/building-department/' },
+    { city: 'Miami Shores', page: 'https://www.msvfl.gov/AbouttheBuildingDepartment' },
+    { city: 'Palmetto Bay', page: 'https://www.palmettobay-fl.gov/153/Building-Permits' },
+    { city: 'South Miami', page: 'https://www.somifl.gov/115/Building-Division' },
+    { city: 'Virginia Gardens', page: 'https://virginiagardens-fl.gov/building-zoning/' },
     { city: 'Unincorporated Miami-Dade', page: 'https://www.miamidade.gov/global/economy/building/recertification.page' },
   ],
   /* Broward. Two cities have no page for the program alone, so the name was
@@ -123,5 +137,14 @@ export const officePages: Record<string, OfficePage[]> = {
     { city: 'Tamarac', page: 'https://www.tamarac.gov/1671/Building' },
     { city: 'Weston', page: 'https://www.westonfl.org/government/building-code-services/contact-us' },
     { city: 'Wilton Manors', page: 'https://www.wiltonmanors.gov/133/Building-Permit-Applications' },
+    { city: 'Coconut Creek', page: 'https://coconutcreek.gov/government/city-directory/resilient-design-and-development/building-department' },
+    { city: 'Lauderdale-by-the-Sea', page: 'https://www.lauderdalebythesea-fl.gov/152/Building-Division' },
+    { city: 'Lazy Lake', page: 'https://img1.wsimg.com/blobby/go/c9ac3036-1c14-499b-b0bc-c0e06f73d318/downloads/87237ebd-d365-4329-bbc5-608970e6ae0f/AGENDA.pdf?ver=1792349876809' },
+    { city: 'North Lauderdale', page: 'https://www.nlauderdale.org/departments/community_development/index.php' },
+    { city: 'Parkland', page: 'https://www.cityofparkland.org/109/Building-Department' },
+    { city: 'Sea Ranch Lakes', page: 'https://searanchlakesfl.org/wp-content/uploads/2023/05/Resolution-2023-04-authorizing-building-department-fees.pdf' },
+    { city: 'Southwest Ranches', page: 'https://www.southwestranches.org/departments/building-permitting-and-inspections/' },
+    { city: 'West Park', page: 'https://www.cityofwestpark.org/governement/departments/building-department' },
+    { city: 'Unincorporated Broward', page: 'https://www.broward.org/Building' },
   ],
 };

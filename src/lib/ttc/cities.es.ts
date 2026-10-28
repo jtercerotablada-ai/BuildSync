@@ -218,6 +218,7 @@ export const cityPagesEs: readonly CityPage[] = [
     program: 'building-recertification',
     city: 'Doral',
     place: 'Doral',
+    omitIncludes: ['lot-guardrail'],
     office: {
       name: 'City of Doral Building Department',
       address: ['8401 NW 53rd Terrace', 'Doral, FL 33166'],
@@ -1781,7 +1782,7 @@ export const cityPagesEs: readonly CityPage[] = [
       },
       {
         q: '¿Qué pasa en Davie si el informe del BSIP se entrega tarde, y podemos pedir más tiempo?',
-        a: 'La página del programa de Davie no responde ninguna de las dos preguntas. Cuenta el plazo para presentar desde la fecha de la notificación, pero no describe ninguna forma de pedir más tiempo ni dice nada sobre un informe entregado tarde. El plazo es el del condado, en los datos de arriba. Si su fecha está cerca o ya pasó, envíenos la notificación ahora, para confirmar con la Building Division qué pide y para cuándo.',
+        a: 'La página del programa de Davie no responde ninguna de las dos preguntas. Cuenta el plazo para presentar desde la fecha de la notificación, mientras que los datos del condado, arriba, lo cuentan desde el día en que se recibe; por eso conviene planificar desde la fecha más temprana, la que trae impresa la carta. No describe ninguna forma de pedir más tiempo ni dice nada sobre un informe entregado tarde. Si su fecha está cerca o ya pasó, envíenos la notificación ahora, para confirmar con la Building Division qué pide y para cuándo.',
       },
       {
         q: '¿El BSIP de Davie es la misma inspección de 40 años?',
@@ -2446,5 +2447,109 @@ export const cityPagesEs: readonly CityPage[] = [
     nextStep:
       'Envíe el aviso del Building Official para su edificio en Wilton Manors, o una foto de él; si todavía no ha llegado nada, la dirección y el año de su certificado de ocupación bastan para empezar. Consultamos con Community Development Services qué espera y respondemos con una propuesta para la inspección y el informe del BSIP completos.',
     checkedISO: '2026-10-17',
+  },
+  {
+    slug: 'coconut-creek',
+    program: 'broward-bsip',
+    city: 'Coconut Creek',
+    place: 'Coconut Creek',
+    office: {
+      name: 'City of Coconut Creek Building Department',
+      address: ['Coconut Creek Government Center', '4800 West Copans Road', 'Coconut Creek, FL 33063'],
+      phone: '(954) 973-6750',
+    },
+    description:
+      'El BSIP en Coconut Creek: la oficina a cargo, el formulario de su tabla de permisos y qué preguntar antes de presentar el informe.',
+    heroSub:
+      'El Building Department de Coconut Creek remite al condado de Broward en lo que respecta al programa, y la tabla de permisos de la ciudad nombra un BSIP Inspection Form. ¿Ya va tarde? Un solo equipo todavía puede encargarse, de principio a fin, de la inspección y el informe completos del BSIP de su edificio en Coconut Creek.',
+    lede:
+      'En Coconut Creek, el Programa de Inspección de Seguridad de Edificios (BSIP) está en manos del City of Coconut Creek Building Department, parte del Resilient Design and Development Department (el departamento de diseño y desarrollo resilientes). El presupuesto de la ciudad lo incluye entre los permisos de construcción que administra Building Services. La página del departamento le dedica al programa una sección breve que remite a la página del condado de Broward; la ciudad no publica ningún procedimiento propio.',
+    local: [
+      { k: 'Quién lo administra', v: 'El presupuesto aprobado vigente de Coconut Creek dice que Building Services administra los permisos de construcción que incluyen el Building Safety Inspection Program, junto con los permisos de eventos especiales y las evaluaciones de estructuras inseguras. En el sitio de la ciudad, los permisos de construcción dependen del Building Department —que su página también llama Building Division—, dentro de Resilient Design and Development (antes Sustainable Development).' },
+      { k: 'Adónde remite la ciudad', v: 'La página del Building Department tiene una sección titulada Building Safety Program, y el enlace de esa sección lleva a la página del Building Safety Inspection Program del condado de Broward. Coconut Creek no repite allí las reglas del condado; sus edades y sus plazos figuran en las filas de arriba, mientras que la fecha que rige para cada edificio es la que indica su carta.' },
+      { k: 'Educación sobre auditorías de mitigación', v: 'Bajo el mismo encabezado Building Safety Program, la ciudad dice que ofrece educación comunitaria sobre auditorías de mitigación para viviendas, comercios y edificios del gobierno local de cierta antigüedad, como parte de Emergency Management and Safety. La sección no dice qué relación tiene esa educación con la inspección y los informes que exige el programa del condado.' },
+      { k: 'La tabla de permisos', v: 'La página Permit Types and Requirements de Coconut Creek tiene una tabla de formularios y documentación exigidos, y una de sus columnas se titula “BSIP Inspection Form”. La página no enlaza ese formulario ni lo explica, y una búsqueda de BSIP en el sitio de la ciudad solo devuelve esa página; lo primero que preguntamos al Building Department es a qué formulario se refiere esa columna.' },
+      { k: 'Presentar el informe', v: 'Las páginas de la ciudad no dicen dónde ni cómo debe presentarse un informe del BSIP. Para los permisos, el Building Department indica en su página que los contratistas presentan sus solicitudes en ePermits y que los archivos deben ser PDF normales y desbloqueados, no portafolios PDF. Antes de presentar los informes, consultamos con el departamento si siguen esa misma vía.' },
+      { k: 'Lo que dicen los presupuestos', v: 'El presupuesto aprobado anterior de Coconut Creek le fijó a la Building Division el objetivo de agilizar el Building Safety Inspection Program para hacer más eficientes los informes y su seguimiento. El vigente lo cuenta entre los logros de la división, y su resumen del General Fund muestra un aumento en la partida de servicios profesionales para llevar a cabo el programa del condado.' },
+      { k: 'Dos presupuestos, dos nombres', v: 'El presupuesto anterior llamaba a este trabajo 40-year-old Building Inspection process; en el mismo lugar, el vigente nombra el Building Safety Inspection Program. Las edades que rigen las fija el condado y están en las filas de arriba, bajo “Primer vencimiento” y “Después”; no salen de ninguno de los dos presupuestos.' },
+      { k: 'Lo que las páginas omiten', v: 'Las páginas de Coconut Creek dejan varias cosas sin decir: quién emite el aviso y cómo le llega al propietario, cómo se revisan los informes, cómo se tramitan con permiso las reparaciones del programa y qué pasa si el informe llega tarde. Para todo eso, la carta del edificio, si ya llegó, y las filas de arriba son la guía; lo demás hay que consultarlo con el Building Department.' },
+    ],
+    faq: [
+      {
+        q: '¿Quién envía el aviso del BSIP en Coconut Creek?',
+        a: 'Las páginas de la ciudad no lo dicen, y la sección del programa en la página del Building Department no nombra ningún remitente. La carta misma deja constancia de quién la envió y qué pide. Basta con fotografiar la carta con el teléfono: así leemos qué se pide y para cuándo.',
+      },
+      {
+        q: '¿Cómo se presenta el informe del BSIP en Coconut Creek?',
+        a: 'Las páginas de la ciudad no indican una vía para el informe. Los contratistas solicitan los permisos por el ePermits del Building Department, donde los documentos subidos deben ser PDF normales y desbloqueados, y la tabla de permisos del departamento tiene una columna titulada BSIP Inspection Form, sin formulario enlazado. Preguntamos al departamento por qué vía y en qué formato quiere los informes, y entregamos en esa forma la inspección y el informe completos del BSIP.',
+      },
+      {
+        q: '¿Qué oficina se encarga del BSIP en Coconut Creek?',
+        a: 'El City of Coconut Creek Building Department, dentro del Resilient Design and Development Department, cuya página incluye los permisos de construcción entre sus servicios; en el presupuesto, el programa aparece bajo Building Services. Para los permisos de construcción, la página de Resilient Design and Development da el mismo número que figura arriba junto a la dirección de la oficina.',
+      },
+      {
+        q: '¿Cuánto tiempo hay para presentar el informe del BSIP en Coconut Creek?',
+        a: 'Vale el plazo del condado de Broward, que está arriba en “Plazo para presentar”; las reparaciones tienen su propia fila, “Si hay reparaciones”. Las páginas de Coconut Creek no fijan un plazo propio ni describen prórrogas ni lo que pasa con un informe tardío. Si la fecha de la carta de su edificio en Coconut Creek se acerca o ya pasó, envíenosla hoy mismo.',
+      },
+      {
+        q: '¿El BSIP de Coconut Creek es el programa que antes se llamaba la inspección de 40 años?',
+        a: 'Sí. El presupuesto aprobado anterior de Coconut Creek llamaba a este trabajo 40-year-old Building Inspection process; en el mismo lugar, el presupuesto vigente nombra el Building Safety Inspection Program. Su resumen del General Fund se refiere al programa del condado de Broward. En ambos casos se trata del mismo programa del condado; las edades que rigen hoy están arriba, en “Primer vencimiento” y “Después”.',
+      },
+    ],
+    nextStep:
+      'Envíenos la carta de su edificio en Coconut Creek —sirve una foto hecha con el teléfono— o, si todavía no ha llegado ninguna, la dirección y el año del certificado de ocupación. Preguntamos al City of Coconut Creek Building Department a qué formulario se refiere su tabla de permisos y cómo quiere la presentación, y le enviamos la propuesta para la inspección y el informe completos del BSIP.',
+    checkedISO: '2026-10-28',
+  },
+  {
+    slug: 'unincorporated-broward',
+    program: 'broward-bsip',
+    city: 'Áreas no incorporadas de Broward',
+    place: 'las áreas no incorporadas de Broward',
+    office: {
+      name: 'Broward County Building Code Division',
+      address: ['2307 W. Broward Boulevard, Suite 300', 'Fort Lauderdale, FL 33312'],
+      phone: '(954) 765-4400',
+    },
+    description:
+      'BSIP en las áreas no incorporadas de Broward: la Building Code Division del propio condado, la solicitud, las prórrogas y los permisos de reparación.',
+    heroSub:
+      'En las áreas no incorporadas de Broward, el propio condado hace las veces de departamento de construcción: su Building Code Division recibe la solicitud del BSIP y emite los permisos de reparación que hagan falta. ¿Ya va tarde? Un solo equipo todavía entrega completos la inspección y el informe del BSIP, para presentarlos ante el condado.',
+    lede:
+      'En las áreas no incorporadas de Broward, que el condado agrupa en el Broward Municipal Services District (BMSD), el Programa de Inspección de Seguridad de Edificios (BSIP) está a cargo de la Broward County Building Code Division, dependiente del Public Works and Environmental Services Department. La división se encarga de los permisos, del cumplimiento del código y de su fiscalización en el distrito, y el condado publica en su propio sitio la sección del código que rige el programa y ambos formularios del informe.',
+    local: [
+      { k: 'Dónde actúa la división', v: 'La página de la Building Code Division incluye en el Broward Municipal Services District a Boulevard Gardens, Broadview Park, Franklin Park, Hillsboro Pines, Hillsboro Ranches, Roosevelt Gardens y Washington Park. La división también regula la construcción en las ciudades que la contratan; su guía de ePermits nombra a la Village of Lazy Lake entre los municipios con acuerdo interlocal que por ahora no pueden usar ePermits.' },
+      { k: 'El papel del Building Official', v: 'La enmienda del condado al Florida Building Code sobre el programa encarga su aplicación al Building Official y toma los requisitos mínimos de la política escrita de la Board of Rules and Appeals. Para un edificio del distrito, el Building Official que corresponde es el de la Building Code Division del condado.' },
+      { k: 'La notificación', v: 'La página de la Building Code Division no explica cómo llega la notificación a un edificio del distrito ni quién la envía. Ambos formularios de informe que publica el condado abren su sección de inspecciones preguntando en qué fecha se emitió la Notificación de Inspección Requerida (Notice of Required Inspection): guárdela y apunte el día en que la recibió.' },
+      { k: 'Presentar el informe', v: 'En el distrito, la presentación del BSIP es una solicitud ante el condado. El paquete General Information Form del condado habla de una solicitud de recertificación conforme al Broward County Building Safety Inspection Program, trata cada recertificación posterior del mismo edificio como una solicitud aparte y menciona, junto a ellas, una solicitud de prórroga.' },
+      { k: 'Formularios, consultas y seguimiento', v: 'Para pedir información, entregar formularios o saber cómo va un trámite, la página de la Building Code Division pide llamar a su línea principal o acudir a su oficina. La misma página advierte que ePermits puede no estar disponible mientras el condado renueva su sitio web, así que, antes de presentar el informe, preguntamos a la división por qué vía prefiere recibirlo.' },
+      { k: 'Los formularios del informe', v: 'El condado de Broward publica los formularios rellenables de inspección del BSIP, el estructural y el eléctrico, y la hoja Virtual Operations de la división incluye el programa entre sus formularios de solicitud. Cada formulario declara que el informe sigue las pautas mínimas que, para estas inspecciones, recoge la política de la Board of Rules and Appeals.' },
+      { k: 'El historial del inmueble', v: 'El formulario estructural del condado pregunta si se revisó el historial de la propiedad en busca de infracciones del código aún abiertas o de casos de estructura insegura. En el distrito, ambos asuntos competen a la Building Code Division, que también atiende pedidos de expedientes de construcción; su formulario de pedido advierte que quizá ya no conserve los expedientes de propiedades en zonas que luego anexó un municipio.' },
+      { k: 'Permisos de reparación', v: 'Si el informe señala reparaciones, sus permisos los emite la misma división, que, según su guía de ePermits, tiene competencia en materia de permisos sobre las propiedades del distrito. La guía exige, en cada entrega, la Broward County Uniform Permit Application en su versión vigente, y un trámite que empezó en persona tiene que seguir en persona.' },
+    ],
+    faq: [
+      {
+        q: '¿Quién envía la notificación del BSIP en las áreas no incorporadas de Broward?',
+        a: 'La página de la Building Code Division no lo dice. Lo que sí dice la enmienda del condado en la que se basa el programa es quién lo aplica: el Building Official, que para el distrito es el de la Broward County Building Code Division. Como ambos formularios del informe piden la fecha de la notificación, envíenos una foto de ella —sirve la del teléfono— y le decimos qué pide y cuánto tiempo queda.',
+      },
+      {
+        q: '¿Cómo se presenta el informe del BSIP en las áreas no incorporadas de Broward?',
+        a: 'Como una solicitud conforme al Broward County Building Safety Inspection Program, ante la Broward County Building Code Division; el paquete del condado usa esas palabras para la primera presentación y para cada una de las siguientes. Para entregar formularios, la página de la división remite a su teléfono principal y a su oficina, y advierte que ePermits puede no estar disponible, así que confirmamos la vía antes de entregar la inspección y el informe del BSIP completos.',
+      },
+      {
+        q: '¿Se puede pedir más tiempo para el BSIP en las áreas no incorporadas de Broward?',
+        a: 'El paquete General Information Form del condado menciona una solicitud de prórroga para la recertificación, sea la primera o una posterior, dentro del Broward County Building Safety Inspection Program. La página de la división no indica cuánto puede durar una prórroga; los plazos del condado figuran en la fila “Plazo para presentar” y, para la obra, en “Si hay reparaciones”.',
+      },
+      {
+        q: '¿Cómo sabemos si un edificio está en las áreas no incorporadas de Broward?',
+        a: 'La página de la Building Code Division dice que el Broward Municipal Services District incluye Boulevard Gardens, Broadview Park, Franklin Park, Hillsboro Pines, Hillsboro Ranches, Roosevelt Gardens y Washington Park. Un edificio allí queda bajo la jurisdicción del condado en materia de permisos. Si la zona pasó a una ciudad, el condado advierte que quizá ya no conserve sus expedientes; ante la duda, envíenos la dirección y verificamos a qué oficina corresponde.',
+      },
+      {
+        q: '¿Quién emite los permisos de reparación del BSIP en las áreas no incorporadas de Broward?',
+        a: 'La Broward County Building Code Division, que tiene competencia en materia de permisos sobre las propiedades del distrito. Su guía de ePermits pide que cada entrega lleve la Broward County Uniform Permit Application en su edición actual, y un expediente que empezó en persona sigue en persona hasta el final. Cuánto tiempo hay para la obra lo indica la fila “Si hay reparaciones”, más arriba.',
+      },
+    ],
+    nextStep:
+      'Envíenos la notificación que llegó a su edificio en las áreas no incorporadas de Broward —alcanza con una foto del teléfono— o, si todavía no la ha recibido, la dirección y el año que figura en el certificado de ocupación. Consultamos con la Broward County Building Code Division cómo está recibiendo hoy las presentaciones del BSIP y le enviamos una propuesta que cubre la inspección y el informe del BSIP completos.',
+    checkedISO: '2026-10-28',
   },
 ];

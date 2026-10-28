@@ -873,16 +873,17 @@ export type Service = {
     /** One short paragraph. Promises no link: not every row has one. */
     lede: string;
     rows: { city: string; office: string }[];
-    /** Under the list: what to do when the city is not on it. */
+    /** Under the list: what it covers — every municipality of the county,
+        then the county's own office — and where questions go. */
     note: string;
     forms: { text: string; label: string; url: string };
     checked: string;
     /**
      * The one line the list folds under, at every width. `{n}` is the number
-     * of rows, counted. Never "all": the list is not every municipality,
-     * and `note` says what to do when the city is not on it. A noun, not a
-     * verb ("Show the…" still read "Show" once the list was open), like the
-     * home page's "All {n} municipalities".
+     * of rows, counted — places, not offices: two Broward rows (Lazy Lake and
+     * the unincorporated area) share the county's office. A noun, not a verb
+     * ("Show the…" still read "Show" once the list was open), like the home
+     * page's "All {n} municipalities".
      */
     toggle: string;
   };
@@ -1342,8 +1343,10 @@ export const services: Service[] = [
     ],
     notesToggle: 'All {n} notes',
     /* WHO SENT YOUR NOTICE. Each office is named as its city's own page
-       names it (the county's, for the unincorporated area); every one of
-       those pages was opened and read on 2026-10-07. miamidade.gov says it
+       names it (the county's, for the unincorporated area). Every one of
+       the 34 municipalities the county lists is a row (miamidade.gov,
+       "Municipalities"): the first 25 read on 2026-10-07, the nine from Bal
+       Harbour to Virginia Gardens on 2026-10-28. miamidade.gov says it
        in one line: each municipality's building official has jurisdiction
        over its recertifications.
 
@@ -1353,8 +1356,8 @@ export const services: Service[] = [
        at each. The one link left in the block is `forms`: the county's own
        page.
 
-       Order: the cities first, the unincorporated area last. Not a ranking,
-       and not every municipality: `note` says what to do for the others.
+       Order: the cities first, the unincorporated area last. Not a
+       ranking; `note` says the list is whole.
        No fees and no dates here, although several of the cities' pages
        print their own. */
     offices: {
@@ -1386,9 +1389,18 @@ export const services: Service[] = [
         { city: 'Pinecrest', office: 'Village of Pinecrest Building Department' },
         { city: 'Sweetwater', office: 'City of Sweetwater Building and Zoning Department' },
         { city: 'West Miami', office: 'City of West Miami Building Department' },
+        { city: 'Bal Harbour', office: 'Bal Harbour Village Building Department' },
+        { city: 'Biscayne Park', office: 'Village of Biscayne Park Building Department' },
+        { city: 'Golden Beach', office: 'Town of Golden Beach Building & Zoning Department' },
+        { city: 'Hialeah Gardens', office: 'City of Hialeah Gardens Building Department' },
+        { city: 'Indian Creek', office: 'Indian Creek Village Building Department' },
+        { city: 'Miami Shores', office: 'Miami Shores Village Building Department' },
+        { city: 'Palmetto Bay', office: 'Village of Palmetto Bay Building & Permitting Department' },
+        { city: 'South Miami', office: 'City of South Miami Building Division' },
+        { city: 'Virginia Gardens', office: 'Village of Virginia Gardens Building Permits & Zoning' },
         { city: 'Unincorporated Miami-Dade', office: 'Miami-Dade County Regulatory and Economic Resources' },
       ],
-      note: 'Your city is not on the list? Each Miami-Dade municipality handles its own recertifications, and the letter names the office that sent it. Questions about a notice go to that office. Send us the letter: we read it before we propose.',
+      note: 'All 34 Miami-Dade municipalities are listed, and the county’s office for the unincorporated area last. The letter names the office that sent it, and questions about a notice go to that office. Send us the letter: we read it before we propose.',
       /* The county's recertification page: its guidelines and the report
          templates are under "General Guidelines and Form Templates". The
          one page this block links, and the county's own. */
@@ -1398,7 +1410,7 @@ export const services: Service[] = [
         url: 'https://www.miamidade.gov/global/economy/building/recertification.page',
       },
       checked: officeLinksChecked,
-      toggle: '{n} building offices, city by city',
+      toggle: 'Building offices for {n} places, city by city',
     },
     /* THE MIAMI-DADE PACKAGE. Read on October 7, 2026 at the county's
        recertification page, its upload guidelines (the packet's file list),
@@ -1619,7 +1631,7 @@ export const services: Service[] = [
             { k: 'Applies to', scope: true, v: 'Almost all building types, in every Broward city and the unincorporated area. Outside the program: one- to four-family dwellings of three or fewer habitable stories, fee-simple townhouses, and minor structures under 3,500 sq ft of building area.' },
             { k: 'First due', v: 'At 25 years, counted from the certificate of occupancy.', home: true },
             { k: 'Then', v: 'Every 10 years.', home: true },
-            { k: 'Time to file', v: '180 days from receiving the Notice of Required Inspection. Older guides still say 90 days; the policy in force since August 9, 2024 gives 180. Your city’s letter states its own date.', filing: true, home: true, homeWhole: true },
+            { k: 'Time to file', v: '180 days from receiving the Notice of Required Inspection. Older guides still say 90 days; the policy in force since August 9, 2024 gives 180. The letter you received states its own date.', filing: true, home: true, homeWhole: true },
             { k: 'If repairs are needed', v: '180 days from the date of the report, under permit, unless the Building Official sets a different time. A reinspection, an amended report and a signed and sealed completion letter close the file.', home: true },
             { k: 'Condominiums & co-ops', v: 'The BSIP report serves as phase one and phase two of the state milestone inspection.', home: true },
           ],
@@ -1730,15 +1742,22 @@ export const services: Service[] = [
     ],
     notesToggle: 'All {n} notes',
     /* WHO SENT YOUR NOTICE — the same block, and the same rules, as the
-       Miami-Dade page: each office named as its city's own page names it
-       (read on 2026-10-07), the rows as text, the cities' addresses in
-       `office-pages.ts` and not here.
+       Miami-Dade page: each office named as its city's own page names it,
+       the rows as text, the cities' addresses in `office-pages.ts` and not
+       here. All 31 municipalities and the unincorporated area (the Broward
+       Municipal Services District): the first 23 read on 2026-10-07, the
+       eight from Coconut Creek to West Park and the unincorporated area on
+       2026-10-28. Lazy Lake has no building office of its own: its council
+       approved an interlocal agreement for the county's Building Code
+       Division to do its plan review, permitting and inspections, and the
+       county's own permitting guide lists it — so its row, like the
+       unincorporated area's, names the county's Division.
 
        No fees and no dates, although several of the cities' pages print
        theirs. */
     offices: {
       title: 'Who sent your notice?',
-      lede: 'The program is written for the whole county, and each city’s Building Official sends the notices and receives the reports. Find your city below, next to its building office.',
+      lede: 'The program is written for the whole county, and each city’s Building Official sends the notices and receives the reports — the county’s, in unincorporated Broward. Find your city below, next to its building office.',
       rows: [
         { city: 'Fort Lauderdale', office: 'City of Fort Lauderdale Development Services Department' },
         { city: 'Hollywood', office: 'City of Hollywood Building Division' },
@@ -1763,8 +1782,17 @@ export const services: Service[] = [
         { city: 'Tamarac', office: 'City of Tamarac Building Department' },
         { city: 'Weston', office: 'City of Weston Building Code Services' },
         { city: 'Wilton Manors', office: 'Community Development Services Department' },
+        { city: 'Coconut Creek', office: 'City of Coconut Creek Building Department' },
+        { city: 'Lauderdale-by-the-Sea', office: 'Town of Lauderdale-by-the-Sea Building Division' },
+        { city: 'Lazy Lake', office: 'Broward County Building Code Division' },
+        { city: 'North Lauderdale', office: 'City of North Lauderdale Building Department' },
+        { city: 'Parkland', office: 'City of Parkland Building Department' },
+        { city: 'Sea Ranch Lakes', office: 'Village of Sea Ranch Lakes Building Department' },
+        { city: 'Southwest Ranches', office: 'Town of Southwest Ranches Building Permitting and Inspections' },
+        { city: 'West Park', office: 'City of West Park Building Department' },
+        { city: 'Unincorporated Broward', office: 'Broward County Building Code Division' },
       ],
-      note: 'Your city is not on the list? The program reaches every Broward city, and the letter names the office that sent it. Questions about a notice go to that office. Send us the letter: we read it before we propose.',
+      note: 'All 31 Broward municipalities are listed, and the county’s office for the unincorporated area last. The program reaches every one of them; the letter names the office that sent it, and questions about a notice go to that office. Send us the letter: we read it before we propose.',
       /* The same page as the row's source: the Board's structural and
          electrical forms are listed there, next to the policy. The one page
          this block links, and a county-level one. */
@@ -1774,7 +1802,7 @@ export const services: Service[] = [
         url: 'https://www.broward.org/codeappeals/FormsandContacts',
       },
       checked: officeLinksChecked,
-      toggle: '{n} building offices, city by city',
+      toggle: 'Building offices for {n} places, city by city',
     },
     /* THE BROWARD PACKAGE. Read on October 7, 2026 in the Board of Rules
        and Appeals' current documents: Policy #05-05 (effective August 9,
@@ -3383,7 +3411,19 @@ export const serviceLook: ServiceLook = {
    others are numbered cards. The name is a <div>, not a heading: the program
    pages sit at their ceiling of headings. */
 export type ServiceIncludes = {
-  items: readonly { title: string; line: string; photo?: Photo }[];
+  items: readonly {
+    title: string;
+    line: string;
+    photo?: Photo;
+    /** A part that is in the package only where it applies: its id (a city
+        page whose own city excludes it leaves the card out — cities.ts,
+        `omitIncludes`) and its condition, printed after the title on a city
+        page, which prints the names and not the lines. Title and condition
+        stay under six words together: the same card is on every city page
+        of the county (cities.test.ts). */
+    id?: string;
+    when?: string;
+  }[];
 };
 
 export const serviceIncludes: Record<string, ServiceIncludes> = {
@@ -3391,9 +3431,9 @@ export const serviceIncludes: Record<string, ServiceIncludes> = {
     items: [
       { title: 'Structural inspection', photo: photo.inspectWall, line: 'On site, we check the building from its foundations to its roof — frame, slabs, balconies and facade — and note what needs attention.' },
       { title: 'Electrical inspection', photo: photo.svcElectricalInspection, line: 'Our team checks the building’s electrical systems, from the meter rooms and panels to the emergency lights and fire alarm.' },
-      { title: 'Infrared thermography', photo: photo.svcSwitchgearRoom, line: 'Where the building’s electrical service calls for it, the electrical equipment is inspected in infrared and a written report is attached to the electrical one.' },
-      { title: 'Parking-lot lighting', photo: photo.svcLotLightsNight, line: 'Where it applies, we measure the parking lot’s light levels and record whether they reach the county’s standard.' },
-      { title: 'Parking-lot guardrail', photo: photo.svcLotGuardrail, line: 'Where it applies, we record whether the lot is beside water — a canal, a lake — and, if so, whether the guardrail the county asks for is in place.' },
+      { title: 'Infrared thermography', id: 'thermography', when: 'where required', photo: photo.svcSwitchgearRoom, line: 'Where the building’s electrical service calls for it, the electrical equipment is inspected in infrared and a written report is attached to the electrical one.' },
+      { title: 'Parking-lot lighting', id: 'lot-lighting', when: 'where applicable', photo: photo.svcLotLightsNight, line: 'Where it applies, we measure the parking lot’s light levels and record whether they reach the county’s standard.' },
+      { title: 'Parking-lot guardrail', id: 'lot-guardrail', when: 'where applicable', photo: photo.svcLotGuardrail, line: 'Where it applies, we record whether the lot is beside water — a canal, a lake — and, if so, whether the guardrail the county asks for is in place.' },
     ],
   },
   'broward-bsip': {

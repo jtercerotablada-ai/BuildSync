@@ -1416,6 +1416,17 @@ body:has(.mp-dark) .mp-header.is-stuck:not(.is-menu-open) {
   letter-spacing: 0.14em;
   color: var(--mp-gold);
 }
+/* A city page's card: the number drawn from `data-n`, in the same type. */
+.mp-dark .h-inc__t[data-n]::before {
+  content: attr(data-n);
+  content: attr(data-n) / '';
+  flex: none;
+  font-family: var(--mp-mono);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.14em;
+  color: var(--mp-gold);
+}
 .mp-dark .h-inc__v {
   margin: 0;
   font-size: clamp(15px, 1.05vw, 16.5px);
@@ -1821,4 +1832,145 @@ body:has(.mp-dark) .mp-header.is-stuck:not(.is-menu-open) {
   .mp-dark :is(h1, h2) .mp-serif {
     white-space: normal;
   }
+}
+
+/* ═══ 19 · CITY PAGES IN THE PROGRAM PAGE'S LOOK (2026-10-27) ═════════════ */
+
+/* The owner: "mejora las páginas de las ciudades como building-
+   recertification". How the city runs the program: one card per subject
+   read on its own website, numbered in gold, three to a row. */
+.mp-dark .mp-city--cards {
+  margin-block-start: clamp(32px, 4vw, 56px);
+}
+.mp-dark .mp-city__cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(14px, 1.6vw, 24px);
+  margin: 0;
+  counter-reset: city-card;
+}
+.mp-dark .mp-city__card {
+  counter-increment: city-card;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  padding: clamp(22px, 2.2vw, 32px);
+  background: var(--mp-card);
+  border: 1px solid var(--h-hair-2);
+  border-top: 1px solid var(--mp-gold);
+}
+.mp-dark .mp-city__card dt {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0;
+  font-size: clamp(18px, 1.35vw, 21px);
+  font-weight: 500;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  color: var(--mp-snow);
+}
+.mp-dark .mp-city__card dt::before {
+  content: counter(city-card, decimal-leading-zero);
+  content: counter(city-card, decimal-leading-zero) / '';
+  flex: none;
+  font-family: var(--mp-mono);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.14em;
+  color: var(--mp-gold);
+}
+.mp-dark .mp-city__card dd {
+  margin: 0;
+  font-size: clamp(15px, 1.05vw, 16.5px);
+  line-height: 1.55;
+  color: var(--mp-snow-2);
+  text-wrap: pretty;
+}
+/* A last card alone on its row (seven subjects in threes, five in twos)
+   takes the whole row, its text kept to a reading measure, instead of
+   standing beside empty cells. */
+@media (min-width: 1181px) {
+  .mp-dark .mp-city__card:last-child:nth-child(3n + 1) {
+    grid-column: 1 / -1;
+  }
+}
+.mp-dark .mp-city__card:last-child dd {
+  max-width: 72ch;
+}
+@media (max-width: 1180px) {
+  .mp-dark .mp-city__cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (min-width: 641px) and (max-width: 1180px) {
+  .mp-dark .mp-city__card:last-child:nth-child(2n + 1) {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 640px) {
+  .mp-dark .mp-city__cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Where the report goes: the office as a lifted line under the cards, the
+   label in gold mono, the name in the snow. The card is the WRAPPER's: from
+   761px the paragraph clips the dot of a line that opens a row (mp.css),
+   and it clips at its padding edge — padding on it showed the dot. */
+.mp-dark .mp-cityp .mp-city__officebox {
+  margin-block: clamp(22px, 2.6vw, 36px) 10px;
+  padding: clamp(18px, 1.8vw, 24px) clamp(20px, 2vw, 28px);
+  background: var(--mp-card);
+  border: 1px solid var(--h-hair-2);
+  border-left: 2px solid var(--mp-gold);
+}
+.mp-dark .mp-cityp .mp-city__office {
+  margin: 0;
+  font-size: clamp(15px, 1.1vw, 17px);
+  color: var(--mp-snow-2);
+}
+.mp-dark .mp-cityp .mp-city__office .mp-city__k {
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  color: var(--mp-gold);
+}
+.mp-dark .mp-cityp .mp-city__office .mp-city__name {
+  color: var(--mp-snow);
+}
+
+/* The deadline rows in one lifted card, as the timing card of the
+   program's page. */
+.mp-dark .mp-city__rowscard {
+  padding: clamp(18px, 2vw, 28px) clamp(20px, 2.2vw, 30px) clamp(14px, 1.6vw, 22px);
+  background: var(--mp-card);
+  border: 1px solid var(--h-hair-2);
+}
+.mp-dark .mp-cityp .mp-city__rowscard .mp-city__rows {
+  border-block-end: 0;
+}
+.mp-dark .mp-cityp .mp-city__rows li {
+  color: var(--mp-snow-2);
+}
+.mp-dark .mp-cityp .mp-city__rows b {
+  color: var(--mp-snow);
+}
+.mp-dark .mp-cityp .mp-city__more + .mp-city__more {
+  margin-block-start: 6px;
+}
+/* The way to the county page's who-does-what table, under the cards. */
+.mp-dark .mp-cityp .mp-city__flow {
+  margin-block-start: clamp(28px, 3vw, 40px);
+}
+/* The last band before the contact plate is on paper (graphite, as the
+   plate): a hairline between them, as on the program's page. */
+.mp-dark .mp-cityp:has(> .mp-section:last-child.mp-surface--paper) + .h-contact::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  width: min(var(--h-max), 100% - 2 * var(--h-pad));
+  height: 1px;
+  margin-inline: auto;
+  background: var(--h-hair);
 }

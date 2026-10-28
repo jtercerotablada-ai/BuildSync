@@ -175,7 +175,7 @@ const words = (s: string) => (s.match(/[\p{L}\p{N}][\p{L}\p{N}'’-]*/gu) ?? [])
 const mainOf = (html: string) => html.match(/<main\b[\s\S]*<\/main>/)?.[0] ?? html;
 /** Every block of a page's <main>, the closing band apart (the same on every page, on purpose). */
 const blocks = (html: string) =>
-  [...mainOf(html).replace(/<section class="[^"]*mp-close[^"]*"[\s\S]*?<\/section>/g, '').matchAll(/<(p|dd|dt|li|h[1-6]|blockquote)\b[^>]*>([\s\S]*?)<\/\1>/g)]
+  [...mainOf(html).replace(/<section class="[^"]*mp-close[^"]*"[\s\S]*?<\/section>/g, '').matchAll(/<(p|dd|dt|li|h[1-6]|td|th|blockquote)\b[^>]*>([\s\S]*?)<\/\1>/g)]
     .map((m) => text(m[2]))
     .filter(Boolean);
 const ld = (html: string) =>

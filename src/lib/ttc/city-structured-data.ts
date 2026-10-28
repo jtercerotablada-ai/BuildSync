@@ -36,9 +36,10 @@ export function cityServiceLd(lang: Lang, service: ServiceContent, page: CityPag
     serviceType: service.title,
     provider: { '@id': ORGANIZATION },
     // The city, inside its county: never the county alone, which is the
-    // county page's claim, and never the other county.
+    // county page's claim, and never the other county. Unincorporated
+    // Broward (the county's municipal services district) is no city.
     areaServed: {
-      '@type': 'City',
+      '@type': page.slug.startsWith('unincorporated-') ? 'AdministrativeArea' : 'City',
       name: `${placeName(page.city)}, FL`,
       containedInPlace: { '@type': 'AdministrativeArea', name: COUNTY_NAME[page.program] },
     },

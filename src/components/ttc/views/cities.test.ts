@@ -80,6 +80,11 @@ describe('city pages: the list', () => {
       expect(p.office, p.slug).toEqual(en.office);
       expect(p.local.length, `${p.slug}: rows`).toBe(en.local.length);
       expect(p.faq.length, `${p.slug}: questions`).toBe(en.faq.length);
+      // A part of the package the city's own page excludes is left out of
+      // both pages, and is a part the county package has.
+      expect(p.omitIncludes ?? [], `${p.slug}: omitIncludes`).toEqual(en.omitIncludes ?? []);
+      const ids = getContent('en').serviceIncludes[p.program].items.map((it) => it.id).filter(Boolean);
+      for (const id of en.omitIncludes ?? []) expect(ids, `${p.slug}: ${id}`).toContain(id);
     });
   });
 
@@ -238,6 +243,8 @@ const CITY_SYSTEMS: Record<string, string[]> = {
   // Pages added October 17, 2026: where the city posts its own files.
   'dania-beach': ['content.civicplus.com'],
   'cooper-city': ['files-backend.assets.thrillshare.com', 'aca-prod.accela.com'],
+  // October 28, 2026: the county's own content host, for the county's page.
+  'unincorporated-broward': ['browardcdn.org'],
 };
 
 describe('city pages: where each line was read', () => {
@@ -406,7 +413,7 @@ const mainOf = (html: string) => html.match(/<main\b[\s\S]*<\/main>/)?.[0] ?? ht
 /** Every paragraph, list item, table cell and heading of a page's <main>,
     the closing band apart (it is the same band on every page, on purpose). */
 const blocks = (html: string) =>
-  [...mainOf(html).replace(/<section class="[^"]*mp-close[^"]*"[\s\S]*?<\/section>/g, '').matchAll(/<(p|dd|dt|li|h[1-6]|blockquote)\b[^>]*>([\s\S]*?)<\/\1>/g)]
+  [...mainOf(html).replace(/<section class="[^"]*mp-close[^"]*"[\s\S]*?<\/section>/g, '').matchAll(/<(p|dd|dt|li|h[1-6]|td|th|blockquote)\b[^>]*>([\s\S]*?)<\/\1>/g)]
     .map((m) => text(m[2]))
     .filter(Boolean);
 
@@ -547,6 +554,26 @@ describe('city pages: the page a visitor gets', () => {
         }
       });
 
+      // The photo cards print the names only: a part that is in the package
+      // only where it applies says so in its card, and a part the city's own
+      // page excludes is not printed at all.
+      it(`${name}: what the work includes names no conditional part without its condition`, () => {
+        const cards = [...main.matchAll(/<div class="h-inc__t"[^>]*>([\s\S]*?)<\/div>/g)].map((m) => spaced(m[1]));
+        const items = c.serviceIncludes[p.program].items.filter((it) => !(p.omitIncludes ?? []).includes(it.id ?? ''));
+        expect(cards.length).toBe(items.length);
+        // Miami-Dade's certificates (Broward's garages and parking lots are
+        // a part of its forms wherever there are any, not a certificate).
+        for (const card of p.program === 'broward-bsip' ? [] : cards) {
+          if (/thermograph|termograf|parking|estacionamiento|illuminat|iluminaci|guardrail|baranda/i.test(card)) {
+            expect(card, card).toMatch(/\bwhere\b|\bdonde\b/i);
+          }
+        }
+        for (const id of p.omitIncludes ?? []) {
+          const gone = c.serviceIncludes[p.program].items.find((it) => it.id === id)!;
+          expect(cards.join(' | '), id).not.toContain(gone.title);
+        }
+      });
+
       it(`${name}: says enough to be a page of its own`, () => {
         expect(words(spaced(main.replace(/<section class="[^"]*mp-close[^"]*"[\s\S]*?<\/section>/g, '')))).toBeGreaterThanOrEqual(520);
       });
@@ -554,7 +581,7 @@ describe('city pages: the page a visitor gets', () => {
       it(`${name}: its structured data names the city inside its county, and the questions it prints`, () => {
         const ld = [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map((m) => JSON.parse(m[1]));
         const svc = ld.find((x) => x['@type'] === 'Service');
-        expect(svc.areaServed['@type']).toBe('City');
+        expect(svc.areaServed['@type']).toBe(p.slug.startsWith('unincorporated-') ? 'AdministrativeArea' : 'City');
         expect(svc.areaServed.name).toContain(p.city.replace(/^(City of|Ciudad de) /, ''));
         expect(svc.areaServed.containedInPlace.name).toMatch(p.program === 'broward-bsip' ? /^Broward/ : /^Miami-Dade/);
         expect(svc.url).toBe(absoluteUrl(localePath(cityPath(p), lang)));

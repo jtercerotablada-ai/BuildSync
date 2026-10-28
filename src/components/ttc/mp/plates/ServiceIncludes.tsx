@@ -17,20 +17,41 @@ import { Reveal } from '../primitives';
  * thermography must say where it applies (complete-package.test.ts), and
  * the name alone cannot. The sentence is the card's one <p>.
  *
+ * ON A CITY PAGE (`bare`): the photographs and the names only — the
+ * sentences are the program page's, and a city page prints nothing of six
+ * words that another page prints (cities.test.ts). A part that is in the
+ * package only where it applies keeps its condition after its name
+ * ("Infrared thermography, where required"): the sentence that carried it is
+ * not printed, and "required where" must never read as "always"
+ * (complete-package.test.ts). `omit` leaves out the parts the city's own
+ * page excludes (cities.ts, `omitIncludes`); the cards are numbered as
+ * printed.
+ *
  * A SERVER component; every word is in the HTML.
  */
-export function ServiceIncludes({ lang, slug }: { lang: Lang; slug: string }) {
+export function ServiceIncludes({
+  lang,
+  slug,
+  bare = false,
+  omit = [],
+}: {
+  lang: Lang;
+  slug: string;
+  bare?: boolean;
+  omit?: readonly string[];
+}) {
   const c = getContent(lang);
   const inc = c.serviceIncludes[slug];
   if (!inc) return null;
-  const photos = inc.items.every((it) => it.photo);
+  const items = inc.items.filter((it) => !it.id || !omit.includes(it.id));
+  const photos = items.every((it) => it.photo);
 
   return (
     <ul
       className={photos ? 'h-inc' : 'h-inc h-inc--text'}
-      style={{ '--n': String(inc.items.length) } as React.CSSProperties}
+      style={{ '--n': String(items.length) } as React.CSSProperties}
     >
-      {inc.items.map((it, i) => (
+      {items.map((it, i) => (
         <li key={it.title} className="h-inc__card">
           {it.photo ? (
             <Reveal fx="img" className="h-ph h-inc__ph" style={{ '--ar': '4 / 3' } as React.CSSProperties}>
@@ -39,10 +60,19 @@ export function ServiceIncludes({ lang, slug }: { lang: Lang; slug: string }) {
               </div>
             </Reveal>
           ) : null}
-          <div className="h-inc__t">
-            <span className="h-inc__n">{String(i + 1).padStart(2, '0')}</span> {it.title}
-          </div>
-          <p className="h-inc__v">{it.line}</p>
+          {/* On a city page the number is drawn (dark.css, `data-n`), not
+              printed: the name and its condition are the card's text, under
+              six words — the same card is on every city page of the county. */}
+          {bare ? (
+            <div className="h-inc__t" data-n={String(i + 1).padStart(2, '0')}>
+              {it.when ? `${it.title}, ${it.when}` : it.title}
+            </div>
+          ) : (
+            <div className="h-inc__t">
+              <span className="h-inc__n">{String(i + 1).padStart(2, '0')}</span> {it.title}
+            </div>
+          )}
+          {bare ? null : <p className="h-inc__v">{it.line}</p>}
         </li>
       ))}
     </ul>

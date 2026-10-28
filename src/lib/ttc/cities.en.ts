@@ -218,6 +218,7 @@ export const cityPagesEn: readonly CityPage[] = [
     program: 'building-recertification',
     city: 'Doral',
     place: 'Doral',
+    omitIncludes: ['lot-guardrail'],
     office: {
       name: 'City of Doral Building Department',
       address: ['8401 NW 53rd Terrace', 'Doral, FL 33166'],
@@ -1781,7 +1782,7 @@ export const cityPagesEn: readonly CityPage[] = [
       },
       {
         q: 'What happens in Davie if the BSIP report is late, and can we ask for more time?',
-        a: 'Davie’s program page answers neither question. It counts the time to file from the date of the notice, but it describes no way to ask for more time and says nothing about a late report. The time itself is the county’s, in the rows above. If your date is close or already past, send us the notice now, so we can confirm with the Building Division what it is asking for and by when.',
+        a: 'Davie’s program page answers neither question. It counts the time to file from the date of the notice, where the county’s rows above count it from the day the notice is received — so plan from the earlier one, the date printed on the letter. It describes no way to ask for more time and says nothing about a late report. If your date is close or already past, send us the notice now, so we can confirm with the Building Division what it is asking for and by when.',
       },
       {
         q: 'Is Davie’s BSIP the same as the 40-year inspection?',
@@ -2446,5 +2447,109 @@ export const cityPagesEn: readonly CityPage[] = [
     nextStep:
       'Send the Building Official’s notice for your Wilton Manors building, or a photo of it; if nothing has come yet, the address and the year of its certificate of occupancy are enough to start. We check with Community Development Services what it expects and reply with a proposal for the complete BSIP inspection and report.',
     checkedISO: '2026-10-17',
+  },
+  {
+    slug: 'coconut-creek',
+    program: 'broward-bsip',
+    city: 'Coconut Creek',
+    place: 'Coconut Creek',
+    office: {
+      name: 'City of Coconut Creek Building Department',
+      address: ['Coconut Creek Government Center', '4800 West Copans Road', 'Coconut Creek, FL 33063'],
+      phone: '(954) 973-6750',
+    },
+    description:
+      'Building Safety Inspection Program (BSIP) in Coconut Creek: the office that runs it, the form in its permit table, and what to ask before filing.',
+    heroSub:
+      'Coconut Creek’s Building Department points readers to Broward County for the program, and the city’s permit table names a BSIP Inspection Form. Already late? One team still takes a Coconut Creek building through the complete BSIP inspection and report, start to finish.',
+    lede:
+      'In Coconut Creek the Building Safety Inspection Program (BSIP) sits with the City of Coconut Creek Building Department, part of the Resilient Design and Development Department, and the city’s budget lists it among the building permits that Building Services administers. The department’s page gives the program a short section that sends readers on to Broward County’s own page; the city’s pages describe no procedure of their own.',
+    local: [
+      { k: 'Who runs it', v: 'Coconut Creek’s current adopted budget says Building Services administers building permits that include the Building Safety Inspection Program, alongside special event permits and assessments of unsafe structures. On the city’s website, building permits come under the Building Department, which its page also calls the Building Division, within Resilient Design and Development, formerly Sustainable Development.' },
+      { k: 'Where the city points', v: 'The Building Department’s page has a Building Safety Program section, and the section’s link leads to Broward County’s Building Safety Inspection Program page. Coconut Creek does not restate the county’s rules there; the county’s ages and times are set out in the rows above, while the date that binds each building is the one on its letter.' },
+      { k: 'Mitigation audit education', v: 'Under the same Building Safety Program heading, the city says it offers community education on mitigation audits for older homes, businesses and local government buildings, as part of Emergency Management and Safety. The section does not say how that education relates to the inspection and reports the county program requires.' },
+      { k: 'The permit table', v: 'Coconut Creek’s Permit Types and Requirements page has a table of required forms and documentation, and one of its columns is headed “BSIP Inspection Form”. The page neither links nor explains that form, and a search of the city’s website for BSIP returns that page alone; which form the column means is the first thing we ask the Building Department.' },
+      { k: 'Filing the report', v: 'The city’s pages do not say where or how a BSIP report is filed. For permits, the Building Department’s page says contractors apply through ePermits and that uploads must be regular unlocked PDF files, not PDF portfolios; whether the reports take the same route is a question we put to the department before filing.' },
+      { k: 'The budgets on the program', v: 'Coconut Creek’s previous adopted budget gave the Building Division an objective to streamline the Building Safety Inspection Program for efficiency in reporting and tracking. The current one lists that among the division’s accomplishments, and its General Fund overview shows an increase in professional services to conduct the county’s program.' },
+      { k: 'Two budgets, two names', v: 'The previous budget called this work the 40-year-old Building Inspection process; in the same place, the current one names the Building Safety Inspection Program. The ages that govern are set by the county, under “First due” and “Then” in the rows above; they are not taken from either budget.' },
+      { k: 'What the pages omit', v: 'Coconut Creek’s pages leave several things unsaid: who issues the notice and how it reaches an owner, how the reports are reviewed, how repairs under the program are permitted, and what happens if a report comes in late. For those, the letter your building received, if one has come, and the rows above are the guides; anything else has to be asked of the Building Department.' },
+    ],
+    faq: [
+      {
+        q: 'Who sends the BSIP notice in Coconut Creek?',
+        a: 'The city’s pages do not say, and the program section on the Building Department’s page names no sender. The letter itself is the record of who sent it and what it asks for. From a phone photo of it, we can read the request and the date.',
+      },
+      {
+        q: 'How do we file the BSIP report in Coconut Creek?',
+        a: 'The city’s pages give no route for the report. Contractors apply for permits through the Building Department’s ePermits, where uploaded documents must be regular unlocked PDF files, and the department’s permit table has a column headed BSIP Inspection Form, with no form linked. We ask the department which route and format it wants for the reports, and deliver the complete BSIP inspection and report in that form.',
+      },
+      {
+        q: 'Which office handles the BSIP in Coconut Creek?',
+        a: 'The City of Coconut Creek Building Department, within the Resilient Design and Development Department, whose page counts building permits among its services; in the budget, the program falls under Building Services. For building permits, the Resilient Design and Development page lists the same number printed above with the office’s address.',
+      },
+      {
+        q: 'How long do we have to file the BSIP report in Coconut Creek?',
+        a: 'The time is Broward’s, printed above under “Time to file”; for repairs, see “If repairs are needed”. Coconut Creek’s pages state no time of their own and describe neither an extension nor what follows a late report. If the date on the letter for your Coconut Creek building is near or has passed, send us the letter today.',
+      },
+      {
+        q: 'Is the Coconut Creek BSIP the program once called the 40-year inspection?',
+        a: 'Yes. Coconut Creek’s previous adopted budget called the work the 40-year-old Building Inspection process; in the same place, the current budget names the Building Safety Inspection Program. Its General Fund overview refers to the Broward County program. Either way it is the one county program; for today’s ages, read “First due” and “Then” in the rows above.',
+      },
+    ],
+    nextStep:
+      'Send the letter your Coconut Creek building received — a phone picture will do — or, if no letter has arrived yet, the address and the year of the certificate of occupancy. We ask the City of Coconut Creek Building Department which form its permit table means and how it wants the filing, then send you a proposal for the complete BSIP inspection and report.',
+    checkedISO: '2026-10-28',
+  },
+  {
+    slug: 'unincorporated-broward',
+    program: 'broward-bsip',
+    city: 'Unincorporated Broward',
+    place: 'unincorporated Broward',
+    office: {
+      name: 'Broward County Building Code Division',
+      address: ['2307 W. Broward Boulevard, Suite 300', 'Fort Lauderdale, FL 33312'],
+      phone: '(954) 765-4400',
+    },
+    description:
+      'Building Safety Inspection Program (BSIP) in unincorporated Broward: the county’s own Building Code Division, the filing, extensions and repair permits.',
+    heroSub:
+      'In unincorporated Broward the county is its own building department: the Building Code Division takes the BSIP application and issues the permits for any repairs. Already late? One team still delivers the complete BSIP inspection and report, filed with the county itself.',
+    lede:
+      'In unincorporated Broward, which the county calls the Broward Municipal Services District (BMSD), the Building Safety Inspection Program (BSIP) is handled by the Broward County Building Code Division, part of the Public Works and Environmental Services Department. The Division provides permitting, code compliance and enforcement to the district, and the county keeps the program’s code section and both of its report forms on its own site.',
+    local: [
+      { k: 'Where the Division serves', v: 'The Building Code page places Boulevard Gardens, Broadview Park, Franklin Park, Hillsboro Pines, Hillsboro Ranches, Roosevelt Gardens and Washington Park inside the Broward Municipal Services District. The Division also regulates construction for cities that contract with it; its ePermits guide lists the Village of Lazy Lake among the interlocal-agreement municipalities that cannot use ePermits for now.' },
+      { k: 'The Building Official’s role', v: 'The county amendment to the Florida Building Code on the program makes the Building Official its enforcer and draws the minimum requirements from the Board of Rules and Appeals’ written policy. For a building in the district, the office behind that role is the county’s Building Code Division.' },
+      { k: 'The notice', v: 'The county’s Building Code page is silent on how the notice reaches a building in the district, or who sends it. Both report forms the county posts start their inspections section by asking when the Notice of Required Inspection was dated, so hold on to the notice and mark the day it came in.' },
+      { k: 'Filing the report', v: 'In the district, the BSIP filing is an application to the county. The General Information Form packet speaks of an application for recertification under the Broward County Building Safety Inspection Program, treats each later recertification of the same building as an application of its own, and lists an extension request beside them.' },
+      { k: 'Forms, questions and status', v: 'For information, the submission of forms or an update on a file, the Building Code page asks people to call the Division’s main line or visit its office. The same page warns that ePermits may be unavailable while the county upgrades its website, so we ask the Division which way it wants the report delivered before it goes in.' },
+      { k: 'The report forms', v: 'Broward County posts fillable structural and electrical BSIP inspection forms, and the Division’s Virtual Operations sheet lists the program among its applications. Each form states that the report follows the minimum inspection guidelines for building safety inspection listed in the Board of Rules and Appeals’ policy.' },
+      { k: 'The property’s record', v: 'The county’s structural form asks whether the property record was researched for current code violations or unsafe structure cases. In the district both subjects belong to the Building Code Division, which also takes requests for building records; its request form cautions that it may no longer hold records for properties now in annexed municipalities.' },
+      { k: 'Repair permits', v: 'If the report lists repairs, their permits come from the same Division, which its ePermits guide says holds permitting jurisdiction for properties in the district. The guide asks for the current Broward County Uniform Permit Application with every submittal, and a permit file opened in person has to continue in person.' },
+    ],
+    faq: [
+      {
+        q: 'Who sends the BSIP notice in unincorporated Broward?',
+        a: 'The county’s Building Code page does not say. What the county amendment behind the program does say is who enforces it: the Building Official, and for the district that is the Building Official of the Broward County Building Code Division. Since both report forms ask for the notice’s date, send us a phone photo of it and we will tell you what it asks for and how long you have.',
+      },
+      {
+        q: 'How do we file the BSIP report in unincorporated Broward?',
+        a: 'As an application under the Broward County Building Safety Inspection Program, with the Broward County Building Code Division; the county’s packet uses those words for the first filing and for each later one. For submitting forms, the Division’s page points to its main line or its office, and it warns that ePermits may be down, so we confirm the route before the complete BSIP inspection and report goes in.',
+      },
+      {
+        q: 'Can we get more time for the BSIP in unincorporated Broward?',
+        a: 'The county’s General Information Form packet lists an extension request for a recertification, the first one or a later one, under the Broward County Building Safety Inspection Program. The Division’s page gives no length for an extension; the times the county sets are in the rows “Time to file” and, for the work, “If repairs are needed”.',
+      },
+      {
+        q: 'How do we know a building is in unincorporated Broward?',
+        a: 'The Building Code page says the Broward Municipal Services District includes Boulevard Gardens, Broadview Park, Franklin Park, Hillsboro Pines, Hillsboro Ranches, Roosevelt Gardens and Washington Park. A building there falls under the county’s permitting jurisdiction. For an area since annexed by a city, the county warns it may no longer hold the records; when in doubt, the address alone is enough for us to check which office it answers to.',
+      },
+      {
+        q: 'Who issues BSIP repair permits in unincorporated Broward?',
+        a: 'The Broward County Building Code Division, which holds permitting jurisdiction for properties in the district. Its ePermits guide asks for the current Broward County Uniform Permit Application with each submittal and says a file first submitted in person stays in person to the end. For the time the county allows the work, see “If repairs are needed”.',
+      },
+    ],
+    nextStep:
+      'Send the notice your building in unincorporated Broward received — a phone photo is plenty. If none has arrived, send the street address and the year printed on the building’s certificate of occupancy. We check with the Broward County Building Code Division how it is taking BSIP filings now, and answer with a proposal that covers the complete BSIP inspection and report.',
+    checkedISO: '2026-10-28',
   },
 ];
